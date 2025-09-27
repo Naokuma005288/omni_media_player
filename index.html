@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OmniMedia – ランディング v1.4</title>
+<style>
+  :root{
+    --bg:#0b0e12;--panel:#0f141b;--panel2:#0b1118;--text:#e8edf3;--muted:#a6b0bb;--accent:#74b3ff;
+    --ring:#243246;--shadow: 0 20px 60px rgba(0,0,0,.35)
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f8fb; --panel:#ffffff; --panel2:#f3f6fb; --text:#0c1116; --muted:#5b6773; --ring:#dbe4f0; --shadow:0 14px 40px rgba(15,30,60,.08) }
+  }
+  [data-theme="light"]{ --bg:#f6f8fb; --panel:#ffffff; --panel2:#f3f6fb; --text:#0c1116; --muted:#5b6773; --ring:#dbe4f0; --shadow:0 14px 40px rgba(15,30,60,.08) }
+
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif}
+  .wrap{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
+  header,footer{display:flex;align-items:center;gap:.75rem;padding:10px 14px}
+  header{justify-content:space-between}
+  .brand{display:flex;gap:.6rem;align-items:center}
+  .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7cc1ff,#6c8dff);box-shadow:0 4px 20px rgba(100,150,255,.35)}
+  h1{font-size:16px;margin:0}
+  .spacer{flex:1}
+  .chip{padding:.25rem .5rem;border-radius:8px;border:1px solid var(--ring);color:var(--muted)}
+
+  main{display:grid;place-items:center;padding:22px}
+  .grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .card{position:relative;background:var(--panel);border:1px solid var(--ring);border-radius:14px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+  .card h2{font-size:18px;margin:4px 0 2px}
+  .card p{color:var(--muted);margin:0}
+  .thumb{width:100%;aspect-ratio:16/9;border-radius:10px;object-fit:cover;border:1px solid var(--ring);background:var(--panel2)}
+  .cta{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .btn{appearance:none;border:1px solid var(--ring);background:var(--panel2);color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer;text-decoration:none}
+  .btn:hover{filter:brightness(1.05)}
+  .btn.primary{background:linear-gradient(180deg,#1a2635,#121a24);color:#eaf4ff;border-color:#2a3a52}
+  .btn.ghost{background:transparent}
+  .hint{font-size:12px;color:var(--muted)}
+  .rec{position:absolute;top:10px;right:10px;padding:.15rem .45rem;border-radius:999px;background:#122132;border:1px solid #28405a;color:#cfe5ff;font-size:12px}
+
+  .diag{margin-top:10px;border-top:1px dashed var(--ring);padding-top:10px;font-size:12px;color:var(--muted)}
+  .diag span{display:inline-block;margin:2px 6px 2px 0;padding:.1rem .4rem;border:1px solid var(--ring);border-radius:999px}
+
+  .utils{width:min(980px,92vw);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:20px}
+  .left, .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .kbd{font:12px/1 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--ring);padding:.2rem .45rem;border-radius:8px;color:var(--muted)}
+
+  footer{justify-content:space-between;color:var(--muted);font-size:12px;border-top:1px solid var(--ring)}
+
+  .banner{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;display:none;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--ring);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);z-index:60}
+  .banner .count{font-weight:600}
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:80}
+  .modal .card{width:min(720px,92vw);max-height:80vh;overflow:auto}
+  .modal h3{margin:4px 0 6px}
+  .modal ul{margin:0 0 6px 1.2em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <h1>OmniMedia – ランディング</h1>
+    </div>
+    <div class="spacer"></div>
+    <div class="chip" id="lastChip" aria-live="polite">最終使用: なし</div>
+    <button id="theme" class="btn" title="ダーク/ライト切替 (Y)" aria-pressed="false">テーマ切替</button>
+  </header>
+
+  <main>
+    <div class="grid">
+      <article class="card" id="cardTouch">
+        <span class="rec" id="recTouch" style="display:none">推奨</span>
+        <img class="thumb" src="thumb_touch.png" alt="タッチ版プレビュー" onerror="this.style.display='none'"/>
+        <h2>タッチ操作対応版</h2>
+        <p>スマホ/タブレット向け。ダブルタップ±10s、長押し再生/停止、スワイプスクラブなど。</p>
+        <div class="cta">
+          <a class="btn primary" href="./omni_touch.html" id="goTouch" title="開く (T)" rel="noopener">開く</a>
+          <a class="btn ghost" href="./omni_touch.html#help" rel="noopener">ヘルプ</a>
+        </div>
+        <div class="diag" id="diagTouch"></div>
+      </article>
+
+      <article class="card" id="cardPc">
+        <span class="rec" id="recPc" style="display:none">推奨</span>
+        <img class="thumb" src="thumb_pc.png" alt="PC版プレビュー" onerror="this.style.display='none'"/>
+        <h2>PC向けHTML版</h2>
+        <p>キーボード&マウス最適化。HLS/YouTube/外部字幕/ABループ/プレビュー/クリップ書き出し。</p>
+        <div class="cta">
+          <a class="btn primary" href="./omni_pc.html" id="goPc" title="開く (P/Enter)" rel="noopener">開く</a>
+          <a class="btn ghost" href="./omni_pc.html#help" rel="noopener">ショートカット</a>
+        </div>
+        <div class="diag" id="diagPc"></div>
+      </article>
+    </div>
+
+    <div class="utils">
+      <div class="left">
+        <span class="kbd">? でショートカット（各プレイヤー内）</span>
+        <button id="openLast" class="btn" title="Enter">最後に使った方を開く</button>
+        <button id="resetLast" class="btn ghost">履歴クリア</button>
+      </div>
+      <div class="right hint" id="env"></div>
+    </div>
+  </main>
+
+  <footer>
+    <div>v1.4 – 推奨ページの自動遷移改善＆細部修正。<code>#auto=off</code> で自動遷移を無効化。</div>
+    <div><a class="btn ghost" href="#" id="copyDiag">診断をコピー</a></div>
+  </footer>
+</div>
+
+<div class="banner" id="banner" role="status" aria-live="polite">
+  <span id="banMsg">推奨ページに <span class="count" id="banCount">1.5</span> 秒後に移動します…</span>
+  <button class="btn" id="banCancel">キャンセル</button>
+</div>
+
+<div class="modal" id="modal" aria-modal="true" role="dialog">
+  <div class="card">
+    <h3>v1.4 の変更点</h3>
+    <ul>
+      <li>自動遷移の確実化（キャンセル時の記憶、最終使用の保存）</li>
+      <li>診断コピーの改行バグ修正</li>
+      <li>アクセシビリティ向上（ARIA, focus）</li>
+    </ul>
+    <div class="cta"><button class="btn primary" id="modalClose">閉じる</button></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+  const $ = (s, r=document)=>r.querySelector(s);
+  const lastKey   = 'om.lastUsed';
+  const themeKey  = 'om.theme';
+  const verKey    = 'om.index.version';
+  const autoKey   = 'om.index.auto'; // 'on' | 'off'
+  const ver       = '1.4';
+
+  // --- Theme ---
+  function applyTheme(t){
+    if(!t) return;
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem(themeKey, t);
+    $('#theme').setAttribute('aria-pressed', String(t==='light'));
+  }
+  $('#theme').addEventListener('click', ()=>{
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(cur==='light' ? 'dark' : 'light');
+  });
+  (function initTheme(){
+    const t = localStorage.getItem(themeKey);
+    if(t) applyTheme(t);
+  })();
+
+  // --- Device recommendation ---
+  const hasTouch = (navigator.maxTouchPoints || 0) > 0;
+  const isDesktopLike = !hasTouch && /Windows|Mac|Linux/i.test(navigator.userAgent);
+  $('#recTouch').style.display = hasTouch ? 'inline-block' : 'none';
+  $('#recPc').style.display    = isDesktopLike ? 'inline-block' : 'none';
+
+  // --- Last used ---
+  function setLast(which){
+    try{
+      localStorage.setItem(lastKey, which);
+      $('#lastChip').textContent = '最終使用: ' + (which==='pc' ? 'PC版' : 'タッチ版');
+    }catch{}
+  }
+  function showLast(){
+    const v = localStorage.getItem(lastKey);
+    $('#lastChip').textContent = '最終使用: ' + (v ? (v==='pc'?'PC版':'タッチ版') : 'なし');
+  }
+  showLast();
+  $('#goPc').addEventListener('click',()=> setLast('pc'));
+  $('#goTouch').addEventListener('click',()=> setLast('touch'));
+  $('#openLast').addEventListener('click',()=>{
+    const v = localStorage.getItem(lastKey);
+    location.href = v==='pc' ? './omni_pc.html' : v==='touch' ? './omni_touch.html' : './omni_pc.html';
+  });
+  $('#resetLast').addEventListener('click',()=>{
+    localStorage.removeItem(lastKey);
+    showLast();
+  });
+
+  // --- Capability diagnostics ---
+  function cap(name, ok){ return `<span>${ok ? '✅' : '❌'} ${name}</span>` }
+  const videoProbe = document.createElement('video');
+  const hlsNative  = !!videoProbe.canPlayType('application/vnd.apple.mpegurl');
+  const pip        = 'pictureInPictureEnabled' in document;
+  const mediaRec   = 'MediaRecorder' in window;
+  const fsAccess   = 'showOpenFilePicker' in window;
+  const ua         = navigator.userAgent;
+  $('#diagPc').innerHTML = [cap('HLSネイティブ', hlsNative), cap('PiP', pip), cap('MediaRecorder', mediaRec), cap('File System Access', fsAccess)].join(' ');
+  $('#diagTouch').innerHTML = cap('タッチ検出', (navigator.maxTouchPoints||0)>0);
+  $('#env').textContent = `${ua}`;
+
+  // --- Copy diagnostics (改行バグ修正) ---
+  $('#copyDiag').addEventListener('click',(e)=>{
+    e.preventDefault();
+    const data = [
+      'OmniMedia 診断情報',
+      'UA: ' + navigator.userAgent,
+      'Touch: ' + (navigator.maxTouchPoints||0),
+      'HLS native: ' + hlsNative,
+      'PiP: ' + pip,
+      'MediaRecorder: ' + mediaRec,
+      'FS Access: ' + fsAccess,
+      'Theme: ' + (document.documentElement.getAttribute('data-theme') || '(auto)')
+    ].join('\n');
+    (navigator.clipboard?.writeText(data) || Promise.reject()).catch(()=>{
+      // フォールバック
+      const ta = document.createElement('textarea');
+      ta.value = data; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy') }catch{}
+      ta.remove();
+    });
+    alert('診断情報をコピーしました');
+  });
+
+  // --- Auto redirect to recommended ---
+  const banner   = $('#banner');
+  const banCount = $('#banCount');
+  const banCancel= $('#banCancel');
+
+  function recommended(){
+    const last = localStorage.getItem(lastKey);
+    if(last) return last;
+    return isDesktopLike ? 'pc' : hasTouch ? 'touch' : 'pc';
+  }
+  function go(which){
+    setLast(which); // 遷移時にも最終使用を保存
+    location.href = which==='pc' ? './omni_pc.html' : './omni_touch.html';
+  }
+
+  // ハッシュ or 記憶で自動遷移の有効/無効を決定
+  const params  = new URL(location.href).hash;
+  const hashAutoOff = params.includes('auto=off');
+  const savedAuto   = localStorage.getItem(autoKey); // 'off'なら無効
+  const autoOff = hashAutoOff || savedAuto==='off';
+
+  if(hashAutoOff){ localStorage.setItem(autoKey, 'off') } // 一度 #auto=off なら記憶
+  if(!autoOff){
+    let t = 1.5;
+    banner.style.display = 'flex';
+    banCount.textContent = t.toFixed(1);
+    const timer = setInterval(()=>{
+      t -= 0.1;
+      banCount.textContent = Math.max(0, t).toFixed(1);
+      if(t <= 0){
+        clearInterval(timer);
+        go(recommended());
+      }
+    }, 100);
+    banCancel.addEventListener('click', ()=>{
+      banner.style.display = 'none';
+      clearInterval(timer);
+      localStorage.setItem(autoKey, 'off'); // ユーザーがキャンセルしたら次回も無効
+    });
+  }
+
+  // --- Keyboard shortcuts on landing ---
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='p' || e.key==='P'){ setLast('pc'); go('pc'); }
+    else if(e.key==='t' || e.key==='T'){ setLast('touch'); go('touch'); }
+    else if(e.key==='Enter'){ $('#openLast').click(); }
+    else if(e.key==='y' || e.key==='Y'){ $('#theme').click(); }
+  });
+
+  // --- Changelog modal (once per version) ---
+  (function showChangelogOnce(){
+    try{
+      const seen = localStorage.getItem(verKey);
+      if(seen !== ver){
+        $('#modal').style.display = 'flex';
+        localStorage.setItem(verKey, ver);
+      }
+    }catch{}
+  })();
+  $('#modalClose').addEventListener('click',()=> $('#modal').style.display='none');
+})();
+</script>
+</body>
+</html>
