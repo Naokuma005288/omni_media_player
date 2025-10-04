@@ -1,283 +1,344 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>OmniMedia – ランディング v1.4</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OmniMedia – Landing v5.3.2</title>
+<meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 <style>
-  :root{
-    --bg:#0b0e12;--panel:#0f141b;--panel2:#0b1118;--text:#e8edf3;--muted:#a6b0bb;--accent:#74b3ff;
-    --ring:#243246;--shadow: 0 20px 60px rgba(0,0,0,.35)
-  }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#f6f8fb; --panel:#ffffff; --panel2:#f3f6fb; --text:#0c1116; --muted:#5b6773; --ring:#dbe4f0; --shadow:0 14px 40px rgba(15,30,60,.08) }
-  }
-  [data-theme="light"]{ --bg:#f6f8fb; --panel:#ffffff; --panel2:#f3f6fb; --text:#0c1116; --muted:#5b6773; --ring:#dbe4f0; --shadow:0 14px 40px rgba(15,30,60,.08) }
+:root{
+  --bg:#0b0e12;--panel:#0f141b;--panel2:#0b1118;--text:#e8edf3;--muted:#a6b0bb;
+  --accent:#74b3ff;--ring:#243246;--shadow:0 20px 60px rgba(0,0,0,.35);
+  --ok:#2ecc71;--warn:#c7a300;--test:#ff6f61;--mobile:#00bcd4;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+[data-theme="light"]{
+  --bg:#f4f7fb;--panel:#fff;--panel2:#f3f6fb;--text:#0c1116;--muted:#5b6773;
+  --accent:#3478ff;--ring:#dbe4f0;--shadow:0 14px 40px rgba(15,30,60,.08);
+}
 
-  html,body{height:100%}
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif}
-  .wrap{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
-  header,footer{display:flex;align-items:center;gap:.75rem;padding:10px 14px}
-  header{justify-content:space-between}
-  .brand{display:flex;gap:.6rem;align-items:center}
-  .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7cc1ff,#6c8dff);box-shadow:0 4px 20px rgba(100,150,255,.35)}
-  h1{font-size:16px;margin:0}
-  .spacer{flex:1}
-  .chip{padding:.25rem .5rem;border-radius:8px;border:1px solid var(--ring);color:var(--muted)}
+html,body{
+  height:100%;
+  margin:0;
+  font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif;
+  background:var(--bg);color:var(--text);
+  overflow:hidden;
+}
 
-  main{display:grid;place-items:center;padding:22px}
-  .grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-  .card{position:relative;background:var(--panel);border:1px solid var(--ring);border-radius:14px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
-  .card h2{font-size:18px;margin:4px 0 2px}
-  .card p{color:var(--muted);margin:0}
-  .thumb{width:100%;aspect-ratio:16/9;border-radius:10px;object-fit:cover;border:1px solid var(--ring);background:var(--panel2)}
-  .cta{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-  .btn{appearance:none;border:1px solid var(--ring);background:var(--panel2);color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer;text-decoration:none}
-  .btn:hover{filter:brightness(1.05)}
-  .btn.primary{background:linear-gradient(180deg,#1a2635,#121a24);color:#eaf4ff;border-color:#2a3a52}
-  .btn.ghost{background:transparent}
-  .hint{font-size:12px;color:var(--muted)}
-  .rec{position:absolute;top:10px;right:10px;padding:.15rem .45rem;border-radius:999px;background:#122132;border:1px solid #28405a;color:#cfe5ff;font-size:12px}
+/* === 背景層 === */
+.bg{
+  position:fixed;inset:0;z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 25% 35%,#1b283a 0%,transparent 60%),
+    radial-gradient(circle at 75% 70%,#0e1827 0%,transparent 70%);
+  animation:bgFlow 30s ease-in-out infinite alternate;
+  filter:blur(3px);
+}
+@keyframes bgFlow{
+  0%{filter:hue-rotate(0deg) brightness(0.9);}
+  50%{filter:hue-rotate(100deg) brightness(1.1);}
+  100%{filter:hue-rotate(160deg) brightness(0.9);}
+}
+.bokeh{
+  position:absolute;width:240px;height:240px;border-radius:50%;
+  pointer-events:none;
+  background:radial-gradient(circle,var(--accent)45%,transparent 80%);
+  mix-blend-mode:screen;opacity:.25;
+  animation:bokehMove 25s ease-in-out infinite;
+}
+@keyframes bokehMove{
+  0%{transform:translate3d(0,0,0);}
+  50%{transform:translate3d(80px,-60px,30px) scale(1.2);}
+  100%{transform:translate3d(0,0,0);}
+}
+.bokeh:nth-child(1){top:10%;left:15%;animation-delay:-3s;}
+.bokeh:nth-child(2){top:55%;left:65%;animation-delay:-8s;}
+.bokeh:nth-child(3){top:75%;left:25%;animation-delay:-11s;}
+.bokeh:nth-child(4){top:80%;left:85%;animation-delay:-5s;}
 
-  .diag{margin-top:10px;border-top:1px dashed var(--ring);padding-top:10px;font-size:12px;color:var(--muted)}
-  .diag span{display:inline-block;margin:2px 6px 2px 0;padding:.1rem .4rem;border:1px solid var(--ring);border-radius:999px}
+/* === 粒子 === */
+.particle{
+  position:fixed;width:2px;height:2px;border-radius:50%;
+  pointer-events:none;
+  background:var(--accent);opacity:.15;mix-blend-mode:screen;
+  animation:fall var(--spd) linear infinite;
+  transform:translateZ(var(--z));
+}
+@keyframes fall{
+  0%{transform:translateY(-5px) translateX(var(--x)) translateZ(var(--z));opacity:0;}
+  10%{opacity:.8}
+  100%{transform:translateY(100vh) translateX(calc(var(--x) + 20px)) translateZ(var(--z));opacity:0;}
+}
 
-  .utils{width:min(980px,92vw);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:20px}
-  .left, .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .kbd{font:12px/1 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--ring);padding:.2rem .45rem;border-radius:8px;color:var(--muted)}
+/* === 光カーソル === */
+.cursor{
+  position:fixed;width:340px;height:340px;border-radius:50%;
+  pointer-events:none;
+  background:radial-gradient(circle,var(--accent)40%,transparent 70%);
+  mix-blend-mode:overlay;z-index:2;
+  transform:translate(-170px,-170px);
+  transition:transform .3s ease-out,opacity .4s;
+  opacity:.5;
+}
 
-  footer{justify-content:space-between;color:var(--muted);font-size:12px;border-top:1px solid var(--ring)}
+/* === レイアウト === */
+.wrap{
+  position:relative;
+  z-index:5;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  height:100vh;
+}
+header,footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;}
+.brand{display:flex;align-items:center;gap:.6rem;}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7cc1ff,#6c8dff);
+  box-shadow:0 4px 20px rgba(100,150,255,.35)}
+h1{font-size:16px;margin:0}
+.version{font-size:12px;color:var(--muted);margin-left:8px}
 
-  .banner{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;display:none;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--ring);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);z-index:60}
-  .banner .count{font-weight:600}
+/* === ボタン === */
+.btn{
+  position:relative;
+  border:1px solid var(--ring);
+  background:var(--panel2);
+  color:var(--text);
+  padding:8px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  z-index:2;
+  transition:background .25s, box-shadow .25s, transform .15s;
+}
+.btn:hover{
+  background:linear-gradient(180deg,var(--accent),var(--panel2));
+  color:#fff;
+  box-shadow:0 0 12px rgba(116,179,255,.4);
+}
+.btn:active{
+  transform:scale(0.97);
+  box-shadow:0 0 6px rgba(116,179,255,.2);
+}
 
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:80}
-  .modal .card{width:min(720px,92vw);max-height:80vh;overflow:auto}
-  .modal h3{margin:4px 0 6px}
-  .modal ul{margin:0 0 6px 1.2em}
+main{display:grid;place-items:center;padding:22px;}
+.grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;perspective:1000px;}
+.card{
+  background:var(--panel);border:1px solid var(--ring);border-radius:16px;padding:18px;
+  box-shadow:var(--shadow);position:relative;opacity:0;
+  transform:translateY(20px) rotateX(5deg) rotateY(-5deg) scale(0.98);
+  transition:transform .3s var(--ease),box-shadow .3s var(--ease),filter .3s,opacity .4s;
+  transform-style:preserve-3d;will-change:transform;
+}
+.card:hover{
+  transform:rotateY(var(--rY)) rotateX(var(--rX)) translateZ(40px) scale(1.06);
+  box-shadow:0 25px 60px rgba(0,0,0,.5);
+}
+.card.focused{
+  transform:rotateY(0deg) rotateX(0deg) translateZ(100px) scale(1.15);
+  box-shadow:0 40px 100px rgba(0,0,0,.7);
+  filter:brightness(1.1);
+}
+.card.focused .btn{
+  box-shadow:0 0 14px rgba(116,179,255,.4);
+  background:linear-gradient(180deg,var(--accent),var(--panel2));
+  color:#fff;
+}
+.card.focused::before{
+  content:"";position:absolute;inset:-4px;border-radius:18px;
+  background:radial-gradient(circle,var(--accent)35%,transparent 70%);
+  opacity:.5;filter:blur(30px);
+  animation:focusPulse 1.3s ease-in-out infinite alternate;
+}
+@keyframes focusPulse{from{opacity:.4;transform:scale(1)}to{opacity:.9;transform:scale(1.05)}}
+.card.unfocus{animation:unfocusFade .6s ease both;}
+@keyframes unfocusFade{
+  0%{filter:brightness(1.1);transform:scale(1.1);}
+  100%{filter:brightness(1);transform:scale(1);}
+}
+.grid.focus-mode .card:not(.focused){
+  opacity:.4;transform:translateZ(-60px) scale(0.9);filter:blur(2px);pointer-events:none;
+}
+.loaded .card{animation:fadein .9s var(--ease) forwards;}
+@keyframes fadein{to{opacity:1;transform:none}}
+.mark{position:absolute;top:10px;right:10px;padding:.2rem .5rem;border-radius:999px;font-size:12px;color:#fff}
+.mark.alpha{background:var(--ok)}
+.mark.beta{background:var(--test)}
+.mark.old{background:var(--warn)}
+.mark.touch{background:var(--mobile)}
+footer{
+  border-top:1px solid var(--ring);
+  font-size:12px;color:var(--muted);
+  animation:footerIn 1s ease forwards;
+}
+@keyframes footerIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 </style>
 </head>
 <body>
+<div class="bg"></div>
+<div class="bokeh"></div><div class="bokeh"></div><div class="bokeh"></div><div class="bokeh"></div>
+<div class="cursor" id="cursor"></div>
+
+<script>
+// 粒子生成
+const particleCount = window.innerWidth > 1200 ? 80 : 40;
+for(let i=0;i<particleCount;i++){
+  const p=document.createElement('div');
+  p.className='particle';
+  p.style.setProperty('--x',Math.random()*100+'vw');
+  p.style.setProperty('--spd',(6+Math.random()*8)+'s');
+  p.style.setProperty('--z',(Math.random()*200-100)+'px');
+  p.style.animationDelay=(Math.random()*10)+'s';
+  document.body.appendChild(p);
+}
+</script>
+
 <div class="wrap">
   <header>
     <div class="brand">
-      <div class="logo" aria-hidden="true"></div>
-      <h1>OmniMedia – ランディング</h1>
+      <div class="logo"></div>
+      <h1 id="title">OmniMedia – ランディング</h1>
+      <span class="version">v5.3.2</span>
     </div>
-    <div class="spacer"></div>
-    <div class="chip" id="lastChip" aria-live="polite">最終使用: なし</div>
-    <button id="theme" class="btn" title="ダーク/ライト切替 (Y)" aria-pressed="false">テーマ切替</button>
+    <div style="display:flex;gap:.5rem;align-items:center;z-index:10;">
+      <button id="langBtn" class="btn">🌐 JP</button>
+      <button id="themeBtn" class="btn">🌙</button>
+    </div>
   </header>
 
   <main>
-    <div class="grid">
-      <article class="card" id="cardTouch">
-        <span class="rec" id="recTouch" style="display:none">推奨</span>
-        <img class="thumb" src="thumb_touch.png" alt="タッチ版プレビュー" onerror="this.style.display='none'"/>
-        <h2>タッチ操作対応版</h2>
-        <p>スマホ/タブレット向け。ダブルタップ±10s、長押し再生/停止、スワイプスクラブなど。</p>
-        <div class="cta">
-          <a class="btn primary" href="./omni_touch.html" id="goTouch" title="開く (T)" rel="noopener">開く</a>
-          <a class="btn ghost" href="./omni_touch.html#help" rel="noopener">ヘルプ</a>
-        </div>
-        <div class="diag" id="diagTouch"></div>
+    <div class="grid" id="grid">
+      <article class="card"><span class="mark alpha" id="markAlpha">推奨</span>
+        <h2 id="titleAlpha">Omni Player α</h2><p id="descAlpha">安定版。完全機能・低負荷で推奨バージョン。</p>
+        <a class="btn" href="./omni_pc_α.html" id="btnAlpha">開く</a>
       </article>
-
-      <article class="card" id="cardPc">
-        <span class="rec" id="recPc" style="display:none">推奨</span>
-        <img class="thumb" src="thumb_pc.png" alt="PC版プレビュー" onerror="this.style.display='none'"/>
-        <h2>PC向けHTML版</h2>
-        <p>キーボード&マウス最適化。HLS/YouTube/外部字幕/ABループ/プレビュー/クリップ書き出し。</p>
-        <div class="cta">
-          <a class="btn primary" href="./omni_pc.html" id="goPc" title="開く (P/Enter)" rel="noopener">開く</a>
-          <a class="btn ghost" href="./omni_pc.html#help" rel="noopener">ショートカット</a>
-        </div>
-        <div class="diag" id="diagPc"></div>
+      <article class="card"><span class="mark beta" id="markBeta">テスト</span>
+        <h2 id="titleBeta">Omni Player β</h2><p id="descBeta">新機能を含む実験的アップデート。</p>
+        <a class="btn" href="./omni_pc_β.html" id="btnBeta">開く</a>
       </article>
-    </div>
-
-    <div class="utils">
-      <div class="left">
-        <span class="kbd">? でショートカット（各プレイヤー内）</span>
-        <button id="openLast" class="btn" title="Enter">最後に使った方を開く</button>
-        <button id="resetLast" class="btn ghost">履歴クリア</button>
-      </div>
-      <div class="right hint" id="env"></div>
+      <article class="card"><span class="mark old" id="markPc">非推奨</span>
+        <h2 id="titlePc">Omni Player PC</h2><p id="descPc">旧版。過去構成用として残存。</p>
+        <a class="btn" href="./omni_pc.html" id="btnPc">開く</a>
+      </article>
+      <article class="card"><span class="mark touch" id="markTouch">スマホ</span>
+        <h2 id="titleTouch">Omni Player Touch</h2><p id="descTouch">スマートフォンやタブレット向けに最適化された操作性。</p>
+        <a class="btn" href="./omni_touch.html" id="btnTouch">開く</a>
+      </article>
     </div>
   </main>
 
-  <footer>
-    <div>v1.4 – 推奨ページの自動遷移改善＆細部修正。<code>#auto=off</code> で自動遷移を無効化。</div>
-    <div><a class="btn ghost" href="#" id="copyDiag">診断をコピー</a></div>
-  </footer>
-</div>
-
-<div class="banner" id="banner" role="status" aria-live="polite">
-  <span id="banMsg">推奨ページに <span class="count" id="banCount">1.5</span> 秒後に移動します…</span>
-  <button class="btn" id="banCancel">キャンセル</button>
-</div>
-
-<div class="modal" id="modal" aria-modal="true" role="dialog">
-  <div class="card">
-    <h3>v1.4 の変更点</h3>
-    <ul>
-      <li>自動遷移の確実化（キャンセル時の記憶、最終使用の保存）</li>
-      <li>診断コピーの改行バグ修正</li>
-      <li>アクセシビリティ向上（ARIA, focus）</li>
-    </ul>
-    <div class="cta"><button class="btn primary" id="modalClose">閉じる</button></div>
-  </div>
+  <footer id="footerText">© 2025 OmniMedia – すべての体験をひとつに。</footer>
 </div>
 
 <script>
 (()=>{
-  const $ = (s, r=document)=>r.querySelector(s);
-  const lastKey   = 'om.lastUsed';
-  const themeKey  = 'om.theme';
-  const verKey    = 'om.index.version';
-  const autoKey   = 'om.index.auto'; // 'on' | 'off'
-  const ver       = '1.4';
+  const cursor=document.getElementById('cursor');
+  const grid=document.getElementById('grid');
+  const cards=document.querySelectorAll('.card');
+  const themeBtn=document.getElementById('themeBtn');
+  const langBtn=document.getElementById('langBtn');
+  const meta=document.getElementById('themeColorMeta');
+  const themeKey='om.theme',langKey='om.lang';
 
-  // --- Theme ---
-  function applyTheme(t){
-    if(!t) return;
-    document.documentElement.setAttribute('data-theme', t);
-    localStorage.setItem(themeKey, t);
-    $('#theme').setAttribute('aria-pressed', String(t==='light'));
-  }
-  $('#theme').addEventListener('click', ()=>{
-    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-    applyTheme(cur==='light' ? 'dark' : 'light');
-  });
-  (function initTheme(){
-    const t = localStorage.getItem(themeKey);
-    if(t) applyTheme(t);
-  })();
-
-  // --- Device recommendation ---
-  const hasTouch = (navigator.maxTouchPoints || 0) > 0;
-  const isDesktopLike = !hasTouch && /Windows|Mac|Linux/i.test(navigator.userAgent);
-  $('#recTouch').style.display = hasTouch ? 'inline-block' : 'none';
-  $('#recPc').style.display    = isDesktopLike ? 'inline-block' : 'none';
-
-  // --- Last used ---
-  function setLast(which){
-    try{
-      localStorage.setItem(lastKey, which);
-      $('#lastChip').textContent = '最終使用: ' + (which==='pc' ? 'PC版' : 'タッチ版');
-    }catch{}
-  }
-  function showLast(){
-    const v = localStorage.getItem(lastKey);
-    $('#lastChip').textContent = '最終使用: ' + (v ? (v==='pc'?'PC版':'タッチ版') : 'なし');
-  }
-  showLast();
-  $('#goPc').addEventListener('click',()=> setLast('pc'));
-  $('#goTouch').addEventListener('click',()=> setLast('touch'));
-  $('#openLast').addEventListener('click',()=>{
-    const v = localStorage.getItem(lastKey);
-    location.href = v==='pc' ? './omni_pc.html' : v==='touch' ? './omni_touch.html' : './omni_pc.html';
-  });
-  $('#resetLast').addEventListener('click',()=>{
-    localStorage.removeItem(lastKey);
-    showLast();
+  /* === カーソル追従 === */
+  window.addEventListener('mousemove',e=>{
+    cursor.style.transform=`translate(${e.clientX-170}px,${e.clientY-170}px)`;
   });
 
-  // --- Capability diagnostics ---
-  function cap(name, ok){ return `<span>${ok ? '✅' : '❌'} ${name}</span>` }
-  const videoProbe = document.createElement('video');
-  const hlsNative  = !!videoProbe.canPlayType('application/vnd.apple.mpegurl');
-  const pip        = 'pictureInPictureEnabled' in document;
-  const mediaRec   = 'MediaRecorder' in window;
-  const fsAccess   = 'showOpenFilePicker' in window;
-  const ua         = navigator.userAgent;
-  $('#diagPc').innerHTML = [cap('HLSネイティブ', hlsNative), cap('PiP', pip), cap('MediaRecorder', mediaRec), cap('File System Access', fsAccess)].join(' ');
-  $('#diagTouch').innerHTML = cap('タッチ検出', (navigator.maxTouchPoints||0)>0);
-  $('#env').textContent = `${ua}`;
+  /* === テーマ === */
+  const savedTheme=localStorage.getItem(themeKey);
+  if(savedTheme){document.documentElement.setAttribute('data-theme',savedTheme);}
+  themeBtn.textContent=savedTheme==='light'?'☀️':'🌙';
+  function updateMetaThemeColor(isLight){
+    meta.setAttribute('content',isLight?'#f4f7fb':'#0b0e12');
+  }
+  themeBtn.addEventListener('click',()=>{
+    const cur=document.documentElement.getAttribute('data-theme')||'dark';
+    const next=cur==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next);
+    themeBtn.textContent=next==='light'?'☀️':'🌙';
+    updateMetaThemeColor(next==='light');
+    try{localStorage.setItem(themeKey,next);}catch{}
+  });
 
-  // --- Copy diagnostics (改行バグ修正) ---
-  $('#copyDiag').addEventListener('click',(e)=>{
-    e.preventDefault();
-    const data = [
-      'OmniMedia 診断情報',
-      'UA: ' + navigator.userAgent,
-      'Touch: ' + (navigator.maxTouchPoints||0),
-      'HLS native: ' + hlsNative,
-      'PiP: ' + pip,
-      'MediaRecorder: ' + mediaRec,
-      'FS Access: ' + fsAccess,
-      'Theme: ' + (document.documentElement.getAttribute('data-theme') || '(auto)')
-    ].join('\n');
-    (navigator.clipboard?.writeText(data) || Promise.reject()).catch(()=>{
-      // フォールバック
-      const ta = document.createElement('textarea');
-      ta.value = data; document.body.appendChild(ta); ta.select();
-      try{ document.execCommand('copy') }catch{}
-      ta.remove();
+  /* === 音 === */
+  let audioCtx=null,buffer=null;
+  async function initAudio(){
+    if(audioCtx) return;
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const res=await fetch('Sound1.mp3');
+    const arr=await res.arrayBuffer();
+    buffer=await audioCtx.decodeAudioData(arr);
+  }
+  async function playSound(){
+    if(!audioCtx||!buffer) return;
+    if(audioCtx.state==='suspended') await audioCtx.resume();
+    const src=audioCtx.createBufferSource();
+    src.buffer=buffer;src.connect(audioCtx.destination);src.start(0);
+  }
+  window.addEventListener('click',()=>initAudio(),{once:true});
+
+  /* === カード動作 === */
+  cards.forEach(card=>{
+    card.addEventListener('mousemove',e=>{
+      const r=card.getBoundingClientRect();
+      const x=e.clientX-r.left,y=e.clientY-r.top;
+      const midX=r.width/2,midY=r.height/2;
+      card.style.setProperty('--rY',((x-midX)/midX)*10+'deg');
+      card.style.setProperty('--rX',((midY-y)/midY)*10+'deg');
     });
-    alert('診断情報をコピーしました');
-  });
-
-  // --- Auto redirect to recommended ---
-  const banner   = $('#banner');
-  const banCount = $('#banCount');
-  const banCancel= $('#banCancel');
-
-  function recommended(){
-    const last = localStorage.getItem(lastKey);
-    if(last) return last;
-    return isDesktopLike ? 'pc' : hasTouch ? 'touch' : 'pc';
-  }
-  function go(which){
-    setLast(which); // 遷移時にも最終使用を保存
-    location.href = which==='pc' ? './omni_pc.html' : './omni_touch.html';
-  }
-
-  // ハッシュ or 記憶で自動遷移の有効/無効を決定
-  const params  = new URL(location.href).hash;
-  const hashAutoOff = params.includes('auto=off');
-  const savedAuto   = localStorage.getItem(autoKey); // 'off'なら無効
-  const autoOff = hashAutoOff || savedAuto==='off';
-
-  if(hashAutoOff){ localStorage.setItem(autoKey, 'off') } // 一度 #auto=off なら記憶
-  if(!autoOff){
-    let t = 1.5;
-    banner.style.display = 'flex';
-    banCount.textContent = t.toFixed(1);
-    const timer = setInterval(()=>{
-      t -= 0.1;
-      banCount.textContent = Math.max(0, t).toFixed(1);
-      if(t <= 0){
-        clearInterval(timer);
-        go(recommended());
+    card.addEventListener('mouseleave',()=>card.style.transform="rotateX(0) rotateY(0)");
+    card.addEventListener('click',()=>{
+      const focused=card.classList.contains('focused');
+      cards.forEach(c=>c.classList.remove('focused'));
+      if(!focused){
+        card.classList.add('focused');
+        grid.classList.add('focus-mode');
+        playSound();
+      }else{
+        grid.classList.remove('focus-mode');
+        card.classList.add('unfocus');
+        setTimeout(()=>card.classList.remove('unfocus'),600);
       }
-    }, 100);
-    banCancel.addEventListener('click', ()=>{
-      banner.style.display = 'none';
-      clearInterval(timer);
-      localStorage.setItem(autoKey, 'off'); // ユーザーがキャンセルしたら次回も無効
     });
-  }
-
-  // --- Keyboard shortcuts on landing ---
-  document.addEventListener('keydown',(e)=>{
-    if(e.key==='p' || e.key==='P'){ setLast('pc'); go('pc'); }
-    else if(e.key==='t' || e.key==='T'){ setLast('touch'); go('touch'); }
-    else if(e.key==='Enter'){ $('#openLast').click(); }
-    else if(e.key==='y' || e.key==='Y'){ $('#theme').click(); }
   });
 
-  // --- Changelog modal (once per version) ---
-  (function showChangelogOnce(){
-    try{
-      const seen = localStorage.getItem(verKey);
-      if(seen !== ver){
-        $('#modal').style.display = 'flex';
-        localStorage.setItem(verKey, ver);
-      }
-    }catch{}
-  })();
-  $('#modalClose').addEventListener('click',()=> $('#modal').style.display='none');
+  /* === 多言語 === */
+  const dict={
+    ja:{lang:"JP",footer:"© 2025 OmniMedia – すべての体験をひとつに。",alpha:"推奨",beta:"テスト",old:"非推奨",touch:"スマホ",
+      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+      alphaDesc:"安定版。完全機能・低負荷で推奨バージョン。",betaDesc:"新機能を含む実験的アップデート。",oldDesc:"旧版。過去構成用として残存。",touchDesc:"スマートフォンやタブレット向けに最適化された操作性。"},
+    en:{lang:"EN",footer:"© 2025 OmniMedia – One experience for all.",alpha:"Rec",beta:"Test",old:"Old",touch:"Mobile",
+      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+      alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"Experimental build with new features.",oldDesc:"Legacy version kept for compatibility.",touchDesc:"Optimized for smartphones and tablets."}
+  };
+  let lang=localStorage.getItem(langKey)||'ja';
+  if(!dict[lang]) lang='ja';
+  applyLang(lang);
+  langBtn.addEventListener('click',()=>{
+    const keys=Object.keys(dict);
+    lang=keys[(keys.indexOf(lang)+1)%keys.length];
+    applyLang(lang);
+    try{localStorage.setItem(langKey,lang);}catch{}
+  });
+  function applyLang(l){
+    const d=dict[l];
+    markAlpha.textContent=d.alpha;
+    markBeta.textContent=d.beta;
+    markPc.textContent=d.old;
+    markTouch.textContent=d.touch;
+    titleAlpha.textContent=d.alphaTitle;
+    titleBeta.textContent=d.betaTitle;
+    titlePc.textContent=d.oldTitle;
+    titleTouch.textContent=d.touchTitle;
+    descAlpha.textContent=d.alphaDesc;
+    descBeta.textContent=d.betaDesc;
+    descPc.textContent=d.oldDesc;
+    descTouch.textContent=d.touchDesc;
+    footerText.textContent=d.footer;
+    langBtn.textContent='🌐 '+d.lang;
+    document.documentElement.lang=l;
+  }
+
+  window.addEventListener('load',()=>document.body.classList.add('loaded'));
 })();
 </script>
 </body>
