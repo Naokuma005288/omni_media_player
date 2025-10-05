@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v5.3.2</title>
+<title>OmniMedia – Landing v5.4</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 <style>
 :root{
@@ -11,215 +11,248 @@
   --accent:#74b3ff;--ring:#243246;--shadow:0 20px 60px rgba(0,0,0,.35);
   --ok:#2ecc71;--warn:#c7a300;--test:#ff6f61;--mobile:#00bcd4;
   --ease:cubic-bezier(.22,.61,.36,1);
+  --spot-x:50%; --spot-y:50%;
 }
 [data-theme="light"]{
   --bg:#f4f7fb;--panel:#fff;--panel2:#f3f6fb;--text:#0c1116;--muted:#5b6773;
   --accent:#3478ff;--ring:#dbe4f0;--shadow:0 14px 40px rgba(15,30,60,.08);
 }
 
+/* 基本レイアウト */
 html,body{
   height:100%;
   margin:0;
   font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif;
-  background:var(--bg);color:var(--text);
+  background:var(--bg); color:var(--text);
   overflow:hidden;
 }
-
-/* === 背景層 === */
-.bg{
-  position:fixed;inset:0;z-index:0;
-  pointer-events:none;
-  background:
-    radial-gradient(circle at 25% 35%,#1b283a 0%,transparent 60%),
-    radial-gradient(circle at 75% 70%,#0e1827 0%,transparent 70%);
-  animation:bgFlow 30s ease-in-out infinite alternate;
-  filter:blur(3px);
-}
-@keyframes bgFlow{
-  0%{filter:hue-rotate(0deg) brightness(0.9);}
-  50%{filter:hue-rotate(100deg) brightness(1.1);}
-  100%{filter:hue-rotate(160deg) brightness(0.9);}
-}
-.bokeh{
-  position:absolute;width:240px;height:240px;border-radius:50%;
-  pointer-events:none;
-  background:radial-gradient(circle,var(--accent)45%,transparent 80%);
-  mix-blend-mode:screen;opacity:.25;
-  animation:bokehMove 25s ease-in-out infinite;
-}
-@keyframes bokehMove{
-  0%{transform:translate3d(0,0,0);}
-  50%{transform:translate3d(80px,-60px,30px) scale(1.2);}
-  100%{transform:translate3d(0,0,0);}
-}
-.bokeh:nth-child(1){top:10%;left:15%;animation-delay:-3s;}
-.bokeh:nth-child(2){top:55%;left:65%;animation-delay:-8s;}
-.bokeh:nth-child(3){top:75%;left:25%;animation-delay:-11s;}
-.bokeh:nth-child(4){top:80%;left:85%;animation-delay:-5s;}
-
-/* === 粒子 === */
-.particle{
-  position:fixed;width:2px;height:2px;border-radius:50%;
-  pointer-events:none;
-  background:var(--accent);opacity:.15;mix-blend-mode:screen;
-  animation:fall var(--spd) linear infinite;
-  transform:translateZ(var(--z));
-}
-@keyframes fall{
-  0%{transform:translateY(-5px) translateX(var(--x)) translateZ(var(--z));opacity:0;}
-  10%{opacity:.8}
-  100%{transform:translateY(100vh) translateX(calc(var(--x) + 20px)) translateZ(var(--z));opacity:0;}
-}
-
-/* === 光カーソル === */
-.cursor{
-  position:fixed;width:340px;height:340px;border-radius:50%;
-  pointer-events:none;
-  background:radial-gradient(circle,var(--accent)40%,transparent 70%);
-  mix-blend-mode:overlay;z-index:2;
-  transform:translate(-170px,-170px);
-  transition:transform .3s ease-out,opacity .4s;
-  opacity:.5;
-}
-
-/* === レイアウト === */
 .wrap{
-  position:relative;
-  z-index:5;
-  display:grid;
-  grid-template-rows:auto 1fr auto;
+  position:relative; z-index:5;
+  display:grid; grid-template-rows:auto 1fr auto;
   height:100vh;
 }
 header,footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;}
 .brand{display:flex;align-items:center;gap:.6rem;}
-.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7cc1ff,#6c8dff);
-  box-shadow:0 4px 20px rgba(100,150,255,.35)}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7cc1ff,#6c8dff);box-shadow:0 4px 20px rgba(100,150,255,.35)}
 h1{font-size:16px;margin:0}
 .version{font-size:12px;color:var(--muted);margin-left:8px}
-
-/* === ボタン === */
-.btn{
-  position:relative;
-  border:1px solid var(--ring);
-  background:var(--panel2);
-  color:var(--text);
-  padding:8px 12px;
-  border-radius:10px;
-  cursor:pointer;
-  z-index:2;
-  transition:background .25s, box-shadow .25s, transform .15s;
-}
-.btn:hover{
-  background:linear-gradient(180deg,var(--accent),var(--panel2));
-  color:#fff;
-  box-shadow:0 0 12px rgba(116,179,255,.4);
-}
-.btn:active{
-  transform:scale(0.97);
-  box-shadow:0 0 6px rgba(116,179,255,.2);
-}
-
 main{display:grid;place-items:center;padding:22px;}
-.grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;perspective:1000px;}
-.card{
-  background:var(--panel);border:1px solid var(--ring);border-radius:16px;padding:18px;
-  box-shadow:var(--shadow);position:relative;opacity:0;
-  transform:translateY(20px) rotateX(5deg) rotateY(-5deg) scale(0.98);
-  transition:transform .3s var(--ease),box-shadow .3s var(--ease),filter .3s,opacity .4s;
-  transform-style:preserve-3d;will-change:transform;
+footer{
+  border-top:1px solid var(--ring);
+  font-size:12px;color:var(--muted);
+  animation:footerIn .9s ease .2s both;
 }
+@keyframes footerIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* 背景：グラデ＋オーロラ＋ビネット＋ボケ光 */
+.bg{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(1200px 800px at 20% 30%,rgba(80,130,255,.10),transparent 60%),
+    radial-gradient(900px 700px at 75% 75%,rgba(60,200,255,.10),transparent 60%),
+    linear-gradient(180deg,rgba(0,0,0,.15),transparent 40%,rgba(0,0,0,.2));
+  animation:bgHue 28s ease-in-out infinite alternate;
+  filter:blur(2px);
+}
+@keyframes bgHue{0%{filter:hue-rotate(0deg) brightness(.95)}100%{filter:hue-rotate(150deg) brightness(1.08)}}
+
+/* Aurora sheet */
+.aurora{
+  position:fixed; inset:-10% -10% -5% -10%; z-index:1; pointer-events:none;
+  background:
+    conic-gradient(from 0deg at 60% 40%, rgba(116,179,255,.10), rgba(0,255,170,.08), rgba(255,120,200,.08), rgba(116,179,255,.10));
+  mask: radial-gradient(60% 50% at 50% 40%, #000 55%, transparent 70%) radial-gradient(40% 35% at 60% 80%, #000 45%, transparent 70%);
+  animation:auroraFlow 22s linear infinite;
+}
+@keyframes auroraFlow{to{transform:translate3d(0,-3%,0) rotate(360deg)}}
+
+/* ビネット（縁の呼吸） */
+.vignette{
+  position:fixed; inset:0; z-index:2; pointer-events:none;
+  background:radial-gradient(60% 55% at 50% 45%, transparent 60%, rgba(0,0,0,.55) 100%);
+  animation:vigBreath 8s ease-in-out infinite;
+}
+@keyframes vigBreath{0%,100%{opacity:.95}50%{opacity:.82}}
+
+/* 流れるボケ玉 */
+.bokeh{
+  position:absolute;width:240px;height:240px;border-radius:50%;
+  pointer-events:none; mix-blend-mode:screen; opacity:.22;
+  background:radial-gradient(circle, rgba(116,179,255,.8) 0%, transparent 65%);
+  animation:bokehMove 24s ease-in-out infinite;
+}
+.bokeh:nth-child(1){top:12%;left:14%;animation-delay:-3s}
+.bokeh:nth-child(2){top:58%;left:68%;animation-delay:-7s}
+.bokeh:nth-child(3){top:78%;left:24%;animation-delay:-11s}
+.bokeh:nth-child(4){top:82%;left:86%;animation-delay:-5s}
+@keyframes bokehMove{
+  0%{transform:translate3d(0,0,0) scale(1)}
+  50%{transform:translate3d(80px,-60px,0) scale(1.18)}
+  100%{transform:translate3d(0,0,0) scale(1)}
+}
+
+/* パーティクル（軽量） */
+.particle{
+  position:fixed;width:2px;height:2px;border-radius:50%;
+  pointer-events:none; background:var(--accent); opacity:.16; mix-blend-mode:screen;
+  animation:fall var(--spd) linear infinite;
+  transform:translateZ(var(--z));
+}
+@keyframes fall{
+  0%{transform:translateY(-5px) translateX(var(--x)) translateZ(var(--z));opacity:0}
+  10%{opacity:.85}
+  100%{transform:translateY(100vh) translateX(calc(var(--x) + 30px)) translateZ(var(--z));opacity:0}
+}
+
+/* 光カーソル＆スポットライト */
+.cursor{
+  position:fixed;width:340px;height:340px;border-radius:50%;
+  pointer-events:none; z-index:3; opacity:.5;
+  background:radial-gradient(circle, rgba(116,179,255,.5) 0%, transparent 70%);
+  mix-blend-mode:overlay;
+  transform:translate(-170px,-170px);
+  transition:transform .25s ease-out, opacity .4s;
+}
+
+/* グリッド／カード */
+.grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;perspective:1200px;}
+.card{
+  position:relative; background:var(--panel); border:1px solid var(--ring); border-radius:16px; padding:18px;
+  box-shadow:var(--shadow); opacity:0; transform:translateY(20px) rotateX(5deg) rotateY(-5deg) scale(.98);
+  transition:transform .28s var(--ease),box-shadow .28s var(--ease),filter .28s, opacity .5s;
+  transform-style:preserve-3d; will-change:transform;
+  /* スポットライト */
+  background-image:
+    radial-gradient(200px 200px at var(--spot-x) var(--spot-y), rgba(116,179,255,.12), transparent 70%);
+  background-blend-mode:screen;
+}
+.loaded .card{animation:fadein .7s var(--ease) forwards}
+.card:nth-child(1){animation-delay:.05s}
+.card:nth-child(2){animation-delay:.12s}
+.card:nth-child(3){animation-delay:.19s}
+.card:nth-child(4){animation-delay:.26s}
+@keyframes fadein{to{opacity:1;transform:none}}
 .card:hover{
-  transform:rotateY(var(--rY)) rotateX(var(--rX)) translateZ(40px) scale(1.06);
-  box-shadow:0 25px 60px rgba(0,0,0,.5);
+  transform:rotateY(var(--rY,0deg)) rotateX(var(--rX,0deg)) translateZ(45px) scale(1.06);
+  box-shadow:0 28px 70px rgba(0,0,0,.55);
 }
 .card.focused{
-  transform:rotateY(0deg) rotateX(0deg) translateZ(100px) scale(1.15);
-  box-shadow:0 40px 100px rgba(0,0,0,.7);
-  filter:brightness(1.1);
-}
-.card.focused .btn{
-  box-shadow:0 0 14px rgba(116,179,255,.4);
-  background:linear-gradient(180deg,var(--accent),var(--panel2));
-  color:#fff;
-}
-.card.focused::before{
-  content:"";position:absolute;inset:-4px;border-radius:18px;
-  background:radial-gradient(circle,var(--accent)35%,transparent 70%);
-  opacity:.5;filter:blur(30px);
-  animation:focusPulse 1.3s ease-in-out infinite alternate;
-}
-@keyframes focusPulse{from{opacity:.4;transform:scale(1)}to{opacity:.9;transform:scale(1.05)}}
-.card.unfocus{animation:unfocusFade .6s ease both;}
-@keyframes unfocusFade{
-  0%{filter:brightness(1.1);transform:scale(1.1);}
-  100%{filter:brightness(1);transform:scale(1);}
+  transform:rotateY(0deg) rotateX(0deg) translateZ(110px) scale(1.14);
+  box-shadow:0 44px 110px rgba(0,0,0,.75);
+  filter:brightness(1.08);
 }
 .grid.focus-mode .card:not(.focused){
-  opacity:.4;transform:translateZ(-60px) scale(0.9);filter:blur(2px);pointer-events:none;
+  opacity:.42; transform:translateZ(-60px) scale(.9); filter:blur(2px); pointer-events:none;
 }
-.loaded .card{animation:fadein .9s var(--ease) forwards;}
-@keyframes fadein{to{opacity:1;transform:none}}
-.mark{position:absolute;top:10px;right:10px;padding:.2rem .5rem;border-radius:999px;font-size:12px;color:#fff}
+/* フォーカス装飾 */
+.card.focused::before{
+  content:""; position:absolute; inset:-5px; border-radius:18px;
+  background:
+    conic-gradient(from 0deg, rgba(116,179,255,.35), rgba(0,255,200,.25), rgba(255,140,220,.25), rgba(116,179,255,.35));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  padding:2px; opacity:.85; filter:blur(8px);
+  animation:borderSpin 12s linear infinite;
+}
+@keyframes borderSpin{to{transform:rotate(360deg)}}
+
+/* マーク */
+.mark{position:absolute;top:10px;right:10px;padding:.2rem .5rem;border-radius:999px;font-size:12px;color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .mark.alpha{background:var(--ok)}
 .mark.beta{background:var(--test)}
 .mark.old{background:var(--warn)}
 .mark.touch{background:var(--mobile)}
-footer{
-  border-top:1px solid var(--ring);
-  font-size:12px;color:var(--muted);
-  animation:footerIn 1s ease forwards;
+
+/* ボタン */
+.btn{
+  position:relative; border:1px solid var(--ring); background:var(--panel2); color:var(--text);
+  padding:9px 14px; border-radius:10px; cursor:pointer; z-index:10;
+  transition:background .25s, box-shadow .25s, transform .12s;
+  user-select:none; -webkit-tap-highlight-color:transparent;
 }
-@keyframes footerIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+.btn:hover{
+  background:linear-gradient(180deg,var(--accent),var(--panel2)); color:#fff;
+  box-shadow:0 0 14px rgba(116,179,255,.45);
+}
+.btn:active{ transform:translateY(1px) scale(.98) }
+/* リップル */
+.btn .ripple{
+  position:absolute; border-radius:50%; pointer-events:none; inset:auto; width:10px;height:10px;
+  transform:translate(-50%,-50%); background:rgba(255,255,255,.6); mix-blend-mode:overlay; opacity:0; animation:ripple .6s ease-out forwards;
+}
+@keyframes ripple{0%{opacity:.9;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(-50%,-50%) scale(6)}}
+
+/* Reduced motion 配慮 */
+@media (prefers-reduced-motion: reduce){
+  .bg,.aurora,.vignette,.bokeh,.particle,.cursor,.card,*{animation:none!important; transition:none!important}
+}
 </style>
 </head>
 <body>
+<!-- 背景レイヤ -->
 <div class="bg"></div>
+<div class="aurora"></div>
+<div class="vignette"></div>
 <div class="bokeh"></div><div class="bokeh"></div><div class="bokeh"></div><div class="bokeh"></div>
 <div class="cursor" id="cursor"></div>
 
 <script>
-// 粒子生成
-const particleCount = window.innerWidth > 1200 ? 80 : 40;
-for(let i=0;i<particleCount;i++){
-  const p=document.createElement('div');
-  p.className='particle';
-  p.style.setProperty('--x',Math.random()*100+'vw');
-  p.style.setProperty('--spd',(6+Math.random()*8)+'s');
-  p.style.setProperty('--z',(Math.random()*200-100)+'px');
-  p.style.animationDelay=(Math.random()*10)+'s';
-  document.body.appendChild(p);
-}
+/* 粒子生成（画面幅に応じて） */
+(() => {
+  const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const N = prefersReduced ? 0 : (innerWidth > 1200 ? 90 : 48);
+  for(let i=0;i<N;i++){
+    const p=document.createElement('div');
+    p.className='particle';
+    p.style.setProperty('--x',Math.random()*100+'vw');
+    p.style.setProperty('--spd',(6+Math.random()*8)+'s');
+    p.style.setProperty('--z',(Math.random()*200-100)+'px');
+    p.style.animationDelay=(Math.random()*10)+'s';
+    document.body.appendChild(p);
+  }
+})();
 </script>
 
 <div class="wrap">
   <header>
     <div class="brand">
-      <div class="logo"></div>
+      <div class="logo" aria-hidden="true"></div>
       <h1 id="title">OmniMedia – ランディング</h1>
-      <span class="version">v5.3.2</span>
+      <span class="version">v5.4</span>
     </div>
-    <div style="display:flex;gap:.5rem;align-items:center;z-index:10;">
-      <button id="langBtn" class="btn">🌐 JP</button>
-      <button id="themeBtn" class="btn">🌙</button>
+    <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
+      <button id="langBtn" class="btn" aria-label="言語切替">🌐 JP</button>
+      <button id="themeBtn" class="btn" aria-label="テーマ切替">🌙</button>
     </div>
   </header>
 
   <main>
     <div class="grid" id="grid">
-      <article class="card"><span class="mark alpha" id="markAlpha">推奨</span>
-        <h2 id="titleAlpha">Omni Player α</h2><p id="descAlpha">安定版。完全機能・低負荷で推奨バージョン。</p>
+      <article class="card">
+        <span class="mark alpha" id="markAlpha">推奨</span>
+        <h2 id="titleAlpha">Omni Player α</h2>
+        <p id="descAlpha">安定版。完全機能・低負荷で推奨バージョン。</p>
         <a class="btn" href="./omni_pc_α.html" id="btnAlpha">開く</a>
       </article>
-      <article class="card"><span class="mark beta" id="markBeta">テスト</span>
-        <h2 id="titleBeta">Omni Player β</h2><p id="descBeta">新機能を含む実験的アップデート。</p>
+
+      <article class="card">
+        <span class="mark beta" id="markBeta">テスト</span>
+        <h2 id="titleBeta">Omni Player β</h2>
+        <p id="descBeta">新機能を含む実験的アップデート。</p>
         <a class="btn" href="./omni_pc_β.html" id="btnBeta">開く</a>
       </article>
-      <article class="card"><span class="mark old" id="markPc">非推奨</span>
-        <h2 id="titlePc">Omni Player PC</h2><p id="descPc">旧版。過去構成用として残存。</p>
+
+      <article class="card">
+        <span class="mark old" id="markPc">非推奨</span>
+        <h2 id="titlePc">Omni Player PC</h2>
+        <p id="descPc">旧版。過去構成用として残存。</p>
         <a class="btn" href="./omni_pc.html" id="btnPc">開く</a>
       </article>
-      <article class="card"><span class="mark touch" id="markTouch">スマホ</span>
-        <h2 id="titleTouch">Omni Player Touch</h2><p id="descTouch">スマートフォンやタブレット向けに最適化された操作性。</p>
+
+      <article class="card">
+        <span class="mark touch" id="markTouch">スマホ</span>
+        <h2 id="titleTouch">Omni Player Touch</h2>
+        <p id="descTouch">スマートフォンやタブレット向けに最適化された操作性。</p>
         <a class="btn" href="./omni_touch.html" id="btnTouch">開く</a>
       </article>
     </div>
@@ -229,116 +262,193 @@ for(let i=0;i<particleCount;i++){
 </div>
 
 <script>
-(()=>{
-  const cursor=document.getElementById('cursor');
-  const grid=document.getElementById('grid');
-  const cards=document.querySelectorAll('.card');
-  const themeBtn=document.getElementById('themeBtn');
-  const langBtn=document.getElementById('langBtn');
-  const meta=document.getElementById('themeColorMeta');
-  const themeKey='om.theme',langKey='om.lang';
+(() => {
+  const cursor = document.getElementById('cursor');
+  const grid   = document.getElementById('grid');
+  const cards  = Array.from(document.querySelectorAll('.card'));
+  const themeBtn = document.getElementById('themeBtn');
+  const langBtn  = document.getElementById('langBtn');
+  const meta = document.getElementById('themeColorMeta');
 
-  /* === カーソル追従 === */
-  window.addEventListener('mousemove',e=>{
-    cursor.style.transform=`translate(${e.clientX-170}px,${e.clientY-170}px)`;
+  /* ===== カーソル光 ===== */
+  window.addEventListener('mousemove',(e)=>{
+    cursor.style.transform = `translate(${e.clientX-170}px,${e.clientY-170}px)`;
   });
 
-  /* === テーマ === */
-  const savedTheme=localStorage.getItem(themeKey);
-  if(savedTheme){document.documentElement.setAttribute('data-theme',savedTheme);}
-  themeBtn.textContent=savedTheme==='light'?'☀️':'🌙';
-  function updateMetaThemeColor(isLight){
-    meta.setAttribute('content',isLight?'#f4f7fb':'#0b0e12');
-  }
+  /* ===== ボタン：リップル ===== */
+  document.addEventListener('click',(e)=>{
+    const btn = e.target.closest('.btn');
+    if(!btn) return;
+    const r = btn.getBoundingClientRect();
+    const span = document.createElement('span');
+    span.className = 'ripple';
+    span.style.left = (e.clientX - r.left)+'px';
+    span.style.top  = (e.clientY - r.top)+'px';
+    btn.appendChild(span);
+    setTimeout(()=>span.remove(), 650);
+  });
+
+  /* ===== テーマ切替（保存＆meta連動） ===== */
+  const themeKey='om.theme';
+  const savedTheme = localStorage.getItem(themeKey);
+  if(savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+  themeBtn.textContent = (document.documentElement.getAttribute('data-theme')||'dark')==='light' ? '☀️' : '🌙';
+  updateMetaTheme();
   themeBtn.addEventListener('click',()=>{
-    const cur=document.documentElement.getAttribute('data-theme')||'dark';
-    const next=cur==='dark'?'light':'dark';
-    document.documentElement.setAttribute('data-theme',next);
-    themeBtn.textContent=next==='light'?'☀️':'🌙';
-    updateMetaThemeColor(next==='light');
-    try{localStorage.setItem(themeKey,next);}catch{}
+    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = cur==='dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    themeBtn.textContent = next==='light' ? '☀️' : '🌙';
+    try{ localStorage.setItem(themeKey, next) }catch{}
+    updateMetaTheme();
   });
+  function updateMetaTheme(){
+    const isLight = (document.documentElement.getAttribute('data-theme')||'dark')==='light';
+    meta.setAttribute('content', isLight ? '#f4f7fb' : '#0b0e12');
+  }
 
-  /* === 音 === */
-  let audioCtx=null,buffer=null;
+  /* ===== 効果音（フォーカス時に一度だけ） ===== */
+  let audioCtx=null, buffer=null, loaded=false;
   async function initAudio(){
-    if(audioCtx) return;
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    const res=await fetch('Sound1.mp3');
-    const arr=await res.arrayBuffer();
-    buffer=await audioCtx.decodeAudioData(arr);
+    if(loaded) return;
+    try{
+      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      const res = await fetch('Sound1.mp3', {cache:'no-store'});
+      const arr = await res.arrayBuffer();
+      buffer = await audioCtx.decodeAudioData(arr);
+      loaded = true;
+    }catch(e){
+      // mp3がない/デコード不可なら無音で続行
+      loaded = false;
+    }
   }
-  async function playSound(){
-    if(!audioCtx||!buffer) return;
-    if(audioCtx.state==='suspended') await audioCtx.resume();
-    const src=audioCtx.createBufferSource();
-    src.buffer=buffer;src.connect(audioCtx.destination);src.start(0);
+  window.addEventListener('click', ()=>{ initAudio() }, {once:true});
+  async function playSE(){
+    if(!audioCtx || !buffer) return;
+    if(audioCtx.state==='suspended'){ try{ await audioCtx.resume() }catch{} }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(audioCtx.destination);
+    src.start(0);
   }
-  window.addEventListener('click',()=>initAudio(),{once:true});
 
-  /* === カード動作 === */
-  cards.forEach(card=>{
-    card.addEventListener('mousemove',e=>{
+  /* ===== カード：3Dチルト＋スポットライト＋フォーカス ===== */
+  cards.forEach((card)=>{
+    card.addEventListener('mousemove',(e)=>{
       const r=card.getBoundingClientRect();
-      const x=e.clientX-r.left,y=e.clientY-r.top;
-      const midX=r.width/2,midY=r.height/2;
-      card.style.setProperty('--rY',((x-midX)/midX)*10+'deg');
-      card.style.setProperty('--rX',((midY-y)/midY)*10+'deg');
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      const midX=r.width/2, midY=r.height/2;
+      card.style.setProperty('--rY', ((x-midX)/midX)*10+'deg');
+      card.style.setProperty('--rX', ((midY-y)/midY)*10+'deg');
+      card.style.setProperty('--spot-x', (x/r.width*100)+'%');
+      card.style.setProperty('--spot-y', (y/r.height*100)+'%');
     });
-    card.addEventListener('mouseleave',()=>card.style.transform="rotateX(0) rotateY(0)");
+    card.addEventListener('mouseleave',()=>{
+      card.style.setProperty('--rY','0deg');
+      card.style.setProperty('--rX','0deg');
+    });
     card.addEventListener('click',()=>{
-      const focused=card.classList.contains('focused');
+      const was = card.classList.contains('focused');
       cards.forEach(c=>c.classList.remove('focused'));
-      if(!focused){
+      if(!was){
         card.classList.add('focused');
         grid.classList.add('focus-mode');
-        playSound();
+        confetti(card);
+        playSE();
       }else{
         grid.classList.remove('focus-mode');
-        card.classList.add('unfocus');
-        setTimeout(()=>card.classList.remove('unfocus'),600);
       }
     });
   });
 
-  /* === 多言語 === */
+  /* ===== コンフェッティ（軽量DOM） ===== */
+  function confetti(anchor){
+    const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if(prefersReduced) return;
+    const r = anchor.getBoundingClientRect();
+    const N = 18;
+    for(let i=0;i<N;i++){
+      const s=document.createElement('div');
+      const size = 6+Math.random()*8;
+      s.style.position='fixed';
+      s.style.left = (r.left + r.width/2)+'px';
+      s.style.top  = (r.top + 10)+'px';
+      s.style.width=size+'px'; s.style.height=size+'px';
+      s.style.background = `hsl(${Math.random()*360},90%,60%)`;
+      s.style.borderRadius='2px';
+      s.style.boxShadow='0 2px 8px rgba(0,0,0,.25)';
+      s.style.zIndex=30;
+      s.style.pointerEvents='none';
+      const vx = (Math.random()-0.5)*3, vy = - (2+Math.random()*2), rot = (Math.random()*360)+'deg';
+      const life = 900 + Math.random()*500;
+      document.body.appendChild(s);
+      const t0 = performance.now();
+      (function tick(now){
+        const dt = (now - t0)/1000;
+        const x = vx*60*dt;
+        const y = vy*60*dt + 80*dt*dt; // 重力
+        s.style.transform = `translate(${x}px,${y}px) rotate(${rot})`;
+        s.style.opacity = String(1 - dt/ (life/1000));
+        if(now - t0 < life) requestAnimationFrame(tick); else s.remove();
+      })(t0);
+    }
+  }
+
+  /* ===== 多言語 ===== */
   const dict={
     ja:{lang:"JP",footer:"© 2025 OmniMedia – すべての体験をひとつに。",alpha:"推奨",beta:"テスト",old:"非推奨",touch:"スマホ",
       alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
       alphaDesc:"安定版。完全機能・低負荷で推奨バージョン。",betaDesc:"新機能を含む実験的アップデート。",oldDesc:"旧版。過去構成用として残存。",touchDesc:"スマートフォンやタブレット向けに最適化された操作性。"},
     en:{lang:"EN",footer:"© 2025 OmniMedia – One experience for all.",alpha:"Rec",beta:"Test",old:"Old",touch:"Mobile",
       alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"Experimental build with new features.",oldDesc:"Legacy version kept for compatibility.",touchDesc:"Optimized for smartphones and tablets."}
+      alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"Experimental build with new features.",oldDesc:"Legacy version kept for compatibility.",touchDesc:"Optimized for smartphones and tablets."},
+    ko:{lang:"KR",footer:"© 2025 OmniMedia – 모든 경험을 하나로.",alpha:"추천",beta:"테스트",old:"비추천",touch:"모바일",
+      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+      alphaDesc:"안정 버전, 완전한 기능과 최적화 성능.",betaDesc:"새 기능을 포함한 실험 버전.",oldDesc:"이전 버전(비추천).",touchDesc:"스마트폰·태블릿에 최적화."},
+    zh:{lang:"中文",footer:"© 2025 OmniMedia – 汇聚所有体验。",alpha:"推荐",beta:"测试",old:"旧版",touch:"移动",
+      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+      alphaDesc:"稳定版，完整功能与最佳性能。",betaDesc:"包含新功能的实验版。",oldDesc:"旧版本，仅保留兼容。",touchDesc:"针对手机和平板优化。"},
+    ru:{lang:"RU",footer:"© 2025 OmniMedia – Единый опыт для всех.",alpha:"Реком.",beta:"Тест",old:"Стар.",touch:"Моб.",
+      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+      alphaDesc:"Стабильная версия с полной функциональностью.",betaDesc:"Экспериментальная версия с новыми функциями.",oldDesc:"Старая версия (не рекомендуется).",touchDesc:"Оптимизировано для смартфонов и планшетов."},
+    fr:{lang:"FR",footer:"© 2025 OmniMedia – Une expérience unique pour tous.",alpha:"Recom.",beta:"Test",old:"Anc.",touch:"Mobile",
+      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+      alphaDesc:"Version stable, complète et optimisée.",betaDesc:"Version expérimentale avec nouvelles fonctions.",oldDesc:"Ancienne version (non recommandée).",touchDesc:"Optimisé pour smartphones et tablettes."}
   };
-  let lang=localStorage.getItem(langKey)||'ja';
+  const langKey='om.lang';
+  let lang = localStorage.getItem(langKey)||'ja';
   if(!dict[lang]) lang='ja';
   applyLang(lang);
+
   langBtn.addEventListener('click',()=>{
     const keys=Object.keys(dict);
-    lang=keys[(keys.indexOf(lang)+1)%keys.length];
+    lang = keys[(keys.indexOf(lang)+1) % keys.length];
     applyLang(lang);
-    try{localStorage.setItem(langKey,lang);}catch{}
+    try{ localStorage.setItem(langKey,lang) }catch{}
   });
+
+  function el(id){ return document.getElementById(id) }
   function applyLang(l){
     const d=dict[l];
-    markAlpha.textContent=d.alpha;
-    markBeta.textContent=d.beta;
-    markPc.textContent=d.old;
-    markTouch.textContent=d.touch;
-    titleAlpha.textContent=d.alphaTitle;
-    titleBeta.textContent=d.betaTitle;
-    titlePc.textContent=d.oldTitle;
-    titleTouch.textContent=d.touchTitle;
-    descAlpha.textContent=d.alphaDesc;
-    descBeta.textContent=d.betaDesc;
-    descPc.textContent=d.oldDesc;
-    descTouch.textContent=d.touchDesc;
-    footerText.textContent=d.footer;
+    el('markAlpha').textContent=d.alpha;
+    el('markBeta').textContent=d.beta;
+    el('markPc').textContent=d.old;
+    el('markTouch').textContent=d.touch;
+    el('titleAlpha').textContent=d.alphaTitle;
+    el('titleBeta').textContent=d.betaTitle;
+    el('titlePc').textContent=d.oldTitle;
+    el('titleTouch').textContent=d.touchTitle;
+    el('descAlpha').textContent=d.alphaDesc;
+    el('descBeta').textContent=d.betaDesc;
+    el('descPc').textContent=d.oldDesc;
+    el('descTouch').textContent=d.touchDesc;
+    el('footerText').textContent=d.footer;
     langBtn.textContent='🌐 '+d.lang;
     document.documentElement.lang=l;
   }
 
-  window.addEventListener('load',()=>document.body.classList.add('loaded'));
+  /* ===== 初期ロードのステッガー ===== */
+  window.addEventListener('load',()=> document.body.classList.add('loaded'));
 })();
 </script>
 </body>
