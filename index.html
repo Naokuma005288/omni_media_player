@@ -3,13 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v5.4</title>
+<title>OmniMedia – Landing v7.2</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
+
+<!-- HTTPS/localhost の時だけ manifest を付与（file:// CORS を回避） -->
+<script>
+(function(){
+  const ok = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if(ok){
+    const l=document.createElement('link');
+    l.rel='manifest'; l.href='./manifest.json';
+    document.head.appendChild(l);
+  }
+})();
+</script>
+
 <style>
 :root{
   --bg:#0b0e12;--panel:#0f141b;--panel2:#0b1118;--text:#e8edf3;--muted:#a6b0bb;
   --accent:#74b3ff;--ring:#243246;--shadow:0 20px 60px rgba(0,0,0,.35);
-  --ok:#2ecc71;--warn:#c7a300;--test:#ff6f61;--mobile:#00bcd4;
+  --ok:#2ecc71;--warn:#c7a300;
   --ease:cubic-bezier(.22,.61,.36,1);
   --spot-x:50%; --spot-y:50%;
 }
@@ -17,242 +30,212 @@
   --bg:#f4f7fb;--panel:#fff;--panel2:#f3f6fb;--text:#0c1116;--muted:#5b6773;
   --accent:#3478ff;--ring:#dbe4f0;--shadow:0 14px 40px rgba(15,30,60,.08);
 }
+html.reduce *{animation:none!important;transition:none!important}
 
-/* 基本レイアウト */
-html,body{
-  height:100%;
-  margin:0;
-  font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif;
-  background:var(--bg); color:var(--text);
-  overflow:hidden;
-}
-.wrap{
-  position:relative; z-index:5;
-  display:grid; grid-template-rows:auto 1fr auto;
-  height:100vh;
-}
-header,footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;}
-.brand{display:flex;align-items:center;gap:.6rem;}
+html,body{height:100%;margin:0;font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+.wrap{position:relative;z-index:5;display:grid;grid-template-rows:auto auto 1fr auto;height:100vh}
+header,footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+.brand{display:flex;align-items:center;gap:.6rem}
 .logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#7cc1ff,#6c8dff);box-shadow:0 4px 20px rgba(100,150,255,.35)}
 h1{font-size:16px;margin:0}
-.version{font-size:12px;color:var(--muted);margin-left:8px}
-main{display:grid;place-items:center;padding:22px;}
-footer{
-  border-top:1px solid var(--ring);
-  font-size:12px;color:var(--muted);
-  animation:footerIn .9s ease .2s both;
+header h1.shimmer{
+  background:linear-gradient(90deg,#fff, #a9d1ff 40%, #fff 80%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;background-size:220% 100%;
+  animation:titleShimmer 8s linear infinite;
 }
+@keyframes titleShimmer{0%{background-position:0% 0}100%{background-position:-220% 0}}
+.version{font-size:12px;color:var(--muted);margin-left:8px}
+main{display:grid;place-items:center;padding:12px 22px}
+footer{border-top:1px solid var(--ring);font-size:12px;color:var(--muted);animation:footerIn .9s ease .2s both}
 @keyframes footerIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
-/* 背景：グラデ＋オーロラ＋ビネット＋ボケ光 */
-.bg{
-  position:fixed; inset:0; z-index:0; pointer-events:none;
-  background:
-    radial-gradient(1200px 800px at 20% 30%,rgba(80,130,255,.10),transparent 60%),
-    radial-gradient(900px 700px at 75% 75%,rgba(60,200,255,.10),transparent 60%),
-    linear-gradient(180deg,rgba(0,0,0,.15),transparent 40%,rgba(0,0,0,.2));
-  animation:bgHue 28s ease-in-out infinite alternate;
-  filter:blur(2px);
-}
+.toolbar{display:flex;gap:.5rem;align-items:center;padding:0 14px 8px}
+#filter{width:320px;max-width:60vw;background:var(--panel2);border:1px solid var(--ring);color:var(--text);border-radius:10px;padding:.55rem .7rem;outline:0}
+
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:
+  radial-gradient(1200px 800px at 20% 30%,rgba(80,130,255,.10),transparent 60%),
+  radial-gradient(900px 700px at 75% 75%,rgba(60,200,255,.10),transparent 60%),
+  linear-gradient(180deg,rgba(0,0,0,.15),transparent 40%,rgba(0,0,0,.2));animation:bgHue 28s ease-in-out infinite alternate;filter:blur(2px)}
 @keyframes bgHue{0%{filter:hue-rotate(0deg) brightness(.95)}100%{filter:hue-rotate(150deg) brightness(1.08)}}
-
-/* Aurora sheet */
-.aurora{
-  position:fixed; inset:-10% -10% -5% -10%; z-index:1; pointer-events:none;
-  background:
-    conic-gradient(from 0deg at 60% 40%, rgba(116,179,255,.10), rgba(0,255,170,.08), rgba(255,120,200,.08), rgba(116,179,255,.10));
+.aurora{position:fixed;inset:-10% -10% -5% -10%;z-index:1;pointer-events:none;background:
+  conic-gradient(from 0deg at 60% 40%, rgba(116,179,255,.10), rgba(0,255,170,.08), rgba(255,120,200,.08), rgba(116,179,255,.10));
   mask: radial-gradient(60% 50% at 50% 40%, #000 55%, transparent 70%) radial-gradient(40% 35% at 60% 80%, #000 45%, transparent 70%);
-  animation:auroraFlow 22s linear infinite;
-}
+  animation:auroraFlow 22s linear infinite}
 @keyframes auroraFlow{to{transform:translate3d(0,-3%,0) rotate(360deg)}}
-
-/* ビネット（縁の呼吸） */
-.vignette{
-  position:fixed; inset:0; z-index:2; pointer-events:none;
-  background:radial-gradient(60% 55% at 50% 45%, transparent 60%, rgba(0,0,0,.55) 100%);
-  animation:vigBreath 8s ease-in-out infinite;
-}
+.vignette{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(60% 55% at 50% 45%, transparent 60%, rgba(0,0,0,.55) 100%);animation:vigBreath 8s ease-in-out infinite}
 @keyframes vigBreath{0%,100%{opacity:.95}50%{opacity:.82}}
 
-/* 流れるボケ玉 */
-.bokeh{
-  position:absolute;width:240px;height:240px;border-radius:50%;
-  pointer-events:none; mix-blend-mode:screen; opacity:.22;
-  background:radial-gradient(circle, rgba(116,179,255,.8) 0%, transparent 65%);
-  animation:bokehMove 24s ease-in-out infinite;
-}
+/* 背景ビーム/星空/ワープ/スキャン */
+.beams{position:fixed;inset:-20% -20% -10% -20%;z-index:1;pointer-events:none;opacity:0;filter:blur(18px) saturate(1.1);mix-blend-mode:screen;background:
+  conic-gradient(from 120deg at 20% -10%, rgba(255,240,180,.18), transparent 40%),
+  conic-gradient(from 210deg at 80% -10%, rgba(180,220,255,.16), transparent 40%),
+  conic-gradient(from 160deg at 50% -10%, rgba(255,180,220,.16), transparent 45%)}
+.beams.show{opacity:1;animation:beamsMove 20s linear infinite}
+@keyframes beamsMove{0%{transform:translateY(2%) rotate(0deg)}50%{transform:translateY(-1%) rotate(1deg)}100%{transform:translateY(2%) rotate(0deg)}}
+
+.stars2{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;background:
+  radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,.9), transparent 60%),
+  radial-gradient(1px 1px at 25% 70%, rgba(255,255,255,.8), transparent 60%),
+  radial-gradient(1px 1px at 40% 40%, rgba(255,255,255,.85), transparent 60%),
+  radial-gradient(1px 1px at 60% 25%, rgba(255,255,255,.85), transparent 60%),
+  radial-gradient(1px 1px at 75% 60%, rgba(255,255,255,.9), transparent 60%),
+  radial-gradient(1px 1px at 85% 35%, rgba(255,255,255,.85), transparent 60%),
+  radial-gradient(1px 1px at 55% 80%, rgba(255,255,255,.85), transparent 60%),
+  radial-gradient(1px 1px at 90% 10%, rgba(255,255,255,.8), transparent 60%),
+  radial-gradient(1px 1px at 15% 50%, rgba(255,255,255,.85), transparent 60%)}
+.stars2.show{opacity:.28;animation:starsTwinkle 9s ease-in-out infinite alternate}
+@keyframes starsTwinkle{0%{filter:brightness(.9)}50%{filter:brightness(1.2)}100%{filter:brightness(.9)}}
+
+.warp{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;background:
+  repeating-linear-gradient(120deg, rgba(120,200,255,.13), rgba(120,200,255,.13) 2px, transparent 2px, transparent 26px)}
+.warp.show{opacity:.35;animation:warpPan 16s linear infinite}
+@keyframes warpPan{0%{background-position:0 0}100%{background-position:600px -320px}}
+
+.scan{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;background:
+  repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 3px)}
+.scan.show{opacity:.14;animation:scanFlicker 10s ease-in-out infinite alternate}
+@keyframes scanFlicker{0%,100%{filter:brightness(1)}50%{filter:brightness(1.15)}}
+
+/* 既存のボケ光 */
+.bokeh{position:absolute;width:240px;height:240px;border-radius:50%;pointer-events:none;mix-blend-mode:screen;opacity:.22;background:radial-gradient(circle, rgba(116,179,255,.8) 0%, transparent 65%);animation:bokehMove 24s ease-in-out infinite}
 .bokeh:nth-child(1){top:12%;left:14%;animation-delay:-3s}
 .bokeh:nth-child(2){top:58%;left:68%;animation-delay:-7s}
 .bokeh:nth-child(3){top:78%;left:24%;animation-delay:-11s}
 .bokeh:nth-child(4){top:82%;left:86%;animation-delay:-5s}
-@keyframes bokehMove{
-  0%{transform:translate3d(0,0,0) scale(1)}
-  50%{transform:translate3d(80px,-60px,0) scale(1.18)}
-  100%{transform:translate3d(0,0,0) scale(1)}
-}
+@keyframes bokehMove{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(80px,-60px,0) scale(1.18)}100%{transform:translate3d(0,0,0) scale(1)}}
 
-/* パーティクル（軽量） */
-.particle{
-  position:fixed;width:2px;height:2px;border-radius:50%;
-  pointer-events:none; background:var(--accent); opacity:.16; mix-blend-mode:screen;
-  animation:fall var(--spd) linear infinite;
-  transform:translateZ(var(--z));
-}
-@keyframes fall{
-  0%{transform:translateY(-5px) translateX(var(--x)) translateZ(var(--z));opacity:0}
-  10%{opacity:.85}
-  100%{transform:translateY(100vh) translateX(calc(var(--x) + 30px)) translateZ(var(--z));opacity:0}
-}
+.cursor{position:fixed;width:340px;height:340px;border-radius:50%;pointer-events:none;z-index:4;opacity:.5;background:radial-gradient(circle, rgba(116,179,255,.5) 0%, transparent 70%);mix-blend-mode:overlay;transform:translate(-170px,-170px);transition:transform .25s ease-out, opacity .4s}
 
-/* 光カーソル＆スポットライト */
-.cursor{
-  position:fixed;width:340px;height:340px;border-radius:50%;
-  pointer-events:none; z-index:3; opacity:.5;
-  background:radial-gradient(circle, rgba(116,179,255,.5) 0%, transparent 70%);
-  mix-blend-mode:overlay;
-  transform:translate(-170px,-170px);
-  transition:transform .25s ease-out, opacity .4s;
-}
+/* ★カーソル・トレイル */
+.trail{position:fixed;width:8px;height:8px;border-radius:50%;pointer-events:none;z-index:4;background:radial-gradient(circle, rgba(255,255,255,.9) 0, rgba(255,255,255,0) 70%);mix-blend-mode:screen;animation:trailFade .6s ease-out both}
+@keyframes trailFade{from{transform:translate(-50%,-50%) scale(.6);opacity:.9}to{transform:translate(-50%,-50%) scale(2.2);opacity:0}}
 
-/* グリッド／カード */
-.grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;perspective:1200px;}
-.card{
-  position:relative; background:var(--panel); border:1px solid var(--ring); border-radius:16px; padding:18px;
-  box-shadow:var(--shadow); opacity:0; transform:translateY(20px) rotateX(5deg) rotateY(-5deg) scale(.98);
-  transition:transform .28s var(--ease),box-shadow .28s var(--ease),filter .28s, opacity .5s;
-  transform-style:preserve-3d; will-change:transform;
-  /* スポットライト */
-  background-image:
-    radial-gradient(200px 200px at var(--spot-x) var(--spot-y), rgba(116,179,255,.12), transparent 70%);
-  background-blend-mode:screen;
-}
+.grid{width:min(980px,92vw);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;perspective:1200px}
+.card{position:relative;background:var(--panel);border:1px solid var(--ring);border-radius:16px;padding:18px;box-shadow:var(--shadow);opacity:0;transform:translateY(20px) rotateX(5deg) rotateY(-5deg) scale(.98);transition:transform .28s var(--ease),box-shadow .28s var(--ease),filter .28s, opacity .5s;transform-style:preserve-3d;will-change:transform;background-image:radial-gradient(200px 200px at var(--spot-x) var(--spot-y), rgba(116,179,255,.12), transparent 70%);background-blend-mode:screen;overflow:hidden}
 .loaded .card{animation:fadein .7s var(--ease) forwards}
-.card:nth-child(1){animation-delay:.05s}
-.card:nth-child(2){animation-delay:.12s}
-.card:nth-child(3){animation-delay:.19s}
-.card:nth-child(4){animation-delay:.26s}
+.card:nth-child(1){animation-delay:.05s}.card:nth-child(2){animation-delay:.12s}.card:nth-child(3){animation-delay:.19s}.card:nth-child(4){animation-delay:.26s}
 @keyframes fadein{to{opacity:1;transform:none}}
-.card:hover{
-  transform:rotateY(var(--rY,0deg)) rotateX(var(--rX,0deg)) translateZ(45px) scale(1.06);
-  box-shadow:0 28px 70px rgba(0,0,0,.55);
+.card:hover{transform:rotateY(var(--rY,0deg)) rotateX(var(--rX,0deg)) translateZ(45px) scale(1.06);box-shadow:0 28px 70px rgba(0,0,0,.55)}
+
+/* カード・シーン（光筋） */
+.sheen-on .card::after{
+  content:"";position:absolute;inset:-10% -40% -10% -40%;pointer-events:none;
+  background:linear-gradient(120deg, transparent 40%, rgba(255,255,255,.18) 50%, transparent 60%);
+  transform:translateX(-60%);transition:transform .6s var(--ease)
 }
-.card.focused{
-  transform:rotateY(0deg) rotateX(0deg) translateZ(110px) scale(1.14);
-  box-shadow:0 44px 110px rgba(0,0,0,.75);
-  filter:brightness(1.08);
-}
-.grid.focus-mode .card:not(.focused){
-  opacity:.42; transform:translateZ(-60px) scale(.9); filter:blur(2px); pointer-events:none;
-}
-/* フォーカス装飾 */
-.card.focused::before{
-  content:""; position:absolute; inset:-5px; border-radius:18px;
-  background:
-    conic-gradient(from 0deg, rgba(116,179,255,.35), rgba(0,255,200,.25), rgba(255,140,220,.25), rgba(116,179,255,.35));
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor; mask-composite:exclude;
-  padding:2px; opacity:.85; filter:blur(8px);
-  animation:borderSpin 12s linear infinite;
-}
+.sheen-on .card:hover::after{transform:translateX(60%)}
+
+/* フォーカス時の装飾（脈動グロー＋回転枠） */
+.grid.focus-mode .card:not(.focused){opacity:.42;transform:translateZ(-60px) scale(.9);filter:blur(2px);pointer-events:none}
+.card.focused{transform:rotateY(0deg) rotateX(0deg) translateZ(110px) scale(1.14);box-shadow:0 44px 110px rgba(0,0,0,.75);filter:brightness(1.08);animation:glowPulse 3s ease-in-out infinite}
+@keyframes glowPulse{0%,100%{box-shadow:0 44px 110px rgba(0,0,0,.75)}50%{box-shadow:0 54px 130px rgba(20,40,80,.85)}}
+.card.focused::before{content:"";position:absolute;inset:-5px;border-radius:18px;background:conic-gradient(from 0deg, rgba(116,179,255,.35), rgba(0,255,200,.25), rgba(255,140,220,.25), rgba(116,179,255,.35));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;padding:2px;opacity:.85;filter:blur(8px);animation:borderSpin 12s linear infinite}
 @keyframes borderSpin{to{transform:rotate(360deg)}}
 
-/* マーク */
 .mark{position:absolute;top:10px;right:10px;padding:.2rem .5rem;border-radius:999px;font-size:12px;color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25)}
-.mark.alpha{background:var(--ok)}
-.mark.beta{background:var(--test)}
-.mark.old{background:var(--warn)}
-.mark.touch{background:var(--mobile)}
+.mark.alpha{background:var(--ok)}.mark.beta{background:#ff6f61}.mark.old{background:var(--warn)}.mark.touch{background:#00bcd4}
 
-/* ボタン */
-.btn{
-  position:relative; border:1px solid var(--ring); background:var(--panel2); color:var(--text);
-  padding:9px 14px; border-radius:10px; cursor:pointer; z-index:10;
-  transition:background .25s, box-shadow .25s, transform .12s;
-  user-select:none; -webkit-tap-highlight-color:transparent;
-}
-.btn:hover{
-  background:linear-gradient(180deg,var(--accent),var(--panel2)); color:#fff;
-  box-shadow:0 0 14px rgba(116,179,255,.45);
-}
-.btn:active{ transform:translateY(1px) scale(.98) }
-/* リップル */
-.btn .ripple{
-  position:absolute; border-radius:50%; pointer-events:none; inset:auto; width:10px;height:10px;
-  transform:translate(-50%,-50%); background:rgba(255,255,255,.6); mix-blend-mode:overlay; opacity:0; animation:ripple .6s ease-out forwards;
-}
+/* ボタン：マグネット可 */
+.btn{position:relative;border:1px solid var(--ring);background:var(--panel2);color:var(--text);padding:9px 14px;border-radius:10px;cursor:pointer;z-index:10;transition:background .25s, box-shadow .25s;user-select:none;-webkit-tap-highlight-color:transparent;
+  transform:translate(var(--mx,0px), var(--my,0px)) scale(var(--ms,1))}
+.btn:hover{background:linear-gradient(180deg,var(--accent),var(--panel2));color:#fff;box-shadow:0 0 14px rgba(116,179,255,.45)}
+.btn:active{--ms:.98; --my:calc(var(--my,0px) + 1px)}
+.btn .ripple{position:absolute;border-radius:50%;pointer-events:none;inset:auto;width:10px;height:10px;transform:translate(-50%,-50%);background:rgba(255,255,255,.6);mix-blend-mode:overlay;opacity:0;animation:ripple .6s ease-out forwards}
 @keyframes ripple{0%{opacity:.9;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(-50%,-50%) scale(6)}}
 
-/* Reduced motion 配慮 */
-@media (prefers-reduced-motion: reduce){
-  .bg,.aurora,.vignette,.bokeh,.particle,.cursor,.card,*{animation:none!important; transition:none!important}
-}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+.modal.show{display:flex}
+.card-modal{width:min(720px,92vw);background:var(--panel);border:1px solid var(--ring);border-radius:14px;box-shadow:var(--shadow);padding:14px}
+.modal h3{margin:6px 0 10px}
+.opt{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--ring);padding:10px;border-radius:10px;background:var(--panel2);margin:8px 0}
+
+/* 起動スプラッシュ（スキップ不可 / 自動のみ） */
+#splash{position:fixed;inset:0;background:radial-gradient(800px 600px at 30% 20%,rgba(116,179,255,.14),transparent 60%),var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:9999;pointer-events:none}
+#splash.hide{animation:splash-out .6s ease forwards}
+@keyframes splash-out{to{opacity:0;visibility:hidden}}
+.s-logo{font-weight:800;letter-spacing:.06em;font-size:34px;display:flex;align-items:center;gap:.6rem}
+.s-logo .mark{width:42px;height:42px;border-radius:12px;background:conic-gradient(from 0deg,#4ea0ff,#8ef5c3,#ffd166,#ff92d0,#4ea0ff);animation:logo-spin 2s ease-in-out infinite alternate;box-shadow:0 12px 40px var(--shadow)}
+.s-sub{margin-top:.4rem;color:var(--muted)}
+@keyframes logo-spin{0%{transform:rotate(-8deg) scale(1)}100%{transform:rotate(8deg) scale(1.06)}}
+
+/* 検索ハイライト */
+mark{background:rgba(255,230,120,.35);padding:0 .2em;border-radius:.2em}
+
+/* 右クリックメニュー */
+#ctx{position:fixed;inset:auto auto 0 0;display:none;min-width:180px;background:var(--panel);border:1px solid var(--ring);border-radius:12px;box-shadow:var(--shadow);z-index:60}
+#ctx .row{padding:.55rem .8rem;cursor:pointer}
+#ctx .row:hover{background:var(--panel2)}
+
+/* 粒子（IIFEで生成するやつのCSSを追加） */
+.particle{position:fixed;left:var(--x,0);top:-20px;width:2px;height:10px;border-radius:2px;background:linear-gradient(180deg,rgba(116,179,255,.9),rgba(116,179,255,0));filter:blur(.3px);transform:translateZ(var(--z,0));animation:fall var(--spd,8s) linear infinite}
+@keyframes fall{to{transform:translate3d(0,110vh,0)}}
 </style>
 </head>
 <body>
-<!-- 背景レイヤ -->
-<div class="bg"></div>
-<div class="aurora"></div>
+<!-- 背景 -->
+<div class="bg" id="bg"></div>
+<div class="aurora" id="aurora"></div>
+<div class="beams" id="beams"></div>
+<div class="stars2" id="stars2"></div>
+<div class="warp" id="warp"></div>
+<div class="scan" id="scan"></div>
 <div class="vignette"></div>
 <div class="bokeh"></div><div class="bokeh"></div><div class="bokeh"></div><div class="bokeh"></div>
 <div class="cursor" id="cursor"></div>
 
-<script>
-/* 粒子生成（画面幅に応じて） */
-(() => {
-  const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const N = prefersReduced ? 0 : (innerWidth > 1200 ? 90 : 48);
-  for(let i=0;i<N;i++){
-    const p=document.createElement('div');
-    p.className='particle';
-    p.style.setProperty('--x',Math.random()*100+'vw');
-    p.style.setProperty('--spd',(6+Math.random()*8)+'s');
-    p.style.setProperty('--z',(Math.random()*200-100)+'px');
-    p.style.animationDelay=(Math.random()*10)+'s';
-    document.body.appendChild(p);
-  }
-})();
-</script>
+<!-- 起動スプラッシュ（自動のみ閉じる） -->
+<div id="splash" aria-hidden="true">
+  <div class="s-logo"><div class="mark"></div><div>OmniMedia</div></div>
+  <div class="s-sub">Landing v7.2</div>
+</div>
 
-<div class="wrap">
+<div class="wrap" aria-live="polite">
   <header>
     <div class="brand">
       <div class="logo" aria-hidden="true"></div>
-      <h1 id="title">OmniMedia – ランディング</h1>
-      <span class="version">v5.4</span>
+      <h1 id="title" class="shimmer">OmniMedia – ランディング</h1>
+      <span class="version">v7.2</span>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
+      <button id="installBtn" class="btn" title="アプリとしてインストール" style="display:none">⬇︎ インストール</button>
+      <button id="shareBtn" class="btn" title="共有">共有</button>
+      <button id="settingsBtn" class="btn" title="設定">⚙️</button>
       <button id="langBtn" class="btn" aria-label="言語切替">🌐 JP</button>
       <button id="themeBtn" class="btn" aria-label="テーマ切替">🌙</button>
     </div>
   </header>
 
+  <div class="toolbar">
+    <input id="filter" type="search" placeholder="検索: α / β / PC / Touch …" aria-label="検索">
+  </div>
+
   <main>
     <div class="grid" id="grid">
-      <article class="card">
+      <article class="card" tabindex="0" data-tags="alpha stable 推奨" data-slug="alpha" data-href="./omni_pc_α.html">
         <span class="mark alpha" id="markAlpha">推奨</span>
-        <h2 id="titleAlpha">Omni Player α</h2>
-        <p id="descAlpha">安定版。完全機能・低負荷で推奨バージョン。</p>
+        <h2 id="titleAlpha" data-orig>Omni Player α</h2>
+        <p id="descAlpha" data-orig>安定版。完全機能・低負荷で推奨バージョン。</p>
         <a class="btn" href="./omni_pc_α.html" id="btnAlpha">開く</a>
       </article>
 
-      <article class="card">
+      <article class="card" tabindex="0" data-tags="beta test 実験" data-slug="beta" data-href="./omni_pc_β.html">
         <span class="mark beta" id="markBeta">テスト</span>
-        <h2 id="titleBeta">Omni Player β</h2>
-        <p id="descBeta">新機能を含む実験的アップデート。</p>
+        <h2 id="titleBeta" data-orig>Omni Player β</h2>
+        <p id="descBeta" data-orig>新機能を含む実験的アップデート。</p>
         <a class="btn" href="./omni_pc_β.html" id="btnBeta">開く</a>
       </article>
 
-      <article class="card">
+      <article class="card" tabindex="0" data-tags="pc old 旧版" data-slug="pc" data-href="./omni_pc.html">
         <span class="mark old" id="markPc">非推奨</span>
-        <h2 id="titlePc">Omni Player PC</h2>
-        <p id="descPc">旧版。過去構成用として残存。</p>
+        <h2 id="titlePc" data-orig>Omni Player PC</h2>
+        <p id="descPc" data-orig>旧版。過去構成用として残存。</p>
         <a class="btn" href="./omni_pc.html" id="btnPc">開く</a>
       </article>
 
-      <article class="card">
+      <article class="card" tabindex="0" data-tags="touch mobile スマホ" data-slug="touch" data-href="./omni_touch.html">
         <span class="mark touch" id="markTouch">スマホ</span>
-        <h2 id="titleTouch">Omni Player Touch</h2>
-        <p id="descTouch">スマートフォンやタブレット向けに最適化された操作性。</p>
+        <h2 id="titleTouch" data-orig>Omni Player Touch</h2>
+        <p id="descTouch" data-orig>スマートフォンやタブレット向けに最適化された操作性。</p>
         <a class="btn" href="./omni_touch.html" id="btnTouch">開く</a>
       </article>
     </div>
@@ -261,195 +244,444 @@ footer{
   <footer id="footerText">© 2025 OmniMedia – すべての体験をひとつに。</footer>
 </div>
 
+<!-- 設定モーダル -->
+<div class="modal" id="settingsModal" aria-hidden="true">
+  <div class="card-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h3 id="settingsTitle">設定</h3>
+    <div class="opt"><div>省エネ・低スペック（アニメ低減）</div><label><input type="checkbox" id="optReduce"> 有効</label></div>
+    <div class="opt"><div>3Dチルト（カードにマウス追従）</div><label><input type="checkbox" id="optTilt"> 有効</label></div>
+    <div class="opt"><div>フォーカスモード（カード拡大）</div><label><input type="checkbox" id="optFocus" checked> 有効</label></div>
+    <div class="opt"><div>コンフェッティ（フォーカス時）</div><label><input type="checkbox" id="optConfetti" checked> 有効</label></div>
+    <div class="opt"><div>背景パーティクル量</div><input type="range" id="optParticles" min="0" max="120" step="6" value="48"></div>
+    <div class="opt"><div>テーマ</div>
+      <select id="optTheme">
+        <option value="dark">ダーク</option>
+        <option value="light">ライト</option>
+        <option value="auto">自動（OS連動）</option>
+      </select>
+    </div>
+
+    <hr style="border:none;border-top:1px dashed var(--ring)">
+
+    <div class="opt"><div>背景ビーム</div><label><input type="checkbox" id="optBeams" checked> 有効</label></div>
+    <div class="opt"><div>星空チラつき</div><label><input type="checkbox" id="optStars" checked> 有効</label></div>
+    <div class="opt"><div>ワープライン</div><label><input type="checkbox" id="optWarp"> 有効</label></div>
+    <div class="opt"><div>スキャンライン</div><label><input type="checkbox" id="optScan"> 有効</label></div>
+    <div class="opt"><div>カーソル・トレイル</div><label><input type="checkbox" id="optTrail" checked> 有効</label></div>
+    <div class="opt"><div>カード・シーン（光筋）</div><label><input type="checkbox" id="optSheen" checked> 有効</label></div>
+    <div class="opt"><div>ボタン・マグネット</div><label><input type="checkbox" id="optMagnet" checked> 有効</label></div>
+
+    <div style="text-align:right;margin-top:8px"><button class="btn" id="optClose">閉じる</button></div>
+  </div>
+</div>
+
+<!-- 右クリック用メニュー -->
+<div id="ctx" role="menu" aria-hidden="true">
+  <div class="row" data-cmd="open">開く</div>
+  <div class="row" data-cmd="newtab">新しいタブで開く</div>
+  <div class="row" data-cmd="copy">リンクをコピー</div>
+</div>
+
 <script>
-(() => {
-  const cursor = document.getElementById('cursor');
-  const grid   = document.getElementById('grid');
-  const cards  = Array.from(document.querySelectorAll('.card'));
-  const themeBtn = document.getElementById('themeBtn');
-  const langBtn  = document.getElementById('langBtn');
-  const meta = document.getElementById('themeColorMeta');
+/* ===== 参照（applySettings より前に全部用意） ===== */
+const meta = document.getElementById('themeColorMeta');
+const themeBtn = document.getElementById('themeBtn');
+const langBtn  = document.getElementById('langBtn');
+const grid   = document.getElementById('grid');
+const cursor = document.getElementById('cursor');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const optReduce = document.getElementById('optReduce');
+const optTilt = document.getElementById('optTilt');
+const optFocus = document.getElementById('optFocus');
+const optConfetti = document.getElementById('optConfetti');
+const optParticles = document.getElementById('optParticles');
+const optTheme = document.getElementById('optTheme');
+const filterInput = document.getElementById('filter');
+const installBtn = document.getElementById('installBtn');
+const shareBtn = document.getElementById('shareBtn');
+const splash = document.getElementById('splash');
+const ctxMenu = document.getElementById('ctx');
+/* 新規 FX 参照 */
+const beams = document.getElementById('beams');
+const stars = document.getElementById('stars2');
+const warp  = document.getElementById('warp');
+const scan  = document.getElementById('scan');
+const bgEl  = document.getElementById('bg');
+const auroraEl = document.getElementById('aurora');
+/* アニメトグル参照（順序重要） */
+const optBeams=document.getElementById('optBeams');
+const optStars=document.getElementById('optStars');
+const optWarp=document.getElementById('optWarp');
+const optScan=document.getElementById('optScan');
+const optTrail=document.getElementById('optTrail');
+const optSheen=document.getElementById('optSheen');
+const optMagnet=document.getElementById('optMagnet');
 
-  /* ===== カーソル光 ===== */
-  window.addEventListener('mousemove',(e)=>{
-    cursor.style.transform = `translate(${e.clientX-170}px,${e.clientY-170}px)`;
-  });
+/* ===== 保存ユーティリティ ===== */
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{ return d }},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const themeKey='om.theme';
 
-  /* ===== ボタン：リップル ===== */
-  document.addEventListener('click',(e)=>{
-    const btn = e.target.closest('.btn');
-    if(!btn) return;
-    const r = btn.getBoundingClientRect();
-    const span = document.createElement('span');
-    span.className = 'ripple';
-    span.style.left = (e.clientX - r.left)+'px';
-    span.style.top  = (e.clientY - r.top)+'px';
-    btn.appendChild(span);
-    setTimeout(()=>span.remove(), 650);
-  });
+/* ===== 設定（既存＋追加） ===== */
+const settings = Object.assign(
+  { reduce:false, tilt:true, focus:true, confetti:true, particles:(innerWidth>1200?90:48) },
+  { beams:true, stars:true, warp:false, scan:false, trail:true, sheen:true, magnet:true }
+, store.get('om.settings', {}));
 
-  /* ===== テーマ切替（保存＆meta連動） ===== */
-  const themeKey='om.theme';
-  const savedTheme = localStorage.getItem(themeKey);
-  if(savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
-  themeBtn.textContent = (document.documentElement.getAttribute('data-theme')||'dark')==='light' ? '☀️' : '🌙';
-  updateMetaTheme();
-  themeBtn.addEventListener('click',()=>{
-    const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = cur==='dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    themeBtn.textContent = next==='light' ? '☀️' : '🌙';
-    try{ localStorage.setItem(themeKey, next) }catch{}
-    updateMetaTheme();
-  });
-  function updateMetaTheme(){
-    const isLight = (document.documentElement.getAttribute('data-theme')||'dark')==='light';
-    meta.setAttribute('content', isLight ? '#f4f7fb' : '#0b0e12');
-  }
+/* ===== テーマ ===== */
+const themePref = store.get(themeKey,'dark');
+applyTheme(themePref);
+optTheme.value = themePref;
+themeBtn.textContent = displayThemeIcon(themePref);
+function getSystemTheme(){ return matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' }
+function applyTheme(mode){
+  const m = mode==='auto' ? getSystemTheme() : mode;
+  document.documentElement.setAttribute('data-theme', m);
+  meta.setAttribute('content', m==='light' ? '#f4f7fb' : '#0b0e12');
+}
+function displayThemeIcon(mode){
+  const m = mode==='auto' ? 'auto' : mode;
+  if(m==='auto') return '🌓';
+  return m==='light' ? '☀️' : '🌙';
+}
+themeBtn.addEventListener('click',()=>{
+  const cur = store.get(themeKey,'dark');
+  const next = cur==='dark' ? 'light' : (cur==='light' ? 'auto' : 'dark');
+  store.set(themeKey,next);
+  themeBtn.textContent=displayThemeIcon(next);
+  applyTheme(next);
+});
+optTheme.addEventListener('change',()=>{ store.set(themeKey, optTheme.value); themeBtn.textContent=displayThemeIcon(optTheme.value); applyTheme(optTheme.value) });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(store.get(themeKey,'dark')==='auto') applyTheme('auto') });
 
-  /* ===== 効果音（フォーカス時に一度だけ） ===== */
-  let audioCtx=null, buffer=null, loaded=false;
-  async function initAudio(){
-    if(loaded) return;
-    try{
-      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      const res = await fetch('Sound1.mp3', {cache:'no-store'});
-      const arr = await res.arrayBuffer();
-      buffer = await audioCtx.decodeAudioData(arr);
-      loaded = true;
-    }catch(e){
-      // mp3がない/デコード不可なら無音で続行
-      loaded = false;
-    }
-  }
-  window.addEventListener('click', ()=>{ initAudio() }, {once:true});
-  async function playSE(){
-    if(!audioCtx || !buffer) return;
-    if(audioCtx.state==='suspended'){ try{ await audioCtx.resume() }catch{} }
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(audioCtx.destination);
-    src.start(0);
-  }
-
-  /* ===== カード：3Dチルト＋スポットライト＋フォーカス ===== */
-  cards.forEach((card)=>{
-    card.addEventListener('mousemove',(e)=>{
-      const r=card.getBoundingClientRect();
-      const x=e.clientX-r.left, y=e.clientY-r.top;
-      const midX=r.width/2, midY=r.height/2;
-      card.style.setProperty('--rY', ((x-midX)/midX)*10+'deg');
-      card.style.setProperty('--rX', ((midY-y)/midY)*10+'deg');
-      card.style.setProperty('--spot-x', (x/r.width*100)+'%');
-      card.style.setProperty('--spot-y', (y/r.height*100)+'%');
-    });
-    card.addEventListener('mouseleave',()=>{
-      card.style.setProperty('--rY','0deg');
-      card.style.setProperty('--rX','0deg');
-    });
-    card.addEventListener('click',()=>{
-      const was = card.classList.contains('focused');
-      cards.forEach(c=>c.classList.remove('focused'));
-      if(!was){
-        card.classList.add('focused');
-        grid.classList.add('focus-mode');
-        confetti(card);
-        playSE();
-      }else{
-        grid.classList.remove('focus-mode');
-      }
-    });
-  });
-
-  /* ===== コンフェッティ（軽量DOM） ===== */
-  function confetti(anchor){
-    const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if(prefersReduced) return;
-    const r = anchor.getBoundingClientRect();
-    const N = 18;
-    for(let i=0;i<N;i++){
-      const s=document.createElement('div');
-      const size = 6+Math.random()*8;
-      s.style.position='fixed';
-      s.style.left = (r.left + r.width/2)+'px';
-      s.style.top  = (r.top + 10)+'px';
-      s.style.width=size+'px'; s.style.height=size+'px';
-      s.style.background = `hsl(${Math.random()*360},90%,60%)`;
-      s.style.borderRadius='2px';
-      s.style.boxShadow='0 2px 8px rgba(0,0,0,.25)';
-      s.style.zIndex=30;
-      s.style.pointerEvents='none';
-      const vx = (Math.random()-0.5)*3, vy = - (2+Math.random()*2), rot = (Math.random()*360)+'deg';
-      const life = 900 + Math.random()*500;
-      document.body.appendChild(s);
-      const t0 = performance.now();
-      (function tick(now){
-        const dt = (now - t0)/1000;
-        const x = vx*60*dt;
-        const y = vy*60*dt + 80*dt*dt; // 重力
-        s.style.transform = `translate(${x}px,${y}px) rotate(${rot})`;
-        s.style.opacity = String(1 - dt/ (life/1000));
-        if(now - t0 < life) requestAnimationFrame(tick); else s.remove();
-      })(t0);
-    }
-  }
-
-  /* ===== 多言語 ===== */
-  const dict={
-    ja:{lang:"JP",footer:"© 2025 OmniMedia – すべての体験をひとつに。",alpha:"推奨",beta:"テスト",old:"非推奨",touch:"スマホ",
-      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"安定版。完全機能・低負荷で推奨バージョン。",betaDesc:"新機能を含む実験的アップデート。",oldDesc:"旧版。過去構成用として残存。",touchDesc:"スマートフォンやタブレット向けに最適化された操作性。"},
-    en:{lang:"EN",footer:"© 2025 OmniMedia – One experience for all.",alpha:"Rec",beta:"Test",old:"Old",touch:"Mobile",
-      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"Experimental build with new features.",oldDesc:"Legacy version kept for compatibility.",touchDesc:"Optimized for smartphones and tablets."},
-    ko:{lang:"KR",footer:"© 2025 OmniMedia – 모든 경험을 하나로.",alpha:"추천",beta:"테스트",old:"비추천",touch:"모바일",
-      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"안정 버전, 완전한 기능과 최적화 성능.",betaDesc:"새 기능을 포함한 실험 버전.",oldDesc:"이전 버전(비추천).",touchDesc:"스마트폰·태블릿에 최적화."},
-    zh:{lang:"中文",footer:"© 2025 OmniMedia – 汇聚所有体验。",alpha:"推荐",beta:"测试",old:"旧版",touch:"移动",
-      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"稳定版，完整功能与最佳性能。",betaDesc:"包含新功能的实验版。",oldDesc:"旧版本，仅保留兼容。",touchDesc:"针对手机和平板优化。"},
-    ru:{lang:"RU",footer:"© 2025 OmniMedia – Единый опыт для всех.",alpha:"Реком.",beta:"Тест",old:"Стар.",touch:"Моб.",
-      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"Стабильная версия с полной функциональностью.",betaDesc:"Экспериментальная версия с новыми функциями.",oldDesc:"Старая версия (не рекомендуется).",touchDesc:"Оптимизировано для смартфонов и планшетов."},
-    fr:{lang:"FR",footer:"© 2025 OmniMedia – Une expérience unique pour tous.",alpha:"Recom.",beta:"Test",old:"Anc.",touch:"Mobile",
-      alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
-      alphaDesc:"Version stable, complète et optimisée.",betaDesc:"Version expérimentale avec nouvelles fonctions.",oldDesc:"Ancienne version (non recommandée).",touchDesc:"Optimisé pour smartphones et tablettes."}
-  };
-  const langKey='om.lang';
-  let lang = localStorage.getItem(langKey)||'ja';
-  if(!dict[lang]) lang='ja';
+/* ===== 多言語 ===== */
+const dict={
+  ja:{lang:"JP",footer:"© 2025 OmniMedia – すべての体験をひとつに。",alpha:"推奨",beta:"テスト",old:"非推奨",touch:"スマホ",
+    alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+    alphaDesc:"安定版。完全機能・低負荷で推奨バージョン。",betaDesc:"新機能を含む実験的アップデート。",oldDesc:"旧版。過去構成用として残存。",touchDesc:"スマートフォンやタブレット向けに最適化された操作性。",
+    searchPH:"検索: α / β / PC / Touch …"},
+  en:{lang:"EN",footer:"© 2025 OmniMedia – One experience for all.",alpha:"Rec",beta:"Test",old:"Old",touch:"Mobile",
+    alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+    alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"Experimental build with new features.",oldDesc:"Legacy version kept for compatibility.",touchDesc:"Optimized for smartphones and tablets.",
+    searchPH:"Search: alpha / beta / PC / Touch …"},
+  ko:{lang:"KR",footer:"© 2025 OmniMedia – 모든 경험을 하나로.",alpha:"추천",beta:"테스트",old:"비추천",touch:"모바일",
+    alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+    alphaDesc:"안정 버전, 완전한 기능과 최적화 성능.",betaDesc:"새 기능을 포함한 실험 버전.",oldDesc:"이전 버전(비추천).",touchDesc:"스마트폰·태블릿에 최적화.",
+    searchPH:"검색: 알파 / 베타 / PC …"},
+  zh:{lang:"中文",footer:"© 2025 OmniMedia – 汇聚所有体验。",alpha:"推荐",beta:"测试",old:"旧版",touch:"移动",
+    alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+    alphaDesc:"稳定版，完整功能与最佳性能。",betaDesc:"包含新功能的实验版。",oldDesc:"旧版本，仅保留兼容。",touchDesc:"针对手机和平板优化。",
+    searchPH:"搜索: α / β / PC / Touch …"},
+  ru:{lang:"RU",footer:"© 2025 OmniMedia – Единый опыт для всех.",alpha:"Реком.",beta:"Тест",old:"Стар.",touch:"Моб.",
+    alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+    alphaDesc:"Стабильная версия с полной функциональностью.",betaDesc:"Экспериментальная версия с новыми функциями.",oldDesc:"Старая версия (не рекомендуется).",touchDesc:"Оптимизировано для смартфонов и планшетов.",
+    searchPH:"Поиск: α / β / PC …"},
+  fr:{lang:"FR",footer:"© 2025 OmniMedia – Une expérience unique pour tous.",alpha:"Recom.",beta:"Test",old:"Anc.",touch:"Mobile",
+    alphaTitle:"Omni Player α",betaTitle:"Omni Player β",oldTitle:"Omni Player PC",touchTitle:"Omni Player Touch",
+    alphaDesc:"Version stable, complète et optimisée.",betaDesc:"Version expérimentale avec nouvelles fonctions.",oldDesc:"Ancienne version (non recommandée).",touchDesc:"Optimisé pour smartphones et tablettes.",
+    searchPH:"Rechercher : α / β / PC …"}
+};
+const langKey='om.lang';
+let lang = store.get(langKey,null);
+if(!lang){
+  const nav=(navigator.language||'ja').slice(0,2);
+  lang=(['ja','en','zh','ko','ru','fr'].includes(nav))?(nav==='ja'?'ja':nav):'ja';
+  store.set(langKey, lang);
+}
+applyLang(lang);
+document.getElementById('langBtn').addEventListener('click',()=>{
+  const keys=Object.keys(dict);
+  lang = keys[(keys.indexOf(lang)+1)%keys.length];
+  store.set(langKey,lang);
   applyLang(lang);
+});
+function el(id){return document.getElementById(id)}
+function applyLang(l){
+  const d=dict[l]||dict.ja;
+  el('markAlpha').textContent=d.alpha; el('markBeta').textContent=d.beta; el('markPc').textContent=d.old; el('markTouch').textContent=d.touch;
+  el('titleAlpha').textContent=d.alphaTitle; el('titleBeta').textContent=d.betaTitle; el('titlePc').textContent=d.oldTitle; el('titleTouch').textContent=d.touchTitle;
+  el('descAlpha').textContent=d.alphaDesc; el('descBeta').textContent=d.betaDesc; el('descPc').textContent=d.oldDesc; el('descTouch').textContent=d.touchDesc;
+  el('footerText').textContent=d.footer; langBtn.textContent='🌐 '+d.lang; filterInput.placeholder=d.searchPH; document.documentElement.lang=l;
+}
 
-  langBtn.addEventListener('click',()=>{
-    const keys=Object.keys(dict);
-    lang = keys[(keys.indexOf(lang)+1) % keys.length];
-    applyLang(lang);
-    try{ localStorage.setItem(langKey,lang) }catch{}
-  });
+/* ===== マウス光カーソル & リップル ===== */
+window.addEventListener('mousemove',(e)=>{cursor.style.transform=`translate(${e.clientX-170}px,${e.clientY-170}px)`});
+document.addEventListener('click',(e)=>{const btn=e.target.closest('.btn');if(!btn)return;const r=btn.getBoundingClientRect();const span=document.createElement('span');span.className='ripple';span.style.left=(e.clientX-r.left)+'px';span.style.top=(e.clientY-r.top)+'px';btn.appendChild(span);setTimeout(()=>span.remove(),650)});
 
-  function el(id){ return document.getElementById(id) }
-  function applyLang(l){
-    const d=dict[l];
-    el('markAlpha').textContent=d.alpha;
-    el('markBeta').textContent=d.beta;
-    el('markPc').textContent=d.old;
-    el('markTouch').textContent=d.touch;
-    el('titleAlpha').textContent=d.alphaTitle;
-    el('titleBeta').textContent=d.betaTitle;
-    el('titlePc').textContent=d.oldTitle;
-    el('titleTouch').textContent=d.touchTitle;
-    el('descAlpha').textContent=d.alphaDesc;
-    el('descBeta').textContent=d.betaDesc;
-    el('descPc').textContent=d.oldDesc;
-    el('descTouch').textContent=d.touchDesc;
-    el('footerText').textContent=d.footer;
-    langBtn.textContent='🌐 '+d.lang;
-    document.documentElement.lang=l;
+/* ===== ここで trailOn を先に宣言（TDZ回避） ===== */
+let trailOn=false, trailPool=[];
+function enableTrail(){
+  if(trailOn) return; trailOn=true;
+  window.addEventListener('mousemove', trailTick);
+}
+function disableTrail(){
+  if(!trailOn) return; trailOn=false;
+  window.removeEventListener('mousemove', trailTick);
+}
+function trailTick(e){
+  if(document.documentElement.classList.contains('reduce') || !settings.trail) return;
+  const d=document.createElement('div'); d.className='trail';
+  d.style.left=e.clientX+'px'; d.style.top=e.clientY+'px';
+  document.body.appendChild(d);
+  trailPool.push(d);
+  if(trailPool.length>36){ const x=trailPool.shift(); x.remove() }
+  setTimeout(()=>d.remove(),650);
+}
+
+/* ===== 設定の反映（ここで FX に触れても trailOn は既に定義済み） ===== */
+function applySettings(){
+  document.documentElement.classList.toggle('reduce', !!settings.reduce);
+  optReduce.checked=!!settings.reduce; optTilt.checked=!!settings.tilt; optFocus.checked=!!settings.focus; optConfetti.checked=!!settings.confetti; optParticles.value=+settings.particles;
+  optTheme.value = store.get(themeKey,'dark');
+  if(optBeams) optBeams.checked=!!settings.beams;
+  if(optStars) optStars.checked=!!settings.stars;
+  if(optWarp)  optWarp.checked =!!settings.warp;
+  if(optScan)  optScan.checked =!!settings.scan;
+  if(optTrail) optTrail.checked=!!settings.trail;
+  if(optSheen) optSheen.checked=!!settings.sheen;
+  if(optMagnet)optMagnet.checked=!!settings.magnet;
+
+  document.querySelector('header h1')?.classList.toggle('shimmer', true);
+  document.documentElement.classList.toggle('sheen-on', !!settings.sheen);
+  applyFX();
+}
+applySettings();
+
+/* ===== 粒子生成（簡易） ===== */
+(function spawnParticles(){
+  const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const N = (settings.reduce||prefersReduced) ? 0 : ( +settings.particles || (innerWidth > 1200 ? 90 : 48) );
+  for(let i=0;i<N;i++){
+    const p=document.createElement('div'); p.className='particle';
+    p.style.setProperty('--x',Math.random()*100+'vw'); p.style.setProperty('--spd',(6+Math.random()*8)+'s'); p.style.setProperty('--z',(Math.random()*200-100)+'px');
+    p.style.animationDelay=(Math.random()*10)+'s'; document.body.appendChild(p);
   }
-
-  /* ===== 初期ロードのステッガー ===== */
-  window.addEventListener('load',()=> document.body.classList.add('loaded'));
 })();
+
+/* ===== カード群 ===== */
+const cards = Array.from(document.querySelectorAll('.card'));
+
+/* ===== 3Dチルト + スポットライト ===== */
+cards.forEach((card)=>{
+  card.addEventListener('mousemove',(e)=>{
+    if(!settings.tilt) return;
+    const r=card.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top; const midX=r.width/2, midY=r.height/2;
+    card.style.setProperty('--rY',((x-midX)/midX)*10+'deg'); card.style.setProperty('--rX',((midY-y)/midY)*10+'deg');
+    card.style.setProperty('--spot-x',(x/r.width*100)+'%'); card.style.setProperty('--spot-y',(y/r.height*100)+'%');
+  });
+  card.addEventListener('mouseleave',()=>{card.style.setProperty('--rY','0deg');card.style.setProperty('--rX','0deg')});
+});
+
+/* ===== コンフェッティ（フォーカス時） ===== */
+function confetti(anchor){
+  if(!settings.confetti) return;
+  const prefersReduced=matchMedia?.('(prefers-reduced-motion: reduce)').matches; if(prefersReduced) return;
+  const r=anchor.getBoundingClientRect(); const N=16;
+  for(let i=0;i<N;i++){
+    const s=document.createElement('div'); const size=6+Math.random()*8;
+    s.style.position='fixed'; s.style.left=(r.left+r.width/2)+'px'; s.style.top=(r.top+10)+'px';
+    s.style.width=size+'px'; s.style.height=size+'px'; s.style.background=`hsl(${Math.random()*360},90%,60%)`;
+    s.style.borderRadius='2px'; s.style.boxShadow='0 2px 8px rgba(0,0,0,.25)'; s.style.zIndex=30; s.style.pointerEvents='none';
+    const vx=(Math.random()-0.5)*3, vy=-(2+Math.random()*2), rot=(Math.random()*360)+'deg'; const life=900+Math.random()*500;
+    document.body.appendChild(s); const t0=performance.now();
+    (function tick(now){ const dt=(now-t0)/1000; const x=vx*60*dt; const y=vy*60*dt+80*dt*dt;
+      s.style.transform=`translate(${x}px,${y}px) rotate(${rot})`; s.style.opacity=String(1-dt/(life/1000));
+      if(now-t0<life) requestAnimationFrame(tick); else s.remove();
+    })(t0);
+  }
+}
+
+/* ===== 効果音（任意） ===== */
+let audioCtx=null, buffer=null, seLoaded=false;
+async function initAudio(){ if(seLoaded) return; try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); const res=await fetch('Sound1.mp3',{cache:'no-store'}); const arr=await res.arrayBuffer(); buffer=await audioCtx.decodeAudioData(arr); seLoaded=true }catch(e){ seLoaded=false } }
+window.addEventListener('click',()=>{ initAudio() },{once:true});
+async function playSE(){ if(!audioCtx || !buffer) return; if(audioCtx.state==='suspended'){ try{ await audioCtx.resume() }catch{} } const src=audioCtx.createBufferSource(); src.buffer=buffer; src.connect(audioCtx.destination); src.start(0) }
+
+/* ===== フォーカス／クリック ===== */
+function openCard(card, newtab=false){
+  const href=card.getAttribute('data-href')||card.querySelector('a.btn')?.href; if(!href) return;
+  if(newtab) window.open(href,'_blank'); else location.href=href;
+}
+function focusCard(card){ cards.forEach(c=>c.classList.remove('focused')); grid.classList.add('focus-mode'); card.classList.add('focused'); confetti(card); playSE(); if(navigator.vibrate) navigator.vibrate([8,30,8]); store.set('om.last', card.dataset.slug||'') ; history.replaceState(null,'', '#'+(card.dataset.slug||'')) }
+cards.forEach((card)=>{
+  card.addEventListener('click',(e)=>{
+    if(!settings.focus){ openCard(card); return }
+    const was=card.classList.contains('focused'); if(!was) focusCard(card); else grid.classList.remove('focus-mode');
+  });
+  let touchTimer=null;
+  card.addEventListener('touchstart',()=>{ touchTimer=setTimeout(()=>focusCard(card),400) },{passive:true});
+  card.addEventListener('touchend',()=>{ clearTimeout(touchTimer) });
+});
+
+/* ===== グリッド外クリックで解除 ===== */
+document.addEventListener('click',(e)=>{ if(!e.target.closest('.card') && !e.target.closest('#settingsBtn') && !e.target.closest('#settingsModal')){ grid.classList.remove('focus-mode'); cards.forEach(c=>c.classList.remove('focused')) }});
+
+/* ===== キーボード操作 ===== */
+document.addEventListener('keydown',(e)=>{
+  const idx = document.activeElement && document.activeElement.classList.contains('card') ? cards.indexOf(document.activeElement) : -1;
+  if((e.key==='k' && (e.ctrlKey||e.metaKey)) || e.key==='/'){ e.preventDefault(); filterInput.focus(); filterInput.select(); return }
+  if(e.key==='ArrowRight'){ e.preventDefault(); cards[(idx+1+cards.length)%cards.length]?.focus() }
+  if(e.key==='ArrowLeft'){ e.preventDefault(); cards[(idx-1+cards.length)%cards.length]?.focus() }
+  if(e.key==='Enter'){ if(idx>=0){ const card=cards[idx]; if(card.classList.contains('focused')) openCard(card); else focusCard(card) } }
+  if(e.key==='o'){ if(idx>=0){ const card=cards[idx]; openCard(card) } }
+  if(e.key==='Escape'){ grid.classList.remove('focus-mode'); cards.forEach(c=>c.classList.remove('focused')) }
+  if(/^[1-4]$/.test(e.key)){ const n=+e.key-1; cards[n]?.focus(); if(!settings.focus) openCard(cards[n]); }
+});
+
+/* ===== 検索 + ハイライト ===== */
+function clearMarks(el){ el.querySelectorAll('mark').forEach(m=>{const t=document.createTextNode(m.textContent); m.replaceWith(t)}) }
+function highlight(el, q){
+  if(!q){ clearMarks(el); return }
+  clearMarks(el);
+  const walk=(node)=>{
+    if(node.nodeType===3){ const i=node.nodeValue.toLowerCase().indexOf(q); if(i>-1){ const span=document.createElement('mark'); const r=node.splitText(i); const tail=r.splitText(q.length); span.textContent=r.nodeValue; r.replaceWith(span) } }
+    else if(node.nodeType===1){ node.childNodes.forEach(walk) }
+  };
+  ['h2','p'].forEach(sel=>{ el.querySelectorAll(sel).forEach(walk) });
+}
+function applyFilter(){
+  const q=(filterInput.value||'').trim().toLowerCase();
+  cards.forEach(card=>{
+    const text = card.innerText.toLowerCase() + ' ' + (card.dataset.tags||'').toLowerCase();
+    card.style.display = text.includes(q) ? '' : 'none';
+    highlight(card, q);
+  });
+}
+filterInput.addEventListener('input', applyFilter);
+
+/* ===== 設定モーダル ===== */
+settingsBtn.addEventListener('click',()=>{ settingsModal.classList.add('show') });
+settingsModal.addEventListener('click',(e)=>{ if(e.target===settingsModal) settingsModal.classList.remove('show') });
+document.getElementById('optClose').addEventListener('click',()=>settingsModal.classList.remove('show'));
+optReduce.addEventListener('change',()=>{ settings.reduce=optReduce.checked; store.set('om.settings',settings); applySettings(); location.reload() });
+optTilt.addEventListener('change',()=>{ settings.tilt=optTilt.checked; store.set('om.settings',settings) });
+optFocus.addEventListener('change',()=>{ settings.focus=optFocus.checked; store.set('om.settings',settings) });
+optConfetti.addEventListener('change',()=>{ settings.confetti=optConfetti.checked; store.set('om.settings',settings) });
+optParticles.addEventListener('input',()=>{ settings.particles=+optParticles.value; store.set('om.settings',settings) });
+[optBeams,optStars,optWarp,optScan,optTrail,optSheen,optMagnet].forEach(el=>el.addEventListener('change',()=>{
+  settings.beams=optBeams.checked; settings.stars=optStars.checked; settings.warp=optWarp.checked; settings.scan=optScan.checked;
+  settings.trail=optTrail.checked; settings.sheen=optSheen.checked; settings.magnet=optMagnet.checked;
+  store.set('om.settings',settings);
+  document.documentElement.classList.toggle('sheen-on', !!settings.sheen);
+  applyFX();
+  bindMagnet();
+}));
+
+/* ===== 起動スプラッシュ：スキップ不可（自動のみ） ===== */
+window.addEventListener('load',()=>{
+  document.body.classList.add('loaded');
+  setTimeout(()=>{ splash.classList.add('hide'); setTimeout(()=>splash.remove(),700) }, 900);
+});
+
+/* ===== 右クリック：カスタムメニュー ===== */
+let ctxTarget=null;
+document.addEventListener('contextmenu',(e)=>{
+  const card=e.target.closest('.card'); if(!card) return;
+  e.preventDefault(); ctxTarget=card;
+  ctxMenu.style.display='block';
+  const w=ctxMenu.offsetWidth, h=ctxMenu.offsetHeight;
+  const x=Math.min(innerWidth-w-8, Math.max(8, e.clientX)); const y=Math.min(innerHeight-h-8, Math.max(8, e.clientY));
+  ctxMenu.style.left=x+'px'; ctxMenu.style.top=y+'px';
+}, {passive:false});
+document.addEventListener('click',(e)=>{ if(e.target.closest('#ctx .row')) return; ctxMenu.style.display='none' });
+ctxMenu.addEventListener('click',(e)=>{
+  const cmd=e.target.dataset.cmd; if(!cmd||!ctxTarget) return;
+  const href=ctxTarget.getAttribute('data-href')||ctxTarget.querySelector('a.btn')?.href;
+  if(cmd==='open') openCard(ctxTarget);
+  if(cmd==='newtab') openCard(ctxTarget,true);
+  if(cmd==='copy' && href){ navigator.clipboard?.writeText(href).then(()=>{ e.target.textContent='コピー済み'; setTimeout(()=>e.target.textContent='リンクをコピー',900) }) }
+  ctxMenu.style.display='none';
+});
+
+/* ===== PWA ===== */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',(e)=>{ e.preventDefault(); deferredPrompt=e; installBtn.style.display='inline-flex' });
+installBtn.addEventListener('click',async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); try{ await deferredPrompt.userChoice }catch{} deferredPrompt=null; installBtn.style.display='none' });
+
+/* ===== 共有 ===== */
+shareBtn.addEventListener('click', async ()=>{
+  const slug = (document.querySelector('.card.focused')?.dataset.slug)||'';
+  const shareUrl = slug ? location.origin+location.pathname+'#'+slug : location.href;
+  const data={ title:document.title, text:'OmniMedia – ランディング', url:shareUrl };
+  if(navigator.share){ try{ await navigator.share(data) }catch{} }
+  else if(navigator.clipboard){ try{ await navigator.clipboard.writeText(shareUrl); shareBtn.textContent='コピー済み'; setTimeout(()=>shareBtn.textContent='共有',1200) }catch{} }
+});
+
+/* ===== 深リンク ===== */
+function cardBySlug(slug){ return cards.find(c=> (c.dataset.slug||'')===slug) }
+function bootRoute(){
+  const url=new URL(location.href);
+  const open=url.searchParams.get('open');
+  const hash=(location.hash||'').replace(/^#/,'');
+  if(open){ const c=cardBySlug(open); if(c) { openCard(c); return } }
+  if(hash){ const c=cardBySlug(hash); if(c){ focusCard(c); c.focus(); return } }
+  const last=store.get('om.last',''); if(last){ const c=cardBySlug(last); if(c){ c.focus() } }
+}
+bootRoute();
+
+/* ===== SW ===== */
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+/* ===== 可視状態で軽量化 ===== */
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) document.documentElement.classList.add('reduce');
+  else document.documentElement.classList.toggle('reduce', !!settings.reduce);
+});
+
+/* ===== 背景パララックス ===== */
+(function(){
+  let raf=0, tx=0, ty=0, dx=0, dy=0;
+  window.addEventListener('mousemove',(e)=>{
+    const cx=innerWidth/2, cy=innerHeight/2;
+    dx=(e.clientX-cx)/cx; dy=(e.clientY-cy)/cy;
+    if(!raf) raf=requestAnimationFrame(loop);
+  });
+  function loop(){
+    tx += (dx-tx)*0.08; ty += (dy-ty)*0.08;
+    const t1=`translate(${tx*10}px,${ty*10}px)`;
+    const t2=`translate(${tx*18}px,${ty*14}px)`;
+    bgEl.style.transform=t1; auroraEl.style.transform=t2;
+    if(Math.abs(dx-tx)<0.001 && Math.abs(dy-ty)<0.001){ cancelAnimationFrame(raf); raf=0 } else { raf=requestAnimationFrame(loop) }
+  }
+})();
+
+/* ===== ボタン・マグネット ===== */
+let magnetOn=false, btns=[];
+function bindMagnet(){
+  btns = Array.from(document.querySelectorAll('.btn'));
+  if(settings.magnet && !magnetOn){ window.addEventListener('mousemove',magnetMove); magnetOn=true }
+  if(!settings.magnet && magnetOn){ window.removeEventListener('mousemove',magnetMove); magnetOn=false; btns.forEach(b=>{ b.style.setProperty('--mx','0px'); b.style.setProperty('--my','0px'); b.style.setProperty('--ms','1') }) }
+}
+bindMagnet();
+function magnetMove(e){
+  if(document.documentElement.classList.contains('reduce')) return;
+  btns.forEach(b=>{
+    const r=b.getBoundingClientRect();
+    const cx=r.left+r.width/2, cy=r.top+r.height/2;
+    const dx=e.clientX-cx, dy=e.clientY-cy;
+    const dist=Math.hypot(dx,dy);
+    const influence = Math.max(0, 1 - Math.min(dist,240)/240);
+    const mx= (dx*0.08*influence).toFixed(2)+'px';
+    const my= (dy*0.08*influence).toFixed(2)+'px';
+    b.style.setProperty('--mx', mx); b.style.setProperty('--my', my);
+  });
+}
+
+/* ===== FX の適用（trailOn はすでに宣言済み） ===== */
+function applyFX(){
+  const reduced = document.documentElement.classList.contains('reduce') || matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  beams.classList.toggle('show', !!settings.beams && !reduced);
+  stars.classList.toggle('show', !!settings.stars && !reduced);
+  warp .classList.toggle('show', !!settings.warp  && !reduced);
+  scan .classList.toggle('show', !!settings.scan  && !reduced);
+  if(settings.trail && !reduced) enableTrail(); else disableTrail();
+}
+
+/* ===== 初期化 ===== */
+applyFX();
+window.addEventListener('load',()=>{ document.body.classList.add('loaded') });
 </script>
 </body>
 </html>

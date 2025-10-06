@@ -1,0 +1,16 @@
+{
+  "name": "omni_media_web_player",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "Omni Media Web Player - Electron app",
+  "devDependencies": {
+    "electron": "^38.2.1",
+    "electron-builder": "^24.13.3"
+  }
+}
