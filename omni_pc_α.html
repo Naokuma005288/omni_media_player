@@ -24,6 +24,53 @@
 
 <link rel="stylesheet" href="./op-grid-pack.css" />
 <script defer src="./op-grid-pack.js"></script>
+
+<script defer src="./op-plugin-host.js"></script>
+<script defer src="./progress-resume.plugin.js"></script>
+<script defer src="./hotkeys-plus.plugin.js"></script>
+
+<script defer src="./bookmarks.plugin.js"></script>
+<script defer src="./lyrics-lrc.plugin.js"></script>
+<script defer src="./chapters.plugin.js"></script>
+<script defer src="./screenshot.plugin.js"></script>
+<script defer src="./settings-io.plugin.js"></script>
+<script defer src="./sleep-timer.plugin.js"></script>
+
+<!-- 追加例 -->
+<script defer src="./chapters.plugin (2).js"></script>
+<script defer src="./intro-outro-skip.plugin.js"></script>
+<script defer src="./sub-offset.plugin.js"></script>
+<script defer src="./thumb-vtt-export.plugin.js"></script>
+
+<!-- 履歴プラグイン -->
+<script defer src="./history.plugin.js"></script>
+<!-- バックグラウンド音声ポリシー（慎重モード） -->
+<script defer src="./bg-audio.policy.plugin.js"></script>
+
+<script defer src="./sub-offset.plugin.js"></script>
+<script defer src="./webshare.plugin.js"></script>
+<script defer src="./rate-pitch.plugin.js"></script>
+<script defer src="./cover-plus.plugin.js"></script>
+
+<link rel="stylesheet" href="./micro-anim.plugin.css" />
+<script defer src="./micro-anim.plugin.js"></script>
+
+<link rel="stylesheet" href="./spec-boost.plugin.css" />
+<script defer src="./spec-boost.plugin.js"></script>
+
+<link rel="stylesheet" href="./anim-plus.plugin.css">
+<script defer src="./anim-plus.plugin.js"></script>
+
+<!-- DASH -->
+<script src="https://cdn.jsdelivr.net/npm/dashjs@4"></script>
+
+<!-- ▼ 追加プラグイン -->
+<script defer src="./dash.plugin.js"></script>
+<script defer src="./video-fx.plugin.js"></script>
+<script defer src="./more-embeds.plugin.js"></script>
+
+
+
 <!-- ▲ 別ファイルここまで -->
 
 <style>
@@ -325,14 +372,91 @@
   .s-logo .mark{width:42px;height:42px;border-radius:12px;background:conic-gradient(from 0deg,#4ea0ff,#8ef5c3,#ffd166,#ff92d0,#4ea0ff);animation:logo-spin 2s ease-in-out infinite alternate;box-shadow:0 12px 40px var(--shadow)}
   .s-sub{margin-top:.4rem;color:var(--muted)}
   @keyframes logo-spin{0%{transform:rotate(-8deg) scale(1)}100%{transform:rotate(8deg) scale(1.06)}}
+
+/* ==== Settings Tabs ==== */
+.settings-tabs{position:sticky;top:0;z-index:2;display:flex;gap:.35rem;align-items:center;
+  padding:.35rem .35rem .45rem;background:color-mix(in oklab,var(--panel-2),transparent 8%);
+  border-bottom:1px solid color-mix(in oklab,var(--panel-2),#000 12%);border-radius:12px 12px 0 0;
+  backdrop-filter:blur(10px) saturate(1.1);
+}
+:root.light .settings-tabs{border-bottom:1px solid #e6ecf4}
+.settings-tabs .tab{border:1px solid color-mix(in oklab,var(--panel-2),#000 12%);background:linear-gradient(180deg,#121a24,#0d141c);
+  color:var(--text);padding:.42rem .7rem;border-radius:999px;cursor:pointer;font-size:13px;transition:filter .15s,transform .06s}
+:root.light .settings-tabs .tab{background:#fff;border-color:#d6dde8;color:#0a1016}
+.settings-tabs .tab:hover{filter:brightness(1.06)}
+.settings-tabs .tab:active{transform:translateY(1px)}
+.settings-tabs .tab[aria-selected="true"]{box-shadow:0 0 0 2px color-mix(in oklab,var(--accent),transparent 70%) inset;border-color:color-mix(in oklab,var(--accent),#000 25%)}
+.settings-panels .settings-grid{display:none}
+.settings-panels .settings-grid.active{display:grid}
+
+/* ==== Splash++ (進捗/ヒント/スキップ) ==== */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .9rem; padding: 1.2rem;
+  background:
+    radial-gradient(1000px 700px at 35% 20%, rgba(39,110,241,.18), transparent 60%),
+    radial-gradient(900px 600px at 65% 80%, rgba(255,146,208,.12), transparent 60%),
+    var(--bg);
+}
+#splash .s-bar{ width:min(560px,82vw); height:10px; border-radius:999px;
+  background:color-mix(in oklab,var(--panel-2),transparent 30%);
+  border:1px solid color-mix(in oklab,var(--panel-2),#000 20%);
+  overflow:hidden; box-shadow:0 8px 30px var(--shadow);
+}
+#splash .s-bar .fill{ height:100%; width:0%;
+  background: linear-gradient(90deg, #4ea0ff, #8ef5c3, #ffd166, #ff92d0, #4ea0ff);
+  background-size:300% 100%; animation:splash-flow 2.8s linear infinite;
+}
+@keyframes splash-flow{ 0%{background-position:0% 0} 100%{background-position:300% 0} }
+
+#splash .s-step{ font-size:12px; color:var(--muted); letter-spacing:.04em; text-align:center }
+#splash .s-tipstrip{
+  max-width:min(760px,88vw); display:flex; gap:.6rem; overflow:hidden; mask-image:linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  color:var(--muted); font-size:12px;
+}
+#splash .s-tip{ white-space:nowrap; animation:tips-marquee 18s linear infinite }
+@keyframes tips-marquee{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+#splash .s-skip{ margin-top:.2rem }
+
 </style>
 </head>
 <body>
 <!-- 起動時スプラッシュ -->
 <div id="splash" aria-hidden="true">
-  <div class="s-logo"><div class="mark"></div><div>Omni Player</div></div>
+  <div class="s-logo">
+    <div class="mark"></div>
+    <div>Omni Player</div>
+  </div>
   <div class="s-sub">Anim+ DX</div>
+
+  <!-- 進捗バー -->
+  <div class="s-bar" aria-hidden="true">
+    <div class="fill" id="splashFill"></div>
+  </div>
+  <div class="s-step" id="splashStep">初期化中…</div>
+
+  <!-- ヒント（ゆっくり流れる） -->
+  <div class="s-tipstrip" aria-hidden="true">
+    <div class="s-tip">
+      ヒント: <kbd>Space</kbd> で再生/一時停止　・　
+      <kbd>←</kbd>/<kbd>→</kbd> で ±10秒　・　
+      <kbd>[</kbd>/<kbd>]</kbd> で 速度 ±0.05　・　
+      <kbd>L</kbd>で AB ループ　・　
+      設定→「アニメ」で演出を調整できます　
+      ——　ヒント: URL欄に .m3u8 / .mpd / 各種サイトのURLを貼って再生　・　
+      字幕は SRT/VTT/ASS 読み込みに対応
+    </div>
+    <div class="s-tip" aria-hidden="true" style="visibility:hidden">
+      （ダミー・ループ用）
+    </div>
+  </div>
+
+  <!-- 低速環境向け: すぐ始める -->
+  <button class="btn ghost s-skip" id="splashSkip" type="button">今すぐ始める</button>
 </div>
+
 
 <div class="app">
   <header>
@@ -1403,6 +1527,7 @@ const isYouTube=u=>/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(u);
 const isHls=u=>/\.m3u8($|\?)/i.test(u);
 const isNiconico=u=>/nicovideo\.jp\/watch\//i.test(u);
 const isSoundCloud=u=>/soundcloud\.com\//i.test(u);
+const isDash = u => /\.mpd($|\?)/i.test(u);
 function extractYouTubeId(url){try{const u=new URL(url); if(u.hostname.includes('youtu.be'))return u.pathname.slice(1); if(u.searchParams.get('v'))return u.searchParams.get('v'); const m=u.pathname.match(/\/embed\/([\w-]+)/); if(m) return m[1]}catch(e){} return null}
 const nicoEmbedUrl=url=>{try{const u=new URL(url); const id=u.pathname.split('/').pop(); return 'https://embed.nicovideo.jp/watch/'+id+'?autoplay=1'}catch(e){return null}};
 const scEmbedUrl=url=>{try{const enc=encodeURIComponent(url); return 'https://w.soundcloud.com/player/?url='+enc+'&auto_play=true'}catch(e){return null}};
@@ -1490,6 +1615,24 @@ async function loadUrl(url){
   if(isYouTube(url)) return switchToYouTube(url);
   if(isNiconico(url)) return switchToIframe(nicoEmbedUrl(url),'niconico');
   if(isSoundCloud(url)) return switchToIframe(scEmbedUrl(url),'soundcloud');
+  if (isDash(url)) {
+  resetUiForHTML5(); safePause();
+  $.v.removeAttribute('src'); $.v.load();
+  showLoader();
+  try{
+    const player = dashjs.MediaPlayer().create();
+    window.OPDash?.applyDefaults?.(player); // ← dash.plugin.js の既定を適用
+    player.initialize($.v, url, true);
+    player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+      hideLoader();
+      safeVolumeBump(); ensureAudioOn(); requestPlay('dash:init');
+    });
+  }catch(e){
+    hideLoader(); toast('DASH初期化に失敗','err');
+  }
+  return;
+}
+
 
   resetUiForHTML5(); safePause(); $.v.removeAttribute('src'); $.v.load();
   showLoader();
@@ -1743,15 +1886,188 @@ window.addEventListener('beforeunload',()=>{
   try{ unloadASS() }catch(e){}
 });
 
-/* ========= 起動スプラッシュを閉じる ========= */
-window.addEventListener('load', ()=>{
-  setTimeout(()=>{
-    const sp=qs('#splash');
-    if(!sp) return;
-    sp.classList.add('hide');
-    setTimeout(()=>sp.remove(), 700);
-  }, 900);
-});
+/* ========= Splash++ Boot Manager ========= */
+/* なるべく実ステップで前進、足りない分はタイムベースでなめらかに */
+(function(){
+  const sp = qs('#splash');
+  if (!sp) return;
+
+  const fill = qs('#splashFill');
+  const step = qs('#splashStep');
+  const skip = qs('#splashSkip');
+
+  // 進捗管理
+  const Boot = {
+    total: 7,   // だいたいのステップ数（後で増やしてもOK）
+    done: 0,
+    minShowMs: 800,   // 最低表示時間（短すぎるチラつき防止）
+    startTs: performance.now(),
+    setTotal(n){ this.total = Math.max(1,n) },
+    tick(label){
+      this.done = Math.min(this.total, this.done+1);
+      if (step) step.textContent = label || '初期化中…';
+      this.render();
+    },
+    render(){
+      const p = Math.min(100, Math.round((this.done / this.total) * 100));
+      if (fill) fill.style.width = p + '%';
+    },
+    finish(){
+      const elapsed = performance.now() - this.startTs;
+      const remain = Math.max(0, this.minShowMs - elapsed);
+      setTimeout(()=>{
+        sp.classList.add('hide');
+        setTimeout(()=> sp.remove(), 700);
+      }, remain);
+    }
+  };
+  window.OPBoot = Boot;
+
+  // ===== 実際のフック =====
+  // 1) DOM は既に構築済み
+  Boot.tick('UIを初期化…');
+
+  // 2) 言語/テーマ/保存済み設定の適用あたりで1歩
+  try { Boot.tick('設定を適用…'); } catch(e){}
+
+  // 3) EQ UI 構築後（buildEqUI呼び出しの直後あたりでもう1歩）
+  queueMicrotask(()=>Boot.tick('EQ を初期化…'));
+
+  // 4) 追加エフェクト初期化（下の init 呼び出し後に進捗）
+  const afterFxInit = ()=> Boot.tick('背景エフェクト…');
+
+  // 5) 画像/フォントなどリソース読み込み完了
+  window.addEventListener('load', ()=> Boot.tick('リソース読み込み…'));
+
+  // 6) セーフガード: 1.8秒で強制的に完了
+  setTimeout(()=>Boot.finish(), 1800);
+
+  // 7) スキップ
+  skip?.addEventListener('click', ()=> Boot.finish());
+
+  // 進行中の見た目（なめらかに70%まで）※実ステップが遅い端末用
+  let soft = 0, raf;
+  const ease = (a,b,t)=> a+(b-a)*t;
+  const loop = ()=>{
+    raf = requestAnimationFrame(loop);
+    // 実ステップが動かないときでも 70% まではゆっくり伸びる
+    soft = Math.min(70, soft + 0.35);
+    const hard = (Boot.done/Boot.total)*100;
+    const p = Math.max(hard, soft);
+    if (fill) fill.style.width = Math.min(100, p)+'%';
+  };
+  raf = requestAnimationFrame(loop);
+
+  // 後で sp.remove() したらループを止める
+  const mo = new MutationObserver(()=>{
+    if(!document.body.contains(sp)) cancelAnimationFrame(raf);
+  });
+  mo.observe(document.body, {childList:true,subtree:true});
+})();
+</script>
+
+<script>
+/* ========= Settings: Tabs ========= */
+(function(){
+  const pick = (title) => {
+    const t = (title||'').toLowerCase();
+    if (t.includes('字幕')) return 'sub';
+    if (t.includes('スペクトラム')) return 'spec';
+    if (t.includes('eq') || t.includes('10バンド')) return 'eq';
+    if (t.includes('アニメ')) return 'anim';
+    // 追加プラグイン系
+    if (t.includes('ブックマーク') || t.includes('lrc') || t.includes('歌詞') ||
+        t.includes('チャプター') || t.includes('スクリーンショット') ||
+        t.includes('設定バックアップ') || t.includes('スリープ')) return 'ext';
+    return 'ext';
+  };
+
+  function initSettingsTabs(){
+    const card = qs('#settings .settings-card');
+    if (!card || card.dataset.tabbified) return;
+
+    const rootGrid = card.querySelector('.settings-grid');
+    if (!rootGrid) return;
+
+    // タブとパネルの骨組みを作る
+    const tabsData = [
+      ['sub','字幕'],
+      ['spec','スペクトラム'],
+      ['eq','EQ'],
+      ['anim','アニメ'],
+      ['ext','拡張'],
+      ['all','すべて']
+    ];
+    const tabs = document.createElement('div');
+    tabs.className = 'settings-tabs';
+    tabs.setAttribute('role','tablist');
+
+    const panels = document.createElement('div');
+    panels.className = 'settings-panels';
+
+    const grids = {};
+    for (const [key] of tabsData){
+      const g = document.createElement('div');
+      g.className = 'settings-grid';
+      g.dataset.tabPanel = key;
+      panels.appendChild(g);
+      grids[key] = g;
+    }
+
+    // タイトル行（h3）の直後にタブ、パネルを挿入
+    const h3 = card.querySelector('h3');
+    (h3?.nextSibling ? card.insertBefore(tabs, h3.nextSibling) : card.appendChild(tabs));
+    card.insertBefore(panels, rootGrid);
+
+    // 既存セクションを仕分け
+    const sections = Array.from(rootGrid.querySelectorAll('.settings-section'));
+    sections.forEach(sec=>{
+      const title = sec.querySelector('h4')?.textContent || '';
+      const key = pick(title);
+      (grids[key] || grids.ext).appendChild(sec);
+    });
+    // 元のグリッドは消す
+    rootGrid.remove();
+
+    // タブボタンを作成
+    const activate = (key) => {
+      // パネル表示切替
+      Array.from(panels.querySelectorAll('.settings-grid')).forEach(g=>{
+        const show = key==='all' || g.dataset.tabPanel===key;
+        g.classList.toggle('active', show);
+        g.style.display = show ? 'grid' : 'none';
+      });
+      // ボタンの状態
+      Array.from(tabs.querySelectorAll('.tab')).forEach(b=>{
+        b.setAttribute('aria-selected', b.dataset.tab===key ? 'true' : 'false');
+      });
+      try { store.set('pc.settings.tab', key); } catch(e){}
+    };
+
+    tabsData.forEach(([key,label])=>{
+      const btn = document.createElement('button');
+      btn.className = 'tab';
+      btn.type = 'button';
+      btn.dataset.tab = key;
+      btn.setAttribute('role','tab');
+      btn.textContent = label;
+      btn.addEventListener('click', ()=>activate(key));
+      tabs.appendChild(btn);
+    });
+
+    // 初期タブ
+    const last = (store && store.get) ? store.get('pc.settings.tab','all') : 'all';
+    activate(last);
+
+    card.dataset.tabbified = '1';
+  }
+
+  // 起動時＆設定を開いたときに初期化
+  window.addEventListener('load', initSettingsTabs);
+  const b = document.getElementById('btnSettings');
+  if (b) b.addEventListener('click', initSettingsTabs, { once:true });
+})();
+
 </script>
 
 <!-- ▼ 別ファイルの初期化（defer後に安全） -->
@@ -1764,6 +2080,8 @@ window.addEventListener('load', ()=>{
   window.OPFun?.init?.({    wrap: document.getElementById('playerWrap'), bg: document.getElementById('bgArt') });
   window.OPAurora?.init?.({ wrap: document.getElementById('playerWrap'), bg: document.getElementById('bgArt') });
   window.OPGrid?.init?.({   wrap: document.getElementById('playerWrap'), bg: document.getElementById('bgArt') });
+  // ← ここで一歩
+     window.OPBoot?.tick?.('エフェクト準備…');
 </script>
 <!-- ▲ 別ファイル初期化 -->
 </body>

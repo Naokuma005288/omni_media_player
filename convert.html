@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Omni Convert (β) – Pyodide + FFmpeg</title>
+<meta name="theme-color" content="#0b0e12" id="themeColorMeta">
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/ffmpeg.min.js"></script>
+<script>
+  /* Pyodide lazy */
+  let pyodide=null, pyReady=false, pyLoading=false;
+  async function ensurePyodide(){
+    if(pyReady) return pyodide;
+    if(pyLoading){ while(!pyReady) await new Promise(r=>setTimeout(r,120)); return pyodide; }
+    pyLoading=true;
+    const s=document.createElement('script');
+    s.src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js";
+    document.head.appendChild(s);
+    await new Promise(res=> s.onload=res);
+    pyodide = await loadPyodide({ indexURL:"https://cdn.jsdelivr.net/pyodide/v0.25.1/full/" });
+    pyReady=true; return pyodide;
+  }
+</script>
+<style>
+:root{
+  --bg:#0b0e12;--panel:#0f141b;--panel2:#0b1118;--text:#e8edf3;--muted:#a6b0bb;--accent:#74b3ff;--ring:#243246;
+  --ok:#2ecc71;--err:#ff5c5c;--ease:cubic-bezier(.22,.61,.36,1);
+}
+[data-theme="light"]{--bg:#f4f7fb;--panel:#fff;--panel2:#f3f6fb;--text:#0c1116;--muted:#5b6773;--ring:#dbe4f0;--accent:#3478ff}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif}
+header,footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+a,button{cursor:pointer}
+.btn{position:relative;border:1px solid var(--ring);background:var(--panel2);color:var(--text);padding:8px 12px;border-radius:10px;transition:transform .12s var(--ease), box-shadow .2s var(--ease)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.btn:active{transform:translateY(0)}
+.btn .rip{position:absolute;width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.6);left:0;top:0;opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.2);animation:ripple .6s ease-out}
+@keyframes ripple{to{opacity:0;transform:translate(-50%,-50%) scale(6)}}
+.wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px}
+h1{font-size:18px;margin:0;display:flex;gap:.5rem;align-items:center}
+.badge{font-size:12px;padding:2px 6px;border:1px solid var(--ring);border-radius:999px;background:var(--panel2);color:var(--muted)}
+.badge2{font-size:11px;padding:2px 6px;border-radius:999px;background:var(--panel2);border:1px solid var(--ring);margin-left:6px}
+.badge2.spin{animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toolbar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+select,input[type="number"],input[type="text"],textarea{background:var(--panel2);border:1px solid var(--ring);color:var(--text);border-radius:8px;padding:6px 8px}
+textarea{width:100%;min-height:160px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid var(--ring);background:var(--panel2);padding:6px 10px;border-radius:999px;transition:background .25s}
+.tab[aria-selected="true"]{background:linear-gradient(180deg,var(--accent),var(--panel2));color:#fff}
+.panel{border:1px solid var(--ring);border-radius:12px;background:var(--panel);padding:12px;animation:panelIn .3s var(--ease)}
+@keyframes panelIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.grid{display:grid;gap:12px}
+.split{display:grid;grid-template-columns:1.4fr .9fr;gap:12px}
+@media (max-width: 960px){ .split{grid-template-columns:1fr} }
+.drop{margin:6px 0;border:2px dashed var(--ring);border-radius:12px;padding:16px;background:var(--panel);transition:border-color .25s, box-shadow .25s}
+.drop.drag{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in oklab,var(--accent),#fff 20%);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
+.hint{color:var(--muted);font-size:12px}
+.item{border:1px solid var(--ring);border-radius:12px;background:var(--panel);padding:10px;animation:itemIn .28s var(--ease) both}
+@keyframes itemIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.itemHead{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.itemRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{font-size:12px;color:var(--muted)}
+.progress{height:6px;background:var(--panel2);border:1px solid var(--ring);border-radius:999px;overflow:hidden}
+.progress > span{display:block;height:100%;width:0%;background:
+  repeating-linear-gradient(45deg, color-mix(in oklab,var(--accent),#fff 10%) 0 12px, color-mix(in oklab,var(--accent),#000 15%) 12px 24px);
+  animation:stripes 1.2s linear infinite; transition:width .25s var(--ease)}
+@keyframes stripes{to{background-position:48px 0}}
+footer{border-top:1px solid var(--ring);color:var(--muted);font-size:12px}
+.kv{display:flex;gap:6px;align-items:center}
+.note{padding:8px;border:1px solid var(--ring);border-radius:10px;background:var(--panel2);color:var(--muted);font-size:12px}
+.ok{color:var(--ok)} .err{color:var(--err)}
+.small{font-size:12px}
+.pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap}
+.canvasBox{border:1px solid var(--ring);border-radius:10px;overflow:hidden;background:var(--panel2);padding:8px}
+.pop{animation:pop .22s var(--ease)}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.flash{animation:flash .6s ease}
+@keyframes flash{from{filter:brightness(1.4)}to{filter:brightness(1)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Omni Convert <span class="badge">β</span> <span class="badge2 spin" id="capBadge">Detecting…</span></h1>
+  <div class="toolbar">
+    <a class="btn" href="./index.html">⟵ 戻る</a>
+    <button class="btn" id="loadPy">🐍 Pyodide 読込</button>
+    <button class="btn" id="themeBtn">🌙</button>
+  </div>
+</header>
+
+<div class="wrap grid">
+  <div class="panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" data-tab="simple" aria-selected="true">シンプル</button>
+      <button class="tab" data-tab="advanced" aria-selected="false">高度（Python）</button>
+    </div>
+  </div>
+
+  <!-- SIMPLE -->
+  <section class="panel" data-panel="simple">
+    <div class="split">
+      <div>
+        <section class="drop" id="drop">
+          <div><b>ファイルをドラッグ＆ドロップ</b> <span class="hint">または選択</span></div>
+          <div class="itemRow">
+            <input type="file" id="filePick" multiple>
+            <label class="kv"><input id="autoStart" type="checkbox" checked> 追加後すぐに変換</label>
+            <button class="btn" id="startAll">すべて開始</button>
+            <button class="btn" id="clearAll">完了をクリア</button>
+            <button class="btn" id="thumbAll">🎞 サムネ</button>
+            <button class="btn" id="waveAll">📈 波形PNG</button>
+          </div>
+          <div class="note small" id="supportNote">ffmpeg.wasm の検出結果に基づき、利用可能な全フォーマットを提供します。</div>
+        </section>
+
+        <div id="list" class="grid" aria-live="polite"></div>
+      </div>
+
+      <aside>
+        <div class="panel">
+          <h3 style="margin:0 0 6px">メタ情報 / ログ</h3>
+          <pre id="metaOut" class="pre small" style="min-height:160px">–</pre>
+          <div class="itemRow">
+            <button class="btn" id="probeAll">ffprobe ざっくり</button>
+            <button class="btn" id="saveMeta">JSON保存</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3 style="margin:0 0 6px">ビジュアル出力</h3>
+          <div class="canvasBox"><canvas id="canvasOut" width="480" height="270"></canvas></div>
+          <div class="itemRow">
+            <button class="btn" id="saveCanvas">PNG保存</button>
+          </div>
+          <div class="note small">動画：最初のフレーム／音声：波形。画像：リサイズ表示。</div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ADVANCED -->
+  <section class="panel" data-panel="advanced" hidden>
+    <div class="grid">
+      <div class="itemRow">
+        <button class="btn" id="pyInstallPillow">Pillow インストール</button>
+        <button class="btn" id="runPy">▶︎ スクリプト実行</button>
+        <button class="btn" id="exampleImg">画像バッチ例</button>
+        <button class="btn" id="exampleAv">AV変換例</button>
+      </div>
+      <textarea id="pyCode" spellcheck="false" placeholder="# files_py を受け取り、result に {name, bytes | blob} をappend して返す"></textarea>
+      <div class="itemRow">
+        <button class="btn" id="dlPyResults" disabled>結果をZIP保存</button>
+        <span id="pyStatus" class="small"></span>
+      </div>
+      <pre id="pyLog" class="pre small" style="min-height:120px">–</pre>
+    </div>
+  </section>
+</div>
+
+<footer class="wrap">© 2025 OmniMedia – すべての体験をひとつに。</footer>
+
+<script>
+/* ==== Theme ==== */
+const themeKey='om.theme'; const meta=document.getElementById('themeColorMeta');
+function getSystemTheme(){ return matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light' }
+function timeOfDayTheme(){ const h=new Date().getHours(); return (h>=19||h<7)?'dark':'light' }
+function applyTheme(mode){ const m=mode==='auto'?getSystemTheme():(mode==='auto-time'?timeOfDayTheme():mode); document.documentElement.setAttribute('data-theme',m); meta.setAttribute('content', m==='light'? '#f4f7fb':'#0b0e12'); }
+function displayThemeIcon(mode){ if(mode==='auto') return '🌓'; if(mode==='auto-time') return '⏰'; return mode==='light'?'☀️':'🌙' }
+const themeBtn=document.getElementById('themeBtn'); const curTheme = JSON.parse(localStorage.getItem(themeKey) || '"dark"'); applyTheme(curTheme); themeBtn.textContent=displayThemeIcon(curTheme);
+themeBtn.addEventListener('click',()=>{ const seq=['dark','light','auto','auto-time']; const cur=JSON.parse(localStorage.getItem(themeKey) || '"dark"'); const next=seq[(seq.indexOf(cur)+1)%seq.length]; localStorage.setItem(themeKey, JSON.stringify(next)); themeBtn.textContent=displayThemeIcon(next); applyTheme(next); });
+
+/* ==== Button ripple (delegated) ==== */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.btn'); if(!b) return;
+  const r=b.getBoundingClientRect(); const s=document.createElement('span'); s.className='rip';
+  s.style.left=(e.clientX-r.left)+'px'; s.style.top=(e.clientY-r.top)+'px';
+  b.appendChild(s); setTimeout(()=>s.remove(),650);
+});
+
+/* ==== FFmpeg loader + capability detection ==== */
+let ffmpeg=null, ffReady=false, ffLoading=false, caps=null;
+async function getFF(){
+  if(ffReady) return ffmpeg;
+  if(ffLoading){ while(!ffReady) await new Promise(r=>setTimeout(r,120)); return ffmpeg; }
+  ffLoading=true;
+  ffmpeg = FFmpeg.createFFmpeg({ log:false, corePath:'https://unpkg.com/@ffmpeg/core@0.12.7/dist/ffmpeg-core.js' });
+  await ffmpeg.load(); ffReady=true;
+  caps = await detectCaps(ffmpeg);
+  applyCapsToNote();
+  const badge=document.getElementById('capBadge'); badge.textContent='Ready'; badge.classList.remove('spin');
+  return ffmpeg;
+}
+
+/* 検出：encoders/muxers をパース */
+async function detectCaps(ff){
+  function parseList(txt){ return txt.split('\n').map(s=>s.trim()).filter(Boolean) }
+  // encoders
+  await ff.run('-encoders'); const encTxt = ff.logs.filter(x=>x.type==='fferr'||x.type==='ffout').map(x=>x.message).join('\n'); ff.logs.length=0;
+  const encLines = parseList(encTxt);
+  const encV = new Set(), encA = new Set(), encI = new Set();
+  encLines.forEach(l=>{
+    const m = l.match(/^\s*([VASF\.]{6})\s+([A-Za-z0-9_][\w\-]*)\b/);
+    if(!m) return;
+    const flags=m[1], name=m[2];
+    if(flags[0]==='V') encV.add(name);
+    if(flags[1]==='A') encA.add(name);
+    if(/png|webp|mjpeg|jpeg|pam|ppm|bmp/.test(name)) encI.add(name);
+  });
+  // muxers
+  await ff.run('-muxers'); const muxTxt = ff.logs.filter(x=>x.type==='fferr'||x.type==='ffout').map(x=>x.message).join('\n'); ff.logs.length=0;
+  const muxers = new Set();
+  parseList(muxTxt).forEach(l=>{ const m=l.match(/^\s*[ D ]\s+([a-z0-9_]+)\s+/i); if(m) muxers.add(m[1]); });
+
+  const recipes = [
+    {id:'webm_vp9_opus',  kind:'video', label:'WEBM (VP9+Opus)',  ext:'webm', v:'libvpx-vp9', a:'libopus', mux:'webm'},
+    {id:'webm_vp8_vorbis',kind:'video', label:'WEBM (VP8+Vorbis)',ext:'webm', v:'libvpx',     a:'libvorbis', mux:'webm'},
+    {id:'ogv_theora_vorbis',kind:'video',label:'OGV (Theora+Vorbis)',ext:'ogv', v:'libtheora',a:'libvorbis', mux:'ogg'},
+    {id:'mkv_vp9_opus',   kind:'video', label:'MKV (VP9+Opus)',  ext:'mkv',  v:'libvpx-vp9', a:'libopus',   mux:'matroska'},
+    {id:'img_png',        kind:'image', label:'PNG',  ext:'png',  i:'png',   mux:'image2'},
+    {id:'img_webp',       kind:'image', label:'WEBP', ext:'webp', i:'webp',  mux:'image2'},
+    {id:'img_jpg',        kind:'image', label:'JPG',  ext:'jpg',  i:'mjpeg', mux:'image2'},
+    {id:'ogg_opus',       kind:'audio', label:'OGG (Opus)', ext:'ogg', a:'libopus', mux:'ogg'},
+    {id:'ogg_vorbis',     kind:'audio', label:'OGG (Vorbis)', ext:'ogg', a:'libvorbis', mux:'ogg'},
+    {id:'flac',           kind:'audio', label:'FLAC', ext:'flac', a:'flac', mux:'flac'},
+    {id:'wav',            kind:'audio', label:'WAV (PCM16)', ext:'wav', a:'pcm_s16le', mux:'wav'},
+  ];
+  const available = recipes.filter(r=>{
+    const okMux = muxers.has(r.mux);
+    const okV = !r.v || encV.has(r.v);
+    const okA = !r.a || encA.has(r.a) || encV.has(r.a);
+    const okI = !r.i || encI.has(r.i) || encV.has(r.i);
+    return okMux && okV && okA && okI;
+  });
+  return {encV, encA, encI, muxers, recipes, available};
+}
+function applyCapsToNote(){
+  if(!caps) return;
+  const kinds = {
+    video: caps.available.filter(r=>r.kind==='video').map(r=>r.label).join(', ') || '–',
+    audio: caps.available.filter(r=>r.kind==='audio').map(r=>r.label).join(', ') || '–',
+    image: caps.available.filter(r=>r.kind==='image').map(r=>r.label).join(', ') || '–',
+  };
+  document.getElementById('supportNote').textContent =
+    `利用可能（検出）→ 動画: ${kinds.video}｜音声: ${kinds.audio}｜画像: ${kinds.image}`;
+}
+
+/* ==== Tabs ==== */
+document.querySelectorAll('.tabs .tab').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.tabs .tab').forEach(x=>x.setAttribute('aria-selected','false'));
+    b.setAttribute('aria-selected','true');
+    const name=b.dataset.tab;
+    document.querySelectorAll('section[data-panel]').forEach(p=>{ p.hidden = (p.dataset.panel!==name) });
+  });
+});
+
+/* ==== SIMPLE mode ==== */
+const drop=document.getElementById('drop'), pick=document.getElementById('filePick');
+const list=document.getElementById('list'), autoStart=document.getElementById('autoStart');
+const startAll=document.getElementById('startAll'), clearAll=document.getElementById('clearAll');
+const metaOut=document.getElementById('metaOut'); const canvasOut=document.getElementById('canvasOut');
+
+drop.addEventListener('dragover',e=>{e.preventDefault(); drop.classList.add('drag')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+drop.addEventListener('drop',e=>{e.preventDefault(); drop.classList.remove('drag'); handleFiles(e.dataTransfer.files) });
+pick.addEventListener('change',e=>handleFiles(e.target.files));
+startAll.addEventListener('click',()=>{ queue.filter(x=>!x.running && !x.done).forEach(x=>x.start()) });
+clearAll.addEventListener('click',()=>{ queue.filter(x=>x.done).forEach(x=>x.el.remove()); for(let i=queue.length-1;i>=0;i--){ if(queue[i].done) queue.splice(i,1) } });
+
+document.getElementById('thumbAll').addEventListener('click',()=>{ queue.forEach(x=>{ if(x.kind==='video') x.makeThumb(); }) });
+document.getElementById('waveAll').addEventListener('click',()=>{ queue.forEach(x=>{ if(x.kind==='audio') x.makeWave(); }) });
+
+document.getElementById('probeAll').addEventListener('click',()=>{ probeAll() });
+document.getElementById('saveMeta').addEventListener('click',()=>{ saveJSON(metaAll) });
+document.getElementById('saveCanvas').addEventListener('click',()=>{ canvasOut.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='canvas.png'; a.click(); }, 'image/png'); });
+
+const queue=[]; let metaAll=[];
+getFF(); // 起動時読み込み＆検出
+
+function mimeKind(f){
+  if(f.type.startsWith('video/')) return 'video';
+  if(f.type.startsWith('audio/')) return 'audio';
+  if(f.type.startsWith('image/')) return 'image';
+  const n=f.name.toLowerCase();
+  if(/\.(mp4|mkv|mov|webm|ogv|avi)$/.test(n)) return 'video';
+  if(/\.(mp3|wav|flac|aac|m4a|ogg|opus)$/.test(n)) return 'audio';
+  if(/\.(png|jpe?g|gif|webp|bmp|tiff?)$/.test(n)) return 'image';
+  return 'unknown';
+}
+function populateFormats(fmtSel, kind){
+  fmtSel.innerHTML='';
+  const avail = (caps?.available||[]).filter(r=>r.kind===kind);
+  if(avail.length===0){ fmtSel.appendChild(new Option('(なし)','bin')); return }
+  for(const r of avail){ fmtSel.appendChild(new Option(r.label, r.id)) }
+}
+
+function makeItem(file){
+  const kind=mimeKind(file);
+  const el=document.createElement('div'); el.className='item';
+  el.innerHTML=`
+    <div class="itemHead">
+      <div>
+        <div class="name">${file.name}</div>
+        <div class="meta">${kind||'?'} / ${(file.type||'').replace(/;.*/,'')||'unknown'} / ${(file.size/1024/1024).toFixed(2)} MB</div>
+      </div>
+      <div class="kv"><span class="status"></span></div>
+    </div>
+    <div class="itemRow">
+      <label>出力:
+        <select class="fmt"></select>
+      </label>
+      <label class="opt ql ${kind==='image'?'':'show'}">品質:
+        <select class="qual">
+          <option value="h">High</option>
+          <option value="m" selected>Medium</option>
+          <option value="l">Low</option>
+        </select>
+      </label>
+      <label class="opt sc ${kind==='video'?'':'hide'}">解像度:
+        <select class="scale">
+          <option value="keep">Keep</option>
+          <option value="1080">1080p</option>
+          <option value="720" selected>720p</option>
+          <option value="480">480p</option>
+        </select>
+      </label>
+      <label class="opt br ${kind==='audio'?'':'hide'}">ビットレート:
+        <input class="abr" type="text" value="160k">
+      </label>
+      <label class="opt iw ${kind==='image'?'':'hide'}">幅(px):
+        <input class="imgw" type="number" min="16" step="1" placeholder="keep">
+      </label>
+      <button class="btn go">変換</button>
+      <a class="btn dl" download style="display:none">DL</a>
+      <button class="btn th ${kind==='video'?'':'hide'}">🎞</button>
+      <button class="btn wf ${kind==='audio'?'':'hide'}">📈</button>
+    </div>
+    <div class="progress"><span></span></div>
+    <div class="meta log"></div>
+  `;
+  list.prepend(el);
+
+  const fmt=el.querySelector('.fmt'), qual=el.querySelector('.qual');
+  const scale=el.querySelector('.scale'), abr=el.querySelector('.abr');
+  const iw=el.querySelector('.imgw');
+  const go=el.querySelector('.go'), dl=el.querySelector('.dl');
+  const bar=el.querySelector('.progress span'), status=el.querySelector('.status');
+  const log=el.querySelector('.log');
+  const thBtn=el.querySelector('.th'), wfBtn=el.querySelector('.wf');
+
+  populateFormats(fmt, kind);
+
+  function setStatus(s, cls){ status.textContent=s; status.className='status '+(cls||'') }
+  function setBar(p){ bar.style.width=(Math.max(0,Math.min(100,p))||0)+'%' }
+
+  async function convert(){
+    if(task.running||task.done) return;
+    task.running=true; go.disabled=true; setStatus('変換中…'); setBar(6);
+    try{
+      if(kind==='image'){
+        const out = await convertImage(file, fmt.value, qual.value, iw.value);
+        dl.href=URL.createObjectURL(out.blob); dl.download=out.name; dl.style.display='inline-flex'; dl.classList.add('pop');
+        setBar(100); setStatus('完了','ok'); task.done=true;
+      }else if(kind==='audio'){
+        const out = await convertAudio(file, fmt.value, abr.value);
+        dl.href=URL.createObjectURL(out.blob); dl.download=out.name; dl.style.display='inline-flex'; dl.classList.add('pop');
+        setBar(100); setStatus('完了','ok'); task.done=true;
+      }else if(kind==='video'){
+        const out = await convertVideo(file, fmt.value, qual.value, scale.value, (p)=>setBar(p));
+        dl.href=URL.createObjectURL(out.blob); dl.download=out.name; dl.style.display='inline-flex'; dl.classList.add('pop');
+        setBar(100); setStatus('完了','ok'); task.done=true;
+      }else{
+        setStatus('失敗','err');
+      }
+    }catch(e){
+      console.error(e); setStatus('失敗','err'); log.textContent = String(e?.message||e);
+    }finally{
+      task.running=false; go.disabled=false;
+      setTimeout(()=>dl.classList.remove('pop'), 350);
+    }
+  }
+
+  async function makeThumb(){ if(kind!=='video') return; try{ const img=await extractFirstFrame(file,480,270); drawToCanvas(img); document.querySelector('.canvasBox')?.classList.add('flash'); setTimeout(()=>document.querySelector('.canvasBox')?.classList.remove('flash'),500);}catch(e){ console.error(e) } }
+  async function makeWave(){ if(kind!=='audio') return; try{ await drawWaveform(file, canvasOut); document.querySelector('.canvasBox')?.classList.add('flash'); setTimeout(()=>document.querySelector('.canvasBox')?.classList.remove('flash'),500);}catch(e){ console.error(e) } }
+
+  const task={ el, file, kind, running:false, done:false, start:convert, makeThumb, makeWave };
+  queue.push(task);
+  go.addEventListener('click',convert);
+  thBtn?.addEventListener('click',makeThumb);
+  wfBtn?.addEventListener('click',makeWave);
+  return task;
+}
+
+function handleFiles(listlike){
+  const arr=[...listlike]; arr.forEach(f=>{ const it=makeItem(f); if(autoStart.checked) it.start() });
+}
+
+function rename(name, ext){
+  const base = name.replace(/\.[^.]+$/,''); return base + '.' + ext.replace(/^\./,'');
+}
+
+/* ==== Image via Canvas ==== */
+async function convertImage(file, rid, q, width){
+  const rec = (caps?.available||[]).find(r=>r.id===rid) || {ext:'png'};
+  const fmt = rec.ext;
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+  const w = Math.max(1, Math.round(width? +width : img.naturalWidth));
+  const h = Math.round(img.naturalHeight * (w / img.naturalWidth));
+  const cnv=document.createElement('canvas'); cnv.width=w; cnv.height=h; const ctx=cnv.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+  URL.revokeObjectURL(url);
+  const mime = (fmt==='jpg')?'image/jpeg':(fmt==='png'?'image/png':'image/webp');
+  const quality = q==='h'?0.92:(q==='m'?0.82:0.72);
+  const outBlob = await new Promise(res=> cnv.toBlob(b=>res(b), mime, quality));
+  return { blob: outBlob, name: rename(file.name, fmt) };
+}
+
+/* ==== Audio / Video via FFmpeg ==== */
+function getRecipe(rid){ return (caps?.available||[]).find(r=>r.id===rid) }
+async function convertAudio(file, rid, abr='160k'){
+  const rec = getRecipe(rid); if(!rec) throw new Error('unsupported');
+  const ff=await getFF();
+  const inName='in.'+(file.name.split('.').pop()||'bin');
+  const outName='out.'+rec.ext;
+  ff.FS('writeFile', inName, await FFmpeg.fetchFile(file));
+  let args=[];
+  if(rec.id==='ogg_opus')   args=['-i',inName,'-vn','-c:a','libopus','-b:a',abr,outName];
+  else if(rec.id==='ogg_vorbis') args=['-i',inName,'-vn','-c:a','libvorbis','-q:a','5',outName];
+  else if(rec.id==='flac')  args=['-i',inName,'-vn','-c:a','flac',outName];
+  else if(rec.id==='wav')   args=['-i',inName,'-vn','-c:a','pcm_s16le',outName];
+  else throw new Error('unsupported audio recipe');
+  await ff.run(...args);
+  const data=ff.FS('readFile', outName); ff.FS('unlink', inName); ff.FS('unlink', outName);
+  const mime = rec.ext==='wav'?'audio/wav':(rec.ext==='flac'?'audio/flac':'audio/ogg');
+  return { blob:new Blob([data.buffer], {type:mime}), name: rename(file.name, rec.ext) };
+}
+async function convertVideo(file, rid, qual='m', scale='keep', onp){
+  const rec = getRecipe(rid); if(!rec) throw new Error('unsupported');
+  const ff=await getFF();
+  const inName='in.'+(file.name.split('.').pop()||'bin');
+  const outName='out.'+rec.ext;
+  ff.FS('writeFile', inName, await FFmpeg.fetchFile(file));
+  const crf = qual==='h'?28:(qual==='m'?32:36);
+  const vf = []; if(scale!=='keep'){ vf.push(`scale=-2:${parseInt(scale,10)}`) }
+  const vfArg = vf.length? ['-vf', vf.join(',')] : [];
+  let args=[];
+  if(rec.id==='webm_vp9_opus') args=['-i',inName,'-c:v','libvpx-vp9','-b:v','0','-crf',String(crf),'-c:a','libopus','-b:a','160k',...vfArg,outName];
+  else if(rec.id==='webm_vp8_vorbis') args=['-i',inName,'-c:v','libvpx','-b:v','0','-crf',String(crf),'-c:a','libvorbis','-q:a','5',...vfArg,outName];
+  else if(rec.id==='ogv_theora_vorbis') args=['-i',inName,'-c:v','libtheora','-q:v','7','-c:a','libvorbis','-q:a','5',...vfArg,outName];
+  else if(rec.id==='mkv_vp9_opus') args=['-i',inName,'-c:v','libvpx-vp9','-b:v','0','-crf',String(crf),'-c:a','libopus','-b:a','160k',...vfArg,outName];
+  else throw new Error('unsupported video recipe');
+  ff.setProgress(({ratio})=>{ if(onp) onp(Math.round((ratio||0)*100)) });
+  await ff.run(...args);
+  const data=ff.FS('readFile', outName); ff.FS('unlink', inName); ff.FS('unlink', outName);
+  const mime = rec.ext==='ogv'?'video/ogg':(rec.ext==='mkv'?'video/x-matroska':'video/webm');
+  return new Blob([data.buffer], {type:mime});
+}
+
+/* ==== Visual helpers ==== */
+async function extractFirstFrame(file, w=480, h=270){
+  return new Promise((resolve,reject)=>{
+    const v=document.createElement('video'); v.preload='metadata'; v.muted=true;
+    v.onloadeddata=()=>{ v.currentTime=0.05 };
+    v.onseeked=()=>{ const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.drawImage(v,0,0,w,h); const img=new Image(); img.onload=()=>resolve(img); img.onerror=reject; img.src=c.toDataURL('image/png'); URL.revokeObjectURL(v.src); };
+    v.onerror=reject; v.src=URL.createObjectURL(file);
+  });
+}
+function drawToCanvas(img){
+  const c=document.getElementById('canvasOut'), ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const rw=c.width/img.width, rh=c.height/img.height, r=Math.min(rw,rh);
+  const w=img.width*r, h=img.height*r, x=(c.width-w)/2, y=(c.height-h)/2;
+  ctx.drawImage(img,x,y,w,h);
+}
+async function drawWaveform(file, canvas){
+  const a = new (window.AudioContext||window.webkitAudioContext)();
+  const buf = await a.decodeAudioData(await file.arrayBuffer());
+  const c=canvas, ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel2').trim()||'#222';
+  ctx.fillRect(0,0,c.width,c.height);
+  const data=buf.getChannelData(0), step=Math.max(1,Math.floor(data.length/c.width));
+  ctx.strokeStyle='#8fd0ff'; ctx.beginPath();
+  for(let i=0;i<c.width;i++){
+    let min=1e9, max=-1e9;
+    for(let j=0;j<step;j++){ const v=data[i*step+j]; if(v<min)min=v; if(v>max)max=v; }
+    const y1=(1+min)*0.5*c.height, y2=(1+max)*0.5*c.height;
+    ctx.moveTo(i,y1); ctx.lineTo(i,y2);
+  }
+  ctx.stroke();
+}
+
+/* ==== ffprobe-light ==== */
+async function probeAll(){
+  await getFF();
+  metaAll=[];
+  for(const q of queue){
+    try{
+      const tmp=await quickProbe(q.file);
+      metaAll.push({name:q.file.name, ...tmp});
+    }catch(e){ metaAll.push({name:q.file.name, error:String(e?.message||e)}) }
+  }
+  metaOut.textContent = JSON.stringify(metaAll,null,2);
+}
+async function quickProbe(file){
+  const type = mimeKind(file);
+  if(type==='video'){
+    const dur = await getMediaDuration(file,'video');
+    const {w,h} = await getVideoWH(file);
+    return {kind:'video',duration:dur,width:w,height:h,size:file.size};
+  }else if(type==='audio'){
+    const dur = await getMediaDuration(file,'audio');
+    return {kind:'audio',duration:dur,size:file.size};
+  }else if(type==='image'){
+    const img=await loadImageOnce(file);
+    return {kind:'image',width:img.naturalWidth,height:img.naturalHeight,size:file.size};
+  }else{
+    return {kind:'unknown',size:file.size};
+  }
+}
+function getMediaDuration(file, type){
+  return new Promise((res)=>{ const el=document.createElement(type); el.preload='metadata'; el.onloadedmetadata=()=>{ res(el.duration||0); URL.revokeObjectURL(el.src); }; el.src=URL.createObjectURL(file); });
+}
+function getVideoWH(file){
+  return new Promise((res)=>{ const el=document.createElement('video'); el.preload='metadata'; el.onloadedmetadata=()=>{ res({w:el.videoWidth||0,h:el.videoHeight||0}); URL.revokeObjectURL(el.src); }; el.src=URL.createObjectURL(file); });
+}
+function loadImageOnce(file){
+  return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=URL.createObjectURL(file); });
+}
+function saveJSON(obj){ const a=document.createElement('a'); const b=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}); a.href=URL.createObjectURL(b); a.download='metadata.json'; a.click(); }
+
+/* ==== Pyodide Advanced ==== */
+const pyBadge=document.getElementById('loadPy');
+pyBadge.addEventListener('click', async ()=>{ pyBadge.disabled=true; await ensurePyodide(); pyBadge.textContent='Py ready' });
+
+const pyInstallPillow=document.getElementById('pyInstallPillow');
+pyInstallPillow.addEventListener('click', async ()=>{
+  try{ await ensurePyodide(); await pyodide.loadPackage('micropip'); await pyodide.runPythonAsync(`import micropip\nawait micropip.install("Pillow")`); document.getElementById('pyLog').textContent='Pillow installed.' }
+  catch(e){ document.getElementById('pyLog').textContent='Install failed: '+String(e?.message||e) }
+});
+
+const pyCode=document.getElementById('pyCode');
+const pyLog=document.getElementById('pyLog');
+const pyStatus=document.getElementById('pyStatus');
+const dlPyResults=document.getElementById('dlPyResults');
+let pyResults=[];
+
+document.getElementById('exampleImg').addEventListener('click',()=>{
+pyCode.value=`# 画像を半分に縮小して WEBP で返す例
+import io
+from js import files_py
+result=[]
+try:
+    from PIL import Image
+except:
+    result.append({"name":"_info.txt","bytes":b"Install Pillow first."})
+for f in files_py:
+    n=f["name"].lower()
+    if not n.endswith((".png",".jpg",".jpeg",".webp",".bmp",".tiff",".gif")): continue
+    data=bytes(f["bytes"])
+    im=Image.open(io.BytesIO(data))
+    w,h=im.size; im=im.resize((max(1,w//2),max(1,h//2)))
+    buf=io.BytesIO(); im.save(buf, format="WEBP", quality=82)
+    result.append({"name": f["name"].rsplit(".",1)[0]+".webp", "bytes": buf.getvalue()})
+result
+`;
+});
+document.getElementById('exampleAv').addEventListener('click',()=>{
+pyCode.value=`# Python→JSの ffmpeg ブリッジ例
+from js import pyRunFF, files_py
+result=[]
+for f in files_py:
+    name=f["name"]
+    if any(name.lower().endswith(x) for x in (".mp4",".mov",".mkv",".webm",".ogv",".avi",".m4v")):
+        outName=name.rsplit(".",1)[0]+".webm"
+        blob=pyRunFF(f, ["-c:v","libvpx-vp9","-b:v","0","-crf","32","-c:a","libopus","-b:a","160k"], outName)
+        result.append({"name":outName, "blob":blob})
+result
+`;
+});
+
+document.getElementById('runPy').addEventListener('click', async ()=>{
+  try{
+    await ensurePyodide(); await getFF();
+    pyStatus.textContent='実行中…'; pyLog.textContent='–';
+    const files = await Promise.all(queue.map(async q=>{
+      const bytes=new Uint8Array(await q.file.arrayBuffer());
+      return {name:q.file.name, bytes, type:q.file.type||''};
+    }));
+    await ensureFFforPy();
+    pyodide.globals.set('files_py', files);
+    pyodide.globals.set('pyRunFF', pyRunFF);
+    const out = await pyodide.runPythonAsync(pyCode.value);
+    pyResults = [];
+    const arr = out?.toJs?.({create_proxies:false}) || out;
+    for(const it of arr||[]){
+      if(it.blob){ pyResults.push({name: it.name||'out.bin', blob: it.blob}); }
+      else if(it.bytes){ pyResults.push({name: it.name||'out.bin', blob: new Blob([new Uint8Array(it.bytes)], {type:'application/octet-stream'})}); }
+    }
+    dlPyResults.disabled = pyResults.length===0;
+    pyStatus.textContent = `完了 (${pyResults.length}件)`;
+    pyLog.textContent = JSON.stringify(arr,null,2).slice(0,5000);
+  }catch(e){
+    pyStatus.textContent='失敗';
+    pyLog.textContent=String(e?.message||e);
+  }
+});
+document.getElementById('dlPyResults').addEventListener('click', async ()=>{
+  if(pyResults.length===0) return;
+  const parts=[]; const enc=new TextEncoder(); let offset=0; const filesLocal=[];
+  function dosTime(d=new Date()){ const time=(d.getHours()<<11)|(d.getMinutes()<<5)|Math.floor(d.getSeconds()/2); const date=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(); return {time,date}; }
+  for(const f of pyResults){
+    const data = new Uint8Array(await f.blob.arrayBuffer());
+    const nameEnc=enc.encode(f.name); const {time,date}=dosTime();
+    const local=new Uint8Array(30+nameEnc.length+data.length); let p=0;
+    const w32=v=>{local[p++]=v&255;local[p++]=(v>>8)&255;local[p++]=(v>>16)&255;local[p++]=(v>>24)&255}
+    const w16=v=>{local[p++]=v&255;local[p++]=(v>>8)&255}
+    w32(0x04034b50); w16(20); w16(0); w16(0); w16(time); w16(date); w32(0); w32(data.length); w32(data.length); w16(nameEnc.length); w16(0);
+    local.set(nameEnc,p); p+=nameEnc.length; local.set(data,p); p+=data.length;
+    parts.push(local);
+    filesLocal.push({nameEnc,comp:data.length,uncomp:data.length,off:offset,time,date});
+    offset += local.length;
+  }
+  const centers=[]; let centralSize=0;
+  for(const f of filesLocal){
+    const c=new Uint8Array(46+f.nameEnc.length); let p=0;
+    const w32=v=>{c[p++]=v&255;c[p++]=(v>>8)&255;c[p++]=(v>>16)&255;c[p++]=(v>>24)&255}
+    const w16=v=>{c[p++]=v&255;c[p++]=(v>>8)&255}
+    w32(0x02014b50); w16(20); w16(20); w16(0); w16(0); w16(f.time); w16(f.date);
+    w32(0); w32(f.comp); w32(f.uncomp); w16(f.nameEnc.length); w16(0); w16(0); w16(0); w16(0); w32(0); w32(f.off);
+    c.set(f.nameEnc,p); p+=f.nameEnc.length; centers.push(c); centralSize+=c.length;
+  }
+  const end=new Uint8Array(22); let p=0;
+  const w32=v=>{end[p++]=v&255;end[p++]=(v>>8)&255;end[p++]=(v>>16)&255;end[p++]=(v>>24)&255}
+  const w16=v=>{end[p++]=v&255;end[p++]=(v>>8)&255}
+  const centralOffset=offset; w32(0x06054b50); w16(0); w16(0); w16(filesLocal.length); w16(filesLocal.length); w32(centralSize); w32(centralOffset); w16(0);
+  const zip = new Blob([new Blob(parts), new Blob(centers), end], {type:'application/zip'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(zip); a.download='py-results.zip'; a.click();
+});
+
+/* Python→FFmpeg ブリッジ */
+let ffForPy=null;
+async function ensureFFforPy(){ if(!ffForPy){ ffForPy = FFmpeg.createFFmpeg({log:false, corePath:'https://unpkg.com/@ffmpeg/core@0.12.7/dist/ffmpeg-core.js'}); await ffForPy.load(); } }
+async function pyRunFF(f, args, outName="out.webm"){
+  await ensureFFforPy();
+  const inName='in.'+(String(f.name||'in').split('.').pop()||'bin');
+  const bytes = f.bytes ? new Uint8Array(f.bytes) : new Uint8Array(await f.arrayBuffer());
+  ffForPy.FS('writeFile', inName, bytes);
+  await ffForPy.run(...['-i', inName, ...args, outName]);
+  const data=ffForPy.FS('readFile', outName);
+  ffForPy.FS('unlink', inName); ffForPy.FS('unlink', outName);
+  const mime = outName.toLowerCase().endsWith('.ogg')?'audio/ogg' : (outName.toLowerCase().endsWith('.webm')?'video/webm':(outName.toLowerCase().endsWith('.mkv')?'video/x-matroska':'application/octet-stream'));
+  return new Blob([data.buffer], {type:mime});
+}
+</script>
+</body>
+</html>

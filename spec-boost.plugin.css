@@ -1,0 +1,27 @@
+/* spec-boost.plugin.css */
+
+.spec-ov, .spec-ov-glow {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 12px;
+  height: 12px; /* 実サイズはJSで同期 */
+  pointer-events: none;
+  z-index: 9;           /* #spectrum(8) の上 / ASS(10) の下 */
+  mix-blend-mode: screen;
+}
+
+.spec-ov-glow{
+  filter: blur(14px) saturate(1.2);
+  opacity: .85;
+}
+
+/* 設定UIの小見出し */
+.spec-boost-note{
+  font-size:12px;color:var(--muted);
+}
+
+/* “いま効いてる”感じのバッジ */
+.spec-boost-on{
+  display:inline-block; margin-left:.4rem;
+  padding:.05rem .4rem; border:1px solid color-mix(in oklab,var(--accent),#000 20%);
+  border-radius:999px; font-size:11px; color:var(--accent);
+}

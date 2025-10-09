@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Omni Editor (β) – Pyodide + FFmpeg</title>
+<meta name="theme-color" content="#0b0e12" id="themeColorMeta">
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/ffmpeg.min.js"></script>
+<script>
+  let pyodide=null, pyReady=false, pyLoading=false;
+  async function ensurePyodide(){
+    if(pyReady) return pyodide;
+    if(pyLoading){ while(!pyReady) await new Promise(r=>setTimeout(r,120)); return pyodide; }
+    pyLoading=true;
+    const s=document.createElement('script'); s.src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js";
+    document.head.appendChild(s);
+    await new Promise(res=> s.onload=res);
+    pyodide = await loadPyodide({ indexURL:"https://cdn.jsdelivr.net/pyodide/v0.25.1/full/" });
+    pyReady=true; return pyodide;
+  }
+</script>
+<style>
+:root{--bg:#0b0e12;--panel:#0f141b;--panel2:#0b1118;--text:#e8edf3;--muted:#a6b0bb;--accent:#74b3ff;--ring:#243246;--ok:#2ecc71;--err:#ff5c5c;--ease:cubic-bezier(.22,.61,.36,1)}
+[data-theme="light"]{--bg:#f4f7fb;--panel:#fff;--panel2:#f3f6fb;--text:#0c1116;--muted:#5b6773;--ring:#dbe4f0;--accent:#3478ff}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif}
+header,footer{display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 12px 40px}
+a,button{cursor:pointer}
+.btn{position:relative;border:1px solid var(--ring);background:var(--panel2);color:var(--text);padding:8px 12px;border-radius:10px;transition:transform .12s var(--ease), box-shadow .2s var(--ease)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.btn:active{transform:translateY(0)}
+.btn .rip{position:absolute;width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.6);left:0;top:0;opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.2);animation:ripple .6s ease-out}
+@keyframes ripple{to{opacity:0;transform:translate(-50%,-50%) scale(6)}}
+h1{font-size:18px;margin:0;display:flex;gap:.5rem;align-items:center}
+.badge{font-size:12px;padding:2px 6px;border:1px solid var(--ring);border-radius:999px;background:var(--panel2);color:var(--muted)}
+.badge2{font-size:11px;padding:2px 6px;border-radius:999px;background:var(--panel2);border:1px solid var(--ring);margin-left:6px}
+.badge2.spin{animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.grid{display:grid;gap:12px}
+.panel{border:1px solid var(--ring);border-radius:12px;background:var(--panel);padding:12px;animation:panelIn .3s var(--ease)}
+@keyframes panelIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+label>span{display:block;font-size:12px;color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type="number"],input[type="text"],select,textarea{background:var(--panel2);border:1px solid var(--ring);color:var(--text);border-radius:8px;padding:6px 8px;width:100%}
+textarea{min-height:140px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+video,audio{width:100%;max-height:420px;background:#000;border-radius:10px;border:1px solid var(--ring)}
+.progress{height:6px;background:var(--panel2);border:1px solid var(--ring);border-radius:999px;overflow:hidden}
+.progress>span{display:block;height:100%;width:0%;background:repeating-linear-gradient(45deg, color-mix(in oklab,var(--accent),#fff 10%) 0 12px, color-mix(in oklab,var(--accent),#000 15%) 12px 24px);animation:stripes 1.2s linear infinite;transition:width .25s var(--ease)}
+@keyframes stripes{to{background-position:48px 0}}
+.note{padding:8px;border:1px solid var(--ring);border-radius:10px;background:var(--panel2);color:var(--muted);font-size:12px}
+.ok{color:var(--ok)} .err{color:var(--err)}
+.canvasBox{border:1px solid var(--ring);border-radius:10px;overflow:hidden;background:var(--panel2);padding:8px}
+.pop{animation:pop .22s var(--ease)}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.flash{animation:flash .6s ease}
+@keyframes flash{from{filter:brightness(1.4)}to{filter:brightness(1)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Omni Editor <span class="badge">β</span> <span class="badge2 spin" id="capBadge">Detecting…</span></h1>
+  <div class="row">
+    <a class="btn" href="./index.html" id="backBtn">⟵ 戻る</a>
+    <button class="btn" id="pyLoad">🐍 Py 読込</button>
+    <button class="btn" id="themeBtn">🌙</button>
+  </div>
+</header>
+
+<div class="wrap grid">
+  <div class="panel">
+    <div class="row">
+      <input type="file" id="pick" accept="video/*,audio/*,image/*">
+      <button class="btn" id="snapBtn" disabled>📸 現在位置をPNG</button>
+      <button class="btn" id="logoBtn" disabled>🖼 ロゴ合成</button>
+      <input type="file" id="logoPick" accept="image/*" style="display:none">
+      <span class="note" id="codecNote">検出されたフォーマットのみ出力選択に表示されます。</span>
+    </div>
+    <div class="row">
+      <div style="flex:1">
+        <div class="canvasBox" id="prevBox">
+          <video id="vprev" controls hidden></video>
+          <audio id="aprev" controls hidden></audio>
+          <img id="iprev" style="max-width:100%;border:1px solid var(--ring);border-radius:10px" hidden />
+          <canvas id="snap" width="960" height="540" hidden></canvas>
+        </div>
+        <div class="small" id="meta">–</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <label><span>出力形式</span>
+        <select id="outFmt"></select>
+      </label>
+
+      <label><span>トリム</span>
+        <div class="row">
+          <input id="tStart" type="number" min="0" value="0" step="0.1"> <span>→</span>
+          <input id="tEnd" type="number" min="0" value="0" step="0.1">
+        </div>
+      </label>
+
+      <label><span>解像度</span>
+        <select id="scale">
+          <option value="keep">Keep</option>
+          <option value="1080">1080p</option>
+          <option value="720" selected>720p</option>
+          <option value="480">480p</option>
+        </select>
+      </label>
+
+      <label><span>回転</span>
+        <select id="rotate">
+          <option value="0">0°</option>
+          <option value="90">90°</option>
+          <option value="180">180°</option>
+          <option value="270">270°</option>
+        </select>
+      </label>
+
+      <label class="row"><input id="flipH" type="checkbox"> <span>水平反転</span></label>
+      <label class="row"><input id="mute" type="checkbox"> <span>音声をミュート</span></label>
+
+      <label><span>画質/品質</span>
+        <select id="quality">
+          <option value="h">High</option>
+          <option value="m" selected>Medium</option>
+          <option value="l">Low</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <div class="row">
+        <button class="btn" id="exportBtn" disabled>Export</button>
+        <a class="btn" id="download" style="display:none" download>Download</a>
+      </div>
+      <div class="row"><span id="status"></span></div>
+    </div>
+
+    <div class="progress"><span id="bar"></span></div>
+    <div class="note" id="log">–</div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Python 前処理（任意）</h3>
+      <div class="row">
+        <button class="btn" id="pyPillow">Pillow</button>
+        <button class="btn" id="pyRun">▶︎ 実行</button>
+      </div>
+    </div>
+    <textarea id="pyScript" spellcheck="false" placeholder="# bytes_in / mime_in / name_in を利用して加工し、bytes_out を返す"></textarea>
+    <pre id="pyOut" class="pre small">–</pre>
+  </div>
+</div>
+
+<footer class="wrap">© 2025 OmniMedia – すべての体験をひとつに。</footer>
+
+<script>
+/* ==== Theme ==== */
+const themeKey='om.theme'; const meta=document.getElementById('themeColorMeta');
+function getSystemTheme(){ return matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light' }
+function timeOfDayTheme(){ const h=new Date().getHours(); return (h>=19||h<7)?'dark':'light' }
+function applyTheme(mode){ const m=mode==='auto'?getSystemTheme():(mode==='auto-time'?timeOfDayTheme():mode); document.documentElement.setAttribute('data-theme',m); meta.setAttribute('content', m==='light'? '#f4f7fb':'#0b0e12'); }
+function displayThemeIcon(mode){ if(mode==='auto') return '🌓'; if(mode==='auto-time') return '⏰'; return mode==='light'?'☀️':'🌙' }
+const themeBtn=document.getElementById('themeBtn'); const curTheme = JSON.parse(localStorage.getItem(themeKey) || '"dark"'); applyTheme(curTheme); themeBtn.textContent=displayThemeIcon(curTheme);
+themeBtn.addEventListener('click',()=>{ const seq=['dark','light','auto','auto-time']; const cur=JSON.parse(localStorage.getItem(themeKey) || '"dark"'); const next=seq[(seq.indexOf(cur)+1)%seq.length]; localStorage.setItem(themeKey, JSON.stringify(next)); themeBtn.textContent=displayThemeIcon(next); applyTheme(next); });
+
+/* ripple */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.btn'); if(!b) return;
+  const r=b.getBoundingClientRect(); const s=document.createElement('span'); s.className='rip';
+  s.style.left=(e.clientX-r.left)+'px'; s.style.top=(e.clientY-r.top)+'px';
+  b.appendChild(s); setTimeout(()=>s.remove(),650);
+});
+
+/* ==== FFmpeg + caps ==== */
+let ffmpeg=null, ffReady=false, ffLoading=false, caps=null;
+async function getFF(){
+  if(ffReady) return ffmpeg;
+  if(ffLoading){ while(!ffReady) await new Promise(r=>setTimeout(r,120)); return ffmpeg; }
+  ffLoading=true;
+  ffmpeg = FFmpeg.createFFmpeg({ log:false, corePath:'https://unpkg.com/@ffmpeg/core@0.12.7/dist/ffmpeg-core.js' });
+  await ffmpeg.load(); ffReady=true;
+  caps = await detectCaps(ffmpeg);
+  const badge=document.getElementById('capBadge'); badge.textContent='Ready'; badge.classList.remove('spin');
+  return ffmpeg;
+}
+async function detectCaps(ff){
+  function parseList(txt){ return txt.split('\n').map(s=>s.trim()).filter(Boolean) }
+  await ff.run('-encoders'); const encTxt = ff.logs.map(x=>x.message).join('\n'); ff.logs.length=0;
+  const encV=new Set(), encA=new Set(), encI=new Set();
+  parseList(encTxt).forEach(l=>{ const m=l.match(/^\s*([VASF\.]{6})\s+([A-Za-z0-9_][\w\-]*)\b/); if(!m) return; const f=m[1], n=m[2]; if(f[0]==='V') encV.add(n); if(f[1]==='A') encA.add(n); if(/png|webp|mjpeg|pam|ppm|bmp/.test(n)) encI.add(n); });
+  await ff.run('-muxers'); const muxTxt = ff.logs.map(x=>x.message).join('\n'); ff.logs.length=0;
+  const muxers=new Set(); parseList(muxTxt).forEach(l=>{ const m=l.match(/^\s*[ D ]\s+([a-z0-9_]+)\s+/i); if(m) muxers.add(m[1]); });
+
+  const recipes=[
+    {id:'webm_vp9_opus',  kind:'video', label:'WEBM (VP9+Opus)',  ext:'webm', v:'libvpx-vp9', a:'libopus', mux:'webm'},
+    {id:'webm_vp8_vorbis',kind:'video', label:'WEBM (VP8+Vorbis)',ext:'webm', v:'libvpx',     a:'libvorbis', mux:'webm'},
+    {id:'ogv_theora_vorbis',kind:'video',label:'OGV (Theora+Vorbis)',ext:'ogv', v:'libtheora',a:'libvorbis', mux:'ogg'},
+    {id:'mkv_vp9_opus',   kind:'video', label:'MKV (VP9+Opus)',  ext:'mkv',  v:'libvpx-vp9', a:'libopus',   mux:'matroska'},
+    {id:'img_png',        kind:'image', label:'PNG',  ext:'png',  i:'png',   mux:'image2'},
+    {id:'img_webp',       kind:'image', label:'WEBP', ext:'webp', i:'webp',  mux:'image2'},
+    {id:'img_jpg',        kind:'image', label:'JPG',  ext:'jpg',  i:'mjpeg', mux:'image2'},
+    {id:'ogg_opus',       kind:'audio', label:'OGG (Opus)',  ext:'ogg', a:'libopus',   mux:'ogg'},
+    {id:'ogg_vorbis',     kind:'audio', label:'OGG (Vorbis)',ext:'ogg', a:'libvorbis', mux:'ogg'},
+    {id:'flac',           kind:'audio', label:'FLAC',        ext:'flac', a:'flac',     mux:'flac'},
+    {id:'wav',            kind:'audio', label:'WAV (PCM16)', ext:'wav',  a:'pcm_s16le',mux:'wav'},
+  ];
+  const available = recipes.filter(r=>{
+    const okMux = muxers.has(r.mux);
+    const okV = !r.v || encV.has(r.v);
+    const okA = !r.a || encA.has(r.a) || encV.has(r.a);
+    const okI = !r.i || encI.has(r.i) || encV.has(r.i);
+    return okMux && okV && okA && okI;
+  });
+  return {encV,encA,encI,muxers,recipes,available};
+}
+
+/* ==== UI ==== */
+const pick=document.getElementById('pick');
+const vprev=document.getElementById('vprev');
+const aprev=document.getElementById('aprev');
+const iprev=document.getElementById('iprev');
+const snap=document.getElementById('snap');
+const snapBtn=document.getElementById('snapBtn');
+const logoBtn=document.getElementById('logoBtn');
+const logoPick=document.getElementById('logoPick');
+const outFmt=document.getElementById('outFmt');
+const tStart=document.getElementById('tStart');
+const tEnd=document.getElementById('tEnd');
+const scale=document.getElementById('scale');
+const rotate=document.getElementById('rotate');
+const flipH=document.getElementById('flipH');
+const mute=document.getElementById('mute');
+const quality=document.getElementById('quality');
+const exportBtn=document.getElementById('exportBtn');
+const download=document.getElementById('download');
+const statusEl=document.getElementById('status');
+const bar=document.getElementById('bar');
+const logEl=document.getElementById('log');
+const metaEl=document.getElementById('meta');
+
+let currentFile=null, currentKind='';
+getFF().then(()=>populateOutList('video'));
+
+function populateOutList(kind){
+  outFmt.innerHTML='';
+  (caps?.available||[]).filter(r=>r.kind===kind).forEach(r=>{
+    outFmt.appendChild(new Option(r.label, r.id));
+  });
+  if(!outFmt.options.length && kind!=='image'){
+    (caps?.available||[]).filter(r=>r.kind==='image').forEach(r=>outFmt.appendChild(new Option(r.label,r.id)));
+  }
+}
+
+pick.addEventListener('change',()=>{ if(!pick.files[0]) return; loadFile(pick.files[0]) });
+
+async function loadFile(file){
+  await getFF();
+  currentFile=file; download.style.display='none'; bar.style.width='0%'; statusEl.textContent='';
+  currentKind = file.type.startsWith('video/') ? 'video'
+              : file.type.startsWith('audio/') ? 'audio'
+              : file.type.startsWith('image/') ? 'image' : 'unknown';
+  [vprev, aprev, iprev, snap].forEach(el=>{ el.hidden=true; if(el.tagName==='VIDEO'||el.tagName==='AUDIO'){ el.pause(); el.removeAttribute('src'); el.load(); } });
+  const url=URL.createObjectURL(file);
+  metaEl.textContent = `${currentKind} / ${(file.type||'').replace(/;.*/,'')||'unknown'} / ${(file.size/1024/1024).toFixed(2)} MB`;
+
+  if(currentKind==='video'){
+    vprev.hidden=false; vprev.src=url; vprev.onloadedmetadata=()=>{ tEnd.value = (vprev.duration||0).toFixed(1); tStart.value=0; setSnapSize(vprev.videoWidth,vprev.videoHeight); document.getElementById('prevBox').classList.add('flash'); setTimeout(()=>document.getElementById('prevBox').classList.remove('flash'),500); };
+    enableVideoUI(true); snapBtn.disabled=false; logoBtn.disabled=false; populateOutList('video');
+  }else if(currentKind==='audio'){
+    aprev.hidden=false; aprev.src=url; aprev.onloadedmetadata=()=>{ tEnd.value = (aprev.duration||0).toFixed(1); tStart.value=0; document.getElementById('prevBox').classList.add('flash'); setTimeout(()=>document.getElementById('prevBox').classList.remove('flash'),500); };
+    enableVideoUI(false); snapBtn.disabled=true; logoBtn.disabled=true; populateOutList('audio');
+  }else if(currentKind==='image'){
+    iprev.hidden=false; iprev.src=url; iprev.onload=()=>{ setSnapSize(iprev.naturalWidth,iprev.naturalHeight); document.getElementById('prevBox').classList.add('flash'); setTimeout(()=>document.getElementById('prevBox').classList.remove('flash'),500); };
+    enableImageUI(); snapBtn.disabled=true; logoBtn.disabled=true; populateOutList('image');
+  }else{
+    metaEl.textContent += ' / Unsupported';
+    exportBtn.disabled = true; return;
+  }
+  exportBtn.disabled = !currentFile;
+}
+
+function setSnapSize(w,h){ const r=960/w; snap.width=960; snap.height=Math.round(h*r); }
+function enableVideoUI(hasVideo){
+  scale.disabled = !hasVideo; rotate.disabled = !hasVideo; flipH.disabled = !hasVideo;
+  mute.disabled = false; quality.disabled = false;
+}
+function enableImageUI(){
+  scale.disabled = true; rotate.disabled = true; flipH.disabled = true; mute.disabled = true; quality.disabled = false;
+  tStart.value = 0; tEnd.value = 0;
+}
+
+/* Snap & Logo */
+snapBtn.addEventListener('click',()=>{
+  if(currentKind!=='video') return;
+  const ctx=snap.getContext('2d');
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,snap.width,snap.height);
+  const rw=snap.width/vprev.videoWidth, rh=snap.height/vprev.videoHeight, r=Math.min(rw,rh);
+  const w=vprev.videoWidth*r, h=vprev.videoHeight*r, x=(snap.width-w)/2, y=(snap.height-h)/2;
+  ctx.drawImage(vprev,x,y,w,h); snap.hidden=false; document.getElementById('prevBox').classList.add('flash'); setTimeout(()=>document.getElementById('prevBox').classList.remove('flash'),500);
+});
+logoBtn.addEventListener('click',()=>logoPick.click());
+logoPick.addEventListener('change',async ()=>{
+  const f=logoPick.files?.[0]; if(!f) return;
+  const img=new Image(); img.onload=()=>{
+    const ctx=snap.getContext('2d'); const scale= Math.max(60, Math.round(snap.width*0.16));
+    const r = scale/Math.max(img.naturalWidth,img.naturalHeight);
+    const w = Math.round(img.naturalWidth*r), h=Math.round(img.naturalHeight*r);
+    ctx.globalAlpha=0.85; ctx.drawImage(img, snap.width - w - 16, snap.height - h - 16, w, h); ctx.globalAlpha=1;
+  }; img.src=URL.createObjectURL(f);
+});
+
+/* Export */
+exportBtn.addEventListener('click', async ()=>{
+  if(!currentFile) return;
+  try{
+    exportBtn.disabled=true; statusEl.textContent='Working…'; bar.style.width='6%';
+    const maybeBytes = await runPyPre(currentFile);
+    const srcFile = maybeBytes ? new File([maybeBytes], currentFile.name, {type:currentFile.type||'application/octet-stream'}) : currentFile;
+
+    if(currentKind==='image'){
+      const out = await convertImage(srcFile, outFmt.value, quality.value);
+      const url = URL.createObjectURL(out.blob); download.href=url; download.download=out.name; download.style.display='inline-flex'; download.classList.add('pop'); statusEl.textContent='Done'; bar.style.width='100%';
+      setTimeout(()=>download.classList.remove('pop'), 350);
+    }else{
+      const out=await processAV(srcFile, outFmt.value);
+      const url=URL.createObjectURL(out.blob); download.href=url; download.download=out.name; download.style.display='inline-flex'; download.classList.add('pop'); statusEl.textContent='Done'; bar.style.width='100%';
+      setTimeout(()=>download.classList.remove('pop'), 350);
+    }
+  }catch(e){
+    console.error(e); statusEl.textContent='Failed'; logEl.textContent=String(e?.message||e); bar.style.width='0%';
+  }finally{
+    exportBtn.disabled=false;
+  }
+});
+
+/* Image via Canvas */
+function recipeById(id){ return (caps?.available||[]).find(r=>r.id===id) }
+function rename(name, ext){ return name.replace(/\.[^.]+$/,'') + '.' + ext.replace(/^\./,'') }
+async function convertImage(file, rid, q){
+  const rec = recipeById(rid) || {ext:'png'};
+  const fmt = rec.ext;
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+  const cnv=document.createElement('canvas'); cnv.width=img.naturalWidth; cnv.height=img.naturalHeight; const ctx=cnv.getContext('2d'); ctx.drawImage(img,0,0);
+  URL.revokeObjectURL(url);
+  const mime = fmt==='jpg'?'image/jpeg':(fmt==='png'?'image/png':'image/webp');
+  const quality = q==='h'?0.92:(q==='m'?0.82:0.72);
+  const outBlob=await new Promise(res=> cnv.toBlob(b=>res(b), mime, quality));
+  return { blob: outBlob, name: rename(file.name, fmt) };
+}
+
+/* AV via FFmpeg */
+async function processAV(file, rid){
+  const rec = recipeById(rid); if(!rec) throw new Error('unsupported');
+  const ff=await getFF();
+  const inName='in.'+(file.name.split('.').pop()||'bin');
+  const fmt=rec.ext; const outName='out.'+fmt;
+  ff.FS('writeFile', inName, await FFmpeg.fetchFile(file));
+
+  const vf=[];
+  const hasVideo = currentKind==='video';
+  if(hasVideo){
+    if(scale.value!=='keep'){ vf.push(`scale=-2:${parseInt(scale.value,10)}`) }
+    const r=rotate.value;
+    if(r==='90'){ vf.push('transpose=1') }
+    else if(r==='180'){ vf.push('hflip,vflip') }
+    else if(r==='270'){ vf.push('transpose=2') }
+    if(flipH.checked){ vf.push('hflip') }
+  }
+  const vfArg = vf.length? ['-vf', vf.join(',')] : [];
+  const ss = parseFloat(tStart.value||'0'); const to = parseFloat(tEnd.value||'0');
+  const timeArg = (to>0 && to>ss) ? ['-ss', String(ss), '-to', String(to)] : (ss>0? ['-ss', String(ss)] : []);
+  const crf = quality.value==='h'?28:(quality.value==='m'?32:36);
+
+  let args=[];
+  if(rec.id==='webm_vp9_opus') args=[...timeArg,'-i',inName,'-c:v','libvpx-vp9','-b:v','0','-crf',String(crf), ...(mute.checked? ['-an'] : ['-c:a','libopus','-b:a','160k']), ...vfArg, outName];
+  else if(rec.id==='webm_vp8_vorbis') args=[...timeArg,'-i',inName,'-c:v','libvpx','-b:v','0','-crf',String(crf), ...(mute.checked? ['-an'] : ['-c:a','libvorbis','-q:a','5']), ...vfArg, outName];
+  else if(rec.id==='ogv_theora_vorbis') args=[...timeArg,'-i',inName,'-c:v','libtheora','-q:v','7', ...(mute.checked? ['-an'] : ['-c:a','libvorbis','-q:a','5']), ...vfArg, outName];
+  else if(rec.id==='mkv_vp9_opus') args=[...timeArg,'-i',inName,'-c:v','libvpx-vp9','-b:v','0','-crf',String(crf), ...(mute.checked? ['-an'] : ['-c:a','libopus','-b:a','160k']), ...vfArg, outName];
+  else if(rec.kind==='audio'){
+    if(rec.id==='ogg_opus') args=[...timeArg,'-i',inName,'-vn','-c:a','libopus','-b:a','160k', outName];
+    else if(rec.id==='ogg_vorbis') args=[...timeArg,'-i',inName,'-vn','-c:a','libvorbis','-q:a','5', outName];
+    else if(rec.id==='wav') args=[...timeArg,'-i',inName,'-vn','-c:a','pcm_s16le', outName];
+    else if(rec.id==='flac') args=[...timeArg,'-i',inName,'-vn','-c:a','flac', outName];
+  }else if(rec.kind==='image'){
+    const qmap = quality.value==='h'?'90':(quality.value==='m'?'82':'72');
+    const imgCodec = (fmt==='jpg')? ['-frames:v','1','-q:v',qmap] : ['-frames:v','1'];
+    args=[...timeArg,'-i',inName,'-an','-c:v', fmt==='png'?'png':'libwebp', ...vfArg, ...imgCodec, outName];
+  }else{
+    throw new Error('Unsupported output recipe: '+rec.id);
+  }
+
+  ff.setProgress(({ratio})=>{ bar.style.width = Math.round((ratio||0)*100)+'%' });
+  await ff.run(...args);
+  const data=ff.FS('readFile', outName); ff.FS('unlink', inName); ff.FS('unlink', outName);
+  const mime = fmt==='webm'?'video/webm' : (fmt==='ogv'?'video/ogg' : (fmt==='mkv'?'video/x-matroska' : (fmt==='ogg'?'audio/ogg' : (fmt==='wav'?'audio/wav' : (fmt==='flac'?'audio/flac' : (fmt==='jpg'?'image/jpeg' : (fmt==='png'?'image/png':'image/webp')))))));
+  return { blob:new Blob([data.buffer], {type:mime}), name: rename(file.name, fmt) };
+}
+
+/* Py 前処理 */
+document.getElementById('pyLoad').addEventListener('click', async ()=>{ await ensurePyodide(); document.getElementById('pyLoad').textContent='Py ready' });
+document.getElementById('pyPillow').addEventListener('click', async ()=>{ try{ await ensurePyodide(); await pyodide.loadPackage('micropip'); await pyodide.runPythonAsync(`import micropip\nawait micropip.install("Pillow")`); document.getElementById('pyOut').textContent='Pillow installed.' }catch(e){ document.getElementById('pyOut').textContent='Install failed: '+String(e?.message||e) }});
+const pyScript=document.getElementById('pyScript'); const pyOut=document.getElementById('pyOut');
+async function runPyPre(file){
+  const code=(pyScript.value||'').trim(); if(!code) return null;
+  try{
+    await ensurePyodide(); pyOut.textContent='running…';
+    const bytes= new Uint8Array(await file.arrayBuffer());
+    pyodide.globals.set('bytes_in', bytes);
+    pyodide.globals.set('mime_in', file.type||'application/octet-stream');
+    pyodide.globals.set('name_in', file.name||'in.bin');
+    const ret = await pyodide.runPythonAsync(`bytes_out=None\n`+code+`\nbytes_out`);
+    if(ret){ const jsb = ret.toJs ? ret.toJs({create_proxies:false}) : ret; pyOut.textContent='OK ('+(jsb?.length||'?')+' bytes)'; return new Uint8Array(jsb); }
+    pyOut.textContent='No output'; return null;
+  }catch(e){ pyOut.textContent='Py error: '+String(e?.message||e); return null; }
+}
+document.getElementById('pyRun').addEventListener('click', async ()=>{
+  const f=currentFile; if(!f){ pyOut.textContent='ファイルを先に選択してね'; return }
+  await runPyPre(f);
+});
+
+/* Helpers */
+function setSnapSize(w,h){ const r=960/w; snap.width=960; snap.height=Math.round(h*r); }
+</script>
+</body>
+</html>

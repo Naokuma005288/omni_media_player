@@ -1,0 +1,37 @@
+/* anim-plus.plugin.css */
+
+/* === 共通オーバーレイ === */
+.ap-layer { position:absolute; inset:0; pointer-events:none; z-index:4; }
+
+/* 1) シネマティック・レターボックス（ポーズ時） */
+.ap-letterbox { position:absolute; left:0; right:0; height:0; background:#000; opacity:.85; transition:height .28s ease; }
+.ap-lb-top    { top:0;    }
+.ap-lb-bot    { bottom:0; }
+
+/* 2) ビーム＆グロウ */
+.ap-beams {
+  filter: blur(28px) saturate(1.1);
+  mix-blend-mode: screen;
+  opacity: 0; transition: opacity .18s linear;
+  background:
+    conic-gradient(from 110deg at 15% -10%, rgba(255,220,160,.25), transparent 40%),
+    conic-gradient(from 220deg at 85% -10%, rgba(160,220,255,.22), transparent 40%),
+    conic-gradient(from 160deg at 50% -10%, rgba(255,160,220,.18), transparent 48%);
+  animation: ap-beams-shift 18s linear infinite;
+}
+@keyframes ap-beams-shift {
+  0%   { transform: translateY(1.5%) rotate(0deg) }
+  50%  { transform: translateY(-1%) rotate(1.2deg) }
+  100% { transform: translateY(1.5%) rotate(0deg) }
+}
+
+/* 3) カーソル・スパーク（キャンバスに描画） */
+.ap-cursor { position:absolute; inset:0; pointer-events:none; z-index:5; mix-blend-mode:screen; }
+
+/* 4) ビート・ズーム（カード全体を微ズーム） */
+:root { --ap-beat: 0; }
+#playerWrap { will-change: transform; }
+
+/* 設定UI内の補足 */
+.ap-note { font-size:12px; color:var(--muted); }
+.ap-badge { font-size:11px; color:var(--accent); border:1px solid color-mix(in oklab,var(--accent),#000 20%); border-radius:999px; padding:.05rem .35rem; margin-left:.35rem; }
