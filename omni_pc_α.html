@@ -5,14 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Omni Player PC — Anim+ DX</title>
 
-<!-- HLS -->
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-<!-- ASS(libass/WASM) -->
-<script src="https://cdn.jsdelivr.net/npm/subtitles-octopus@0.6.4/dist/subtitles-octopus.js"></script>
-<!-- music-metadata-browser for audio artwork & tags -->
-<script src="https://cdn.jsdelivr.net/npm/music-metadata-browser/dist/music-metadata-browser.min.js"></script>
+<!-- === コア再生ライブラリ（先頭・deferで非ブロッキング） === -->
+<script defer src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dashjs@4"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/subtitles-octopus@0.6.4/dist/subtitles-octopus.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/music-metadata-browser/dist/music-metadata-browser.min.js"></script>
 
-<!-- ▼ アニメーション＆追加エフェクト（別ファイル） -->
+<!-- === Omni Boost 追加ライブラリ（外部CDN） === -->
+<script defer src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+<script defer src="https://unpkg.com/animejs@3.2.1/lib/anime.min.js"></script>
+<script defer src="https://unpkg.com/howler@2.2.4/dist/howler.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+<script defer src="https://unpkg.com/@barba/core@2.9.7/dist/barba.umd.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script defer src="https://unpkg.com/compromise@13.11.3/builds/compromise.min.js"></script>
+
+<!-- === アニメーション＆追加エフェクト（パック） === -->
 <link rel="stylesheet" href="./op-anim-pack.css" />
 <script defer src="./op-anim-pack.js"></script>
 
@@ -25,6 +33,7 @@
 <link rel="stylesheet" href="./op-grid-pack.css" />
 <script defer src="./op-grid-pack.js"></script>
 
+<!-- === プラグイン・ホスト＆共通系 === -->
 <script defer src="./op-plugin-host.js"></script>
 <script defer src="./progress-resume.plugin.js"></script>
 <script defer src="./hotkeys-plus.plugin.js"></script>
@@ -47,7 +56,7 @@
 <!-- バックグラウンド音声ポリシー（慎重モード） -->
 <script defer src="./bg-audio.policy.plugin.js"></script>
 
-<script defer src="./sub-offset.plugin.js"></script>
+<!-- ※ sub-offset.plugin.js は上で読み込んでいるため、ここでの二重読み込みは削除 -->
 <script defer src="./webshare.plugin.js"></script>
 <script defer src="./rate-pitch.plugin.js"></script>
 <script defer src="./cover-plus.plugin.js"></script>
@@ -58,20 +67,52 @@
 <link rel="stylesheet" href="./spec-boost.plugin.css" />
 <script defer src="./spec-boost.plugin.js"></script>
 
-<link rel="stylesheet" href="./anim-plus.plugin.css">
+<link rel="stylesheet" href="./anim-plus.plugin.css" />
 <script defer src="./anim-plus.plugin.js"></script>
 
-<!-- DASH -->
-<script src="https://cdn.jsdelivr.net/npm/dashjs@4"></script>
-
-<!-- ▼ 追加プラグイン -->
+<!-- ▼ DASH連携系プラグイン -->
 <script defer src="./dash.plugin.js"></script>
 <script defer src="./video-fx.plugin.js"></script>
 <script defer src="./more-embeds.plugin.js"></script>
 
+<!-- === プラグイン・ホスト＆共通系 === -->
+<script defer src="./op-plugin-host.js"></script>
+
+<!-- ★ ここで Omni Boost を読み込む -->
+<script type="module" src="./omni-boost.js"></script>
+
+<script defer src="./progress-resume.plugin.js"></script>
+<script defer src="./hotkeys-plus.plugin.js"></script>
+<!-- …以下プラグイン -->
+
+<!-- 追加: OPBoost レジストリと各アダプタ（ESMでスコープ分離） -->
+<script type="module" src="./boost/registry.js"></script>
+<script type="module" src="./boost/particles.adapter.js"></script>
+<script type="module" src="./boost/anime.adapter.js"></script>
+<script type="module" src="./boost/howler.adapter.js"></script>
+<script type="module" src="./boost/fs-access.adapter.js"></script>
+<script type="module" src="./boost/tf.adapter.js"></script>
+<script type="module" src="./boost/compromise.adapter.js"></script>
+<script type="module" src="./boost/barba.adapter.js"></script>
+<script type="module" src="./boost/localforage.adapter.js"></script>
+
+<!-- Google Cast Sender（https/localhostで有効） -->
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+
+<!-- ffmpeg.wasm（初回重いので defer） -->
+<script defer src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/ffmpeg.min.js"></script>
+
+<!-- ColorThief（カバー画像→テーマ色） -->
+<script defer src="https://cdn.jsdelivr.net/npm/colorthief@2.3.2/dist/color-thief.umd.js"></script>
+
+<script defer src="./cast.plugin.js"></script>
+<script defer src="./airplay.plugin.js"></script>
+<script defer src="./ffmpeg-export.plugin.js"></script>
+<script defer src="./color-theme.plugin.js"></script>
 
 
-<!-- ▲ 別ファイルここまで -->
+
+<!-- === ここまで：別ファイル群 === -->
 
 <style>
   :root{
@@ -88,9 +129,28 @@
     --cover-bob: scale(1);
     --spec-beat: 1;
   }
+
+  /* 背景パーティクル用（任意。body直下に #particles-js を置く場合） */
+  #particles-js{ position:fixed; inset:0; z-index:-1; }
+
+
+  :root{
+    --bg:#0b0e12;--panel:#11161d;--panel-2:#0d1218;--text:#e8edf2;--muted:#8391a1;
+    --accent:#276ef1;--danger:#e45656;--ok:#2ecc71;--warn:#c7a300;--shadow:rgba(0,0,0,.35);
+    --btn-h:36px;--radius:12px;--soft:14px;--elev:0 14px 50px var(--shadow);
+
+    /* ==== 合成用 transform 変数 ==== */
+    --card-rot: rotateX(0deg) rotateY(0deg);
+    --card-zoom: scale(1);
+    --card-wobble: translate3d(0,0,0);
+    --card-glitch: translate3d(0,0,0);
+    --cover-tilt: rotateX(0deg) rotateY(0deg);
+    --cover-bob: scale(1);
+    --spec-beat: 1;
+  }
   :root.light{--bg:#f6f7fb;--panel:#fff;--panel-2:#f0f3f7;--text:#0a1016;--muted:#5a6673;--accent:#2056c8;--danger:#c73636;--ok:#16864b;--warn:#9b7a00;--shadow:rgba(0,0,0,.09)}
 
-  html,body{height:100%}
+html,body{height:100%}
   body{margin:0;background:radial-gradient(1200px 800px at 15% -10%,rgba(39,110,241,.08),transparent 60%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP","Yu Gothic UI",sans-serif;letter-spacing:.01em}
   .app{display:grid;grid-template-columns:340px 1fr;grid-template-rows:auto 1fr auto;grid-template-areas:"hdr hdr""left main""left ctl";height:100%}
 
