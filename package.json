@@ -10,7 +10,13 @@
   "license": "ISC",
   "description": "Omni Media Web Player - Electron app",
   "devDependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
     "electron": "^38.2.1",
     "electron-builder": "^24.13.3"
-  }
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/util": "^0.12.2"
+  },
+  "keywords": []
 }

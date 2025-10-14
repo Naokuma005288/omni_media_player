@@ -2130,6 +2130,220 @@ window.addEventListener('beforeunload',()=>{
 
 </script>
 
+<!-- ▼ 変換UI（そのまま貼るだけ） -->
+<div class="omni-tool">
+  <input id="omni-file" type="file" accept="video/*,audio/*" />
+  <select id="omni-mode">
+    <option value="auto">MP4に自動変換（copy→失敗時は再エンコ）</option>
+    <option value="remux">再エンコなしでMP4詰替え（-c copy）</option>
+    <option value="transcode">H.264 + AACで再エンコ</option>
+    <option value="audio">音声のみ抽出（.m4a）</option>
+  </select>
+  <select id="omni-size">
+    <option value="source">解像度そのまま</option>
+    <option value="1080">1080p</option>
+    <option value="720">720p</option>
+    <option value="480">480p</option>
+  </select>
+  <label>CRF:<input id="omni-crf" type="number" min="16" max="28" step="1" value="23" style="width:60px;"></label>
+  <button id="omni-go">変換</button>
+
+  <!-- 進捗バー＋％表示 -->
+  <div style="margin-top:6px;">
+    <progress id="omni-prog" max="100" value="0" style="width:320px;vertical-align:middle;"></progress>
+    <span id="omni-status">待機中</span>
+  </div>
+
+  <pre id="omni-log" style="max-height:140px; overflow:auto; background:#111; color:#9f9; padding:8px; font-size:12px;"></pre>
+  <div id="omni-out"></div>
+</div>
+
+<!-- ▼ 警告モーダル（実験的 & 重くなる可能性） -->
+<div id="omni-warn" class="omni-modal hidden" role="dialog" aria-modal="true" aria-labelledby="omni-warn-title">
+  <div class="box">
+    <h3 id="omni-warn-title">⚠️ 実験的な機能について</h3>
+    <ul>
+      <li>この変換機能は <strong>実験的</strong> です。ブラウザ上で処理するため <strong>動作が重く</strong> なることがあります。</li>
+      <li>長尺・高解像度・重コーデックは <strong>失敗</strong> したり、ブラウザが応答しづらくなる可能性があります。</li>
+      <li>まずは短いクリップで試すのをおすすめします。</li>
+    </ul>
+    <label style="display:block;margin:8px 0;">
+      <input type="checkbox" id="omni-warn-hide"> 次回からこのメッセージを表示しない
+    </label>
+    <div class="actions">
+      <button id="omni-cancel">キャンセル</button>
+      <button id="omni-continue" class="primary">理解して実行</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* モーダルの最低限スタイル（依存なし） */
+  .omni-modal.hidden { display:none; }
+  .omni-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display:flex; align-items:center; justify-content:center; z-index: 9999;
+  }
+  .omni-modal .box {
+    width:min(560px, 92vw); background:#1e1f24; color:#fff; border-radius:12px; padding:16px 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  .omni-modal h3 { margin:0 0 6px; font-size:18px; }
+  .omni-modal ul { margin:8px 0 12px 18px; }
+  .omni-modal .actions { display:flex; gap:8px; justify-content:flex-end; }
+  .omni-modal button { padding:8px 12px; border-radius:8px; border:1px solid #444; background:#2a2c33; color:#fff; cursor:pointer; }
+  .omni-modal .primary { background:#3b82f6; border-color:#3b82f6; }
+  .omni-modal button:disabled { opacity:.6; cursor:not-allowed; }
+</style>
+
+<script type="module">
+  import { createFFmpeg, fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/ffmpeg.min.js';
+  const ffmpeg = createFFmpeg({
+    log: true,
+    corePath: './vendor/ffmpeg/ffmpeg-core.js',   // ← HTMLがサブフォルダなら ../vendor/... に
+  });
+
+  const $ = s => document.querySelector(s);
+  const log = (...a) => { const p=$('#omni-log'); p.textContent += a.join(' ') + '\n'; p.scrollTop=p.scrollHeight; };
+  const setStatus = (t) => $('#omni-status').textContent = t;
+
+  // ---- ffmpeg.wasm（単スレッド）初期化 ----
+  const ffmpeg = createFFmpeg({ log: true, corePath: './vendor/ffmpeg/ffmpeg-core.js' });
+  let loaded = false;
+  async function ensureLoad() {
+    if (loaded) return;
+    setStatus('エンジン読込中…');
+    await ffmpeg.load();
+    ffmpeg.setLogger(({ message }) => { if (!/^\s*$/.test(message)) log(message); });
+    ffmpeg.setProgress(({ ratio }) => {
+      const pct = Math.min(100, Math.floor((ratio || 0)*100));
+      $('#omni-prog').value = pct;
+      setStatus(`進捗 ${pct}%`);
+    });
+    loaded = true; setStatus('準備OK');
+  }
+
+  // ---- 変換ルーチン（既存と同じ使い心地）----
+  function buildScaleFilter(size) {
+    if (size === 'source') return null;
+    const w = parseInt(size, 10);
+    return `scale=${w}:-2`;
+  }
+  async function doRemux(inName, outName) {
+    await ffmpeg.run('-i', inName, '-c:v', 'copy', '-c:a', 'copy', outName);
+  }
+  async function doTranscode(inName, outName, crf, size) {
+    const vf = buildScaleFilter(size);
+    const args = ['-i', inName, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(crf), '-c:a', 'aac', '-b:a', '192k'];
+    if (vf) args.push('-vf', vf);
+    args.push(outName);
+    await ffmpeg.run(...args);
+  }
+  async function doExtractAudio(inName, outName) {
+    await ffmpeg.run('-i', inName, '-vn', '-c:a', 'aac', '-b:a', '192k', outName);
+  }
+  function blobFromFS(name, mime) {
+    const data = ffmpeg.FS('readFile', name);
+    return new Blob([data], { type: mime });
+  }
+
+  // ---- 警告モーダル ----
+  function showWarnModal() {
+    return new Promise((resolve) => {
+      const modal = $('#omni-warn');
+      const hideBox = $('#omni-warn-hide');
+      const btnOk = $('#omni-continue');
+      const btnCancel = $('#omni-cancel');
+
+      const close = (ok) => {
+        modal.classList.add('hidden');
+        btnOk.onclick = btnCancel.onclick = null;
+        resolve(ok);
+      };
+
+      // 「次回から表示しない」ならスキップ
+      if (localStorage.getItem('omniHideWarn') === '1') return resolve(true);
+
+      modal.classList.remove('hidden');
+      btnOk.onclick = () => {
+        if (hideBox.checked) localStorage.setItem('omniHideWarn', '1');
+        close(true);
+      };
+      btnCancel.onclick = () => close(false);
+    });
+  }
+
+  // ---- 実行ボタン ----
+  $('#omni-go').addEventListener('click', async () => {
+    if (!$('#omni-file').files[0]) { alert('ファイルを選んでね'); return; }
+
+    // 警告を表示（初回/チェック未ONのとき）
+    const ok = await showWarnModal();
+    if (!ok) { setStatus('キャンセルしました'); return; }
+
+    // 実行
+    const btn = $('#omni-go'); btn.disabled = true;
+    $('#omni-prog').value = 0; $('#omni-out').innerHTML = ''; $('#omni-log').textContent = '';
+    try {
+      await ensureLoad();
+      setStatus('準備中…');
+
+      const file = $('#omni-file').files[0];
+      const inName = 'in_' + file.name.replace(/[^\w.\-]/g,'_');
+      const mode = $('#omni-mode').value;
+      const crf = Number($('#omni-crf').value || 23);
+      const size = $('#omni-size').value;
+
+      ffmpeg.FS('writeFile', inName, await fetchFile(file));
+
+      let outName = 'out.mp4';
+      let mime = 'video/mp4';
+
+      if (mode === 'audio') {
+        outName = 'out.m4a'; mime = 'audio/mp4';
+        setStatus('音声抽出中…');
+        await doExtractAudio(inName, outName);
+      } else if (mode === 'remux') {
+        setStatus('リマックス中（-c copy）…');
+        await doRemux(inName, outName);
+      } else if (mode === 'transcode') {
+        setStatus('再エンコード中（H.264/AAC）…');
+        await doTranscode(inName, outName, crf, size);
+      } else { // auto
+        setStatus('まずはリマックス試行…');
+        try { await doRemux(inName, outName); }
+        catch (e) { log('[fallback] remux失敗 → 再エンコに切替'); await doTranscode(inName, outName, crf, size); }
+      }
+
+      const blob = blobFromFS(outName, mime);
+      const url = URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href: url, download: outName, textContent: 'ダウンロード' });
+      a.style.display='inline-block'; a.style.marginRight='8px';
+
+      const media = document.createElement(mode==='audio' ? 'audio' : 'video');
+      media.controls = true; media.src = url; media.style.maxWidth = '100%';
+
+      $('#omni-out').appendChild(a);
+      $('#omni-out').appendChild(media);
+      setStatus('完了');
+    } catch (err) {
+      console.error(err); setStatus('エラー');
+      log('[error]', err?.message || String(err));
+      alert('変換に失敗しました。短いクリップで再試行するか、設定を軽くしてみてください。');
+    } finally {
+      // 後片付け
+      try { ffmpeg.FS('unlink', 'out.mp4'); } catch {}
+      try { ffmpeg.FS('unlink', 'out.m4a'); } catch {}
+      try {
+        for (const f of ffmpeg.FS('readdir', '/'))
+          if (f.startsWith('in_')) try { ffmpeg.FS('unlink', f); } catch {}
+      } catch {}
+      btn.disabled = false;
+    }
+  });
+</script>
+
+
 <!-- ▼ 別ファイルの初期化（defer後に安全） -->
 <script>
   // アニメ・コア
