@@ -143,7 +143,7 @@
     </label>
     <button class="btn ghost" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">設定</button>
     <button class="btn ghost" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">ショートカット</button>
-    <span class="badge" title="version">v1.8.0</span>
+    <span class="badge" title="version">v1.9.0</span>
   </header>
 
   <aside>
@@ -216,6 +216,8 @@
           <span class="badge">Embed Error</span>
           <strong id="embedErrorTitle">埋め込みを開始できません</strong>
           <p id="embedErrorText">URL を確認してもう一度お試しください。</p>
+          <p class="embed-error-hint" id="embedErrorHint" hidden></p>
+          <button class="btn" id="embedErrorAction" type="button" hidden>元のページを開く</button>
           <button class="btn ghost" id="embedErrorClose" type="button">閉じる</button>
         </div>
       </div>

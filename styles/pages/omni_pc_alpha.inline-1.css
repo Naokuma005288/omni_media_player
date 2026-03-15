@@ -86,10 +86,12 @@ html,body{height:100%}
   main{grid-area:main;display:grid;grid-template-rows:1fr auto;gap:.6rem;padding:1rem}
   .player-wrap{position:relative;background:#000;border-radius:var(--soft);overflow:hidden;box-shadow:var(--elev);
     transform:perspective(900px) var(--card-rot) var(--card-zoom) var(--card-wobble) var(--card-glitch);
-    transform-style:preserve-3d;transition:transform .15s ease,box-shadow .2s ease;
+    transform-style:preserve-3d;transition:transform .15s ease,box-shadow .2s ease;will-change:transform,box-shadow;backface-visibility:hidden;isolation:isolate;
   }
+  .player-wrap.portrait-frame{aspect-ratio:16/9}
   /* カードパララックス（個別） */
   .anim-card-parallax .player-wrap{will-change:transform}
+  .anim-card-parallax .player-wrap.rt-active{transition:box-shadow .2s ease}
 
   .bg-art{position:absolute;inset:0;background-position:center;background-size:cover;filter:blur(28px) saturate(1.2) brightness(.85);transform:scale(1.06);opacity:.0;transition:opacity .4s ease,transform .6s ease; z-index:0}
   .bg-art.show{opacity:.9;transform:scale(1.02)}
@@ -107,6 +109,8 @@ html,body{height:100%}
   .embed-error-card{width:min(520px,92%);padding:1rem 1.1rem;border-radius:18px;background:linear-gradient(180deg,rgba(15,21,29,.88),rgba(10,15,22,.92));border:1px solid rgba(255,255,255,.12);box-shadow:0 20px 80px rgba(0,0,0,.42);display:grid;gap:.7rem}
   .embed-error-card strong{font-size:15px}
   .embed-error-card p{margin:0;color:var(--muted)}
+  .embed-error-hint{font-size:12px;line-height:1.55;padding:.7rem .8rem;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+  .ctrl input:disabled,.ctrl button:disabled,.section input:disabled,.section button:disabled{opacity:.45;cursor:not-allowed}
 
   /* ▼ アニメ背景レイヤー群（既存） */
   .fx{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0;transition:opacity .35s ease,filter .35s ease}
@@ -213,7 +217,7 @@ html,body{height:100%}
   @keyframes crt-flicker{50%{opacity:.85}}
 
   video,iframe{position:relative;width:100%;height:100%;display:block}
-  video{background:transparent}
+  video{background:transparent;object-fit:contain}
   .ass-layer{position:absolute;inset:0;pointer-events:none;z-index:10}
   #spectrum{position:absolute;left:0;right:0;bottom:0;display:none;z-index:8;mix-blend-mode:screen;opacity:.95;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35));image-rendering:crisp-edges;
     transform:scale(var(--spec-beat,1));transform-origin:center bottom;
@@ -225,6 +229,7 @@ html,body{height:100%}
   .audio-info .artwrap{width:min(42vh,42vw);aspect-ratio:1/1;border-radius:18px;overflow:hidden;box-shadow:0 14px 60px var(--shadow);background:#0b0f14;display:flex;align-items:center;justify-content:center;transform-style:preserve-3d;transition:transform .12s ease;
     transform: var(--cover-tilt) var(--cover-bob);
   }
+  .audio-info .artwrap.rt-active{transition:none}
   .audio-info img{max-width:100%;max-height:100%;display:block;transition:transform .6s ease,opacity .25s ease}
   body.is-playing .audio-info img{transform:scale(1.02)}
   .anim-cover-spin body.is-playing .audio-info img{animation:cover-spin 12s linear infinite}

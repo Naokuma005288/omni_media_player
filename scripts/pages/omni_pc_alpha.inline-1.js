@@ -7,7 +7,7 @@ const $={
 
   // ★ 追加: ローダー
   loader:qs('#loader'),
-  embedError:qs('#embedError'),embedErrorTitle:qs('#embedErrorTitle'),embedErrorText:qs('#embedErrorText'),embedErrorClose:qs('#embedErrorClose'),
+  embedError:qs('#embedError'),embedErrorTitle:qs('#embedErrorTitle'),embedErrorText:qs('#embedErrorText'),embedErrorHint:qs('#embedErrorHint'),embedErrorAction:qs('#embedErrorAction'),embedErrorClose:qs('#embedErrorClose'),
 
   seek:qs('#seek'),seekProg:qs('#seekProg'),seekThumb:qs('#seekThumb'),seekPrev:qs('#seekPrev'),seekImg:qs('#seekImg'),seekTime:qs('#seekTime'),
   toasts:qs('#toasts'),url:qs('#url'),openUrl:qs('#openUrl'),file:qs('#fileInput'),
@@ -53,10 +53,84 @@ function updateSliderReadouts(){
   if($.rateRead) $.rateRead.textContent = pct($.rate?.value);
   if($.masterRead) $.masterRead.textContent = pct($.master?.value);
 }
-function hideEmbedError(){ if($.embedError) $.embedError.hidden=true }
-function showEmbedError(title,text){
+function clearEmbedErrorAction(){
+  if($.embedErrorAction){
+    $.embedErrorAction.hidden = true;
+    $.embedErrorAction.onclick = null;
+  }
+  if($.embedErrorHint){
+    $.embedErrorHint.hidden = true;
+    $.embedErrorHint.textContent = '';
+  }
+}
+function setPortraitFrameMode(on){
+  $.wrap?.classList.toggle('portrait-frame', !!on);
+}
+function updateVideoFrameMode(){
+  const vw = +($.v?.videoWidth || 0);
+  const vh = +($.v?.videoHeight || 0);
+  const isPortraitVideo = state.mediaKind==='html5' && vw > 0 && vh > vw;
+  setPortraitFrameMode(isPortraitVideo);
+}
+function syncMediaControlAvailability(){
+  const kind = state.mediaKind || 'html5';
+  const isHtml5 = kind === 'html5';
+  const isIframeMode = kind === 'iframe';
+  [$.pip].forEach(el=>{ if(el) el.disabled = !isHtml5; });
+  [$.setA,$.setB,$.clearAB,$.toggleABLoop].forEach(el=>{ if(el) el.disabled = isIframeMode; });
+  [$.srt,$.unloadSub,$.subSearch,$.btnSubSearch].forEach(el=>{ if(el) el.disabled = !isHtml5; });
+  if($.rate) $.rate.disabled = isIframeMode;
+  if($.vol) $.vol.disabled = isIframeMode;
+}
+function applyCurrentMediaTunables(){
+  const vol = Math.max(0, Math.min(1, +($.vol?.value || 0)));
+  const rate = +($.rate?.value || 1);
+  if(state.mediaKind === 'youtube'){
+    try{
+      state.yt?.setVolume?.(Math.round(vol*100));
+      if(vol===0) state.yt?.mute?.(); else state.yt?.unMute?.();
+      state.yt?.setPlaybackRate?.(rate);
+    }catch(e){}
+    return;
+  }
+  if(state.mediaKind !== 'html5') return;
+  $.v.volume = vol;
+  $.v.playbackRate = rate;
+  if(state.extAudio){
+    state.extAudio.volume = vol;
+    state.extAudio.playbackRate = rate;
+  }
+}
+function syncMediaPresentation(){
+  updateVideoFrameMode();
+  updateSpectrumVisibility();
+  syncMediaControlAvailability();
+  enforceBackdropPolicy();
+}
+function setMediaMode(kind, extra={}){
+  state.mediaKind = kind;
+  state.activeUrl = extra.url || state.activeUrl || '';
+  state.usingYouTube = kind === 'youtube';
+  state.usingIframe = kind === 'iframe';
+  if(kind !== 'html5') state.isAudioOnly = false;
+  syncMediaControlAvailability();
+}
+function hideEmbedError(){
+  clearEmbedErrorAction();
+  if($.embedError) $.embedError.hidden=true;
+}
+function showEmbedError(title,text,opts={}){
   if($.embedErrorTitle) $.embedErrorTitle.textContent=title||'埋め込みを開始できません';
   if($.embedErrorText) $.embedErrorText.textContent=text||'URL を確認してもう一度お試しください。';
+  if($.embedErrorHint){
+    $.embedErrorHint.hidden = !opts.hint;
+    $.embedErrorHint.textContent = opts.hint || '';
+  }
+  if($.embedErrorAction){
+    $.embedErrorAction.hidden = !(opts.actionLabel && opts.actionHandler);
+    $.embedErrorAction.textContent = opts.actionLabel || '開く';
+    $.embedErrorAction.onclick = opts.actionHandler || null;
+  }
   if($.embedError) $.embedError.hidden=false;
 }
 $.embedErrorClose?.addEventListener('click', hideEmbedError);
@@ -88,6 +162,7 @@ const defaultAnim = prefersReduced ? {
 
 const state={
   list:[],cur:-1,a:null,b:null, abLoop:false,
+  mediaKind:'html5', activeUrl:'',
   yt:null, usingYouTube:false, iframe:null, usingIframe:false, ytEl:null,
   extAudio:null, driftTimer:null,
   ass:null, assUrl:null, assFonts:[],
@@ -98,7 +173,8 @@ const state={
   spec:{
     bins: store.get('pc.spec.bins',160),
     peakHoldMs: 550, peakFallDbPerS: 30, smoothAlpha: 0.24,
-    data:null, peaks:null, peakY:null, lastDraw:0, maxFps:50, sens: store.get('pc.spec.sens',1.02),
+    data:null, timeData:null, peaks:null, peakY:null, lastDraw:0, maxFps:Math.max(50, Math.min(60, store.get('pc.spec.maxFps', 60))), sens: store.get('pc.spec.sens',1.02),
+    canvasCssW:0, canvasCssH:0, canvasPxW:0, canvasPxH:0,
     pausedFade:0,
     mode: store.get('pc.spec.mode','mono'),
     overlayOnVideo: store.get('pc.spec.overlay', false),
@@ -126,10 +202,21 @@ function setPlayingUI(on){ document.body.classList.toggle('is-playing', !!on) }
 window.$ = $;
 window.state = state;
 window.toast = toast;
+const spectrumOverlayRenderers = new Set();
 window.OPRuntime = {
   get refs(){ return $; },
   get state(){ return state; },
-  toast
+  toast,
+  registerSpectrumOverlay(renderer){
+    if(typeof renderer!=='function') return ()=>{};
+    spectrumOverlayRenderers.add(renderer);
+    return ()=>spectrumOverlayRenderers.delete(renderer);
+  },
+  renderSpectrumOverlays(frame){
+    spectrumOverlayRenderers.forEach(fn=>{
+      try{ fn(frame) }catch(e){ console.warn('spectrum overlay error', e) }
+    });
+  }
 };
 
 /* ========= ローダー表示 ========= */
@@ -267,7 +354,7 @@ function rampTo(value,t=0.12){ try{ ensureAudioGraph(); const g=state.outGain; c
 /* ========= Play serialization ========= */
 async function ensureAudioOn(){ try{ if(!state.audioCtx) state.audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(state.audioCtx.state==='suspended' && state.triedOnce) await state.audioCtx.resume().catch(()=>{}); if (state.triedOnce) forceUnmute(); }catch(e){} }
 async function requestPlay(reason){
-  if(state.usingYouTube||state.usingIframe){ if(state.usingYouTube) try{state.yt?.playVideo?.()}catch(e){}; setPlayingUI(true); enforceBackdropPolicy(); return }
+  if(state.mediaKind!=='html5'){ if(state.usingYouTube) try{state.yt?.playVideo?.()}catch(e){}; setPlayingUI(true); enforceBackdropPolicy(); return }
   state.playDesired=true; const my=++state.playToken; clearTimeout(state.playDebounce);
   state.playDebounce=setTimeout(async()=>{
     if(my!==state.playToken||!state.playDesired) return;
@@ -401,12 +488,12 @@ function stopSpectrum(){
     $.spectrum.style.setProperty('--spec-beat','1');
   }
 }
-function drawBarSpectrum(c,W,H,dtSec){
+function drawBarSpectrum(c,W,H,dtSec,rms){
   const an=state.analyser;
   const barW=W/state.spec.bins; const pad=Math.max(2,Math.floor(barW*0.12)); const inner=Math.max(1,barW-pad);
   const capH=Math.max(2,Math.floor(H*0.012));
   const minDb=an.minDecibels, maxDb=an.maxDecibels, range=maxDb-minDb, alpha=state.spec.smoothAlpha;
-  const rms=computeRMS(an); const loud=Math.min(1,rms*1.8);
+  const loud=Math.min(1,rms*1.8);
   const peaks=state.spec.peaks, bins=state.spec.bins, data=state.spec.data;
   const fallPerFrameDb = state.spec.peakFallDbPerS * dtSec;
 
@@ -427,8 +514,7 @@ function drawBarSpectrum(c,W,H,dtSec){
     $.spectrum?.style.setProperty('--spec-beat','1');
   }
 
-  c.shadowBlur = (state.anim.specGlow? Math.max(2, Math.floor(inner*0.6)) : 0);
-  c.shadowColor = document.documentElement.classList.contains('light') ? 'rgba(0,0,0,0.22)':'rgba(255,255,255,0.22)';
+  const glowBlur = state.anim.specGlow ? Math.max(10, Math.floor(inner*1.8)) : 0;
 
   for(let i=0;i<bins;i++){
     const pair=state._logRanges[i]; const a=pair[0]; const b=pair[1];
@@ -442,8 +528,11 @@ function drawBarSpectrum(c,W,H,dtSec){
     const ease=val*val;
     const h=Math.floor(ease*(H-capH*1.6)*state.spec.pausedFade);
     const x=i*barW+pad/2; const y=H-h;
+    const bandColor=colorForBand(i);
 
-    c.fillStyle=colorForBand(i); c.fillRect(x,y,inner,h);
+    c.shadowBlur=glowBlur;
+    c.shadowColor=bandColor;
+    c.fillStyle=bandColor; c.fillRect(x,y,inner,h);
 
     if(state.anim.specGlow){
       c.shadowBlur=0;
@@ -453,11 +542,12 @@ function drawBarSpectrum(c,W,H,dtSec){
       const ph=Math.floor((pv*pv)*(H-capH*1.6)*state.spec.pausedFade); const py=H-ph;
       const capY=Math.max(0,Math.round(py-capH)*dpr)/dpr;
       c.fillRect(x,capY,inner,capH);
-      c.shadowBlur=Math.max(2,Math.floor(inner*0.6));
+      c.shadowBlur=glowBlur;
+      c.shadowColor=bandColor;
     }
   }
 }
-function drawCircularSpectrum(c,W,H){
+function drawCircularSpectrum(c,W,H,rms){
   const an=state.analyser;
   const minDb=an.minDecibels, maxDb=an.maxDecibels, range=maxDb-minDb, alpha=state.spec.smoothAlpha;
   const peaks=state.spec.peaks, bins=state.spec.bins, data=state.spec.data;
@@ -468,11 +558,6 @@ function drawCircularSpectrum(c,W,H){
 
   const hueLow=+state.spec.hueLow, hueHigh=+state.spec.hueHigh, sat=+state.spec.sat, baseL=+state.spec.light;
 
-  // RMS
-  const arr=new Uint8Array(Math.min(1024,an.fftSize));
-  an.getByteTimeDomainData(arr);
-  let acc=0; for(let i=0;i<arr.length;i++){ const v=(arr[i]-128)/128; acc+=v*v }
-  const rms=Math.sqrt(acc/arr.length);
   const loud=Math.min(1,rms*1.8);
 
   const colorForBand = (i) => {
@@ -528,7 +613,18 @@ function drawCircularSpectrum(c,W,H){
     for(let i=0;i<bins;i++){ const a=edges[i], b=Math.max(a+1,edges[i+1]); ranges.push([a,b]); const pf=(i+0.5)/bins; centers.push(fmin*Math.pow(fmax/fmin,pf)) }
     return { ranges, centers };
   }
-  function computeRMS(an){ const N=1024; const arr=new Uint8Array(Math.min(N,an.fftSize)); an.getByteTimeDomainData(arr); let acc=0; for(let i=0;i<arr.length;i++){ const v=(arr[i]-128)/128; acc+=v*v } return Math.sqrt(acc/arr.length) }
+  function computeRMS(source){
+    let arr=source;
+    if(!(arr instanceof Uint8Array)){
+      const an=source;
+      const N=1024;
+      arr=new Uint8Array(Math.min(N,an.fftSize));
+      an.getByteTimeDomainData(arr);
+    }
+    let acc=0;
+    for(let i=0;i<arr.length;i++){ const v=(arr[i]-128)/128; acc+=v*v }
+    return Math.sqrt(acc/arr.length);
+  }
   window.computeRMS=computeRMS;
 
   function drawSpectrum(){
@@ -539,15 +635,34 @@ function drawCircularSpectrum(c,W,H){
     const canvas=$.spectrum, c=canvas.getContext('2d'); const dpr=window.devicePixelRatio||1;
     const rect=$.wrap.getBoundingClientRect();
     const Hpx=Math.max(40,Math.floor(rect.height*0.36)), Wpx=Math.max(120,Math.floor(rect.width));
-    canvas.style.width=Wpx+'px';
-    canvas.style.height=(state.spec.mode==='circular'? Wpx : Hpx)+'px';
-    canvas.width=Math.max(1,Wpx*dpr);
-    canvas.height=Math.max(1,(state.spec.mode==='circular'? Wpx : Hpx)*dpr);
+    const cssH=(state.spec.mode==='circular'? Wpx : Hpx);
+    const pxW=Math.max(1,Wpx*dpr);
+    const pxH=Math.max(1,cssH*dpr);
+    if(state.spec.canvasCssW!==Wpx || state.spec.canvasCssH!==cssH){
+      canvas.style.width=Wpx+'px';
+      canvas.style.height=cssH+'px';
+      state.spec.canvasCssW=Wpx;
+      state.spec.canvasCssH=cssH;
+    }
+    if(state.spec.canvasPxW!==pxW || state.spec.canvasPxH!==pxH){
+      canvas.width=pxW;
+      canvas.height=pxH;
+      state.spec.canvasPxW=pxW;
+      state.spec.canvasPxH=pxH;
+    }
     canvas.style.display='block';
+    c.setTransform(1,0,0,1,0,0);
+    c.globalAlpha=1;
+    c.globalCompositeOperation='source-over';
+    c.shadowBlur=0;
+    c.shadowColor='transparent';
+    c.filter='none';
 
     ensureAudioGraph(); const an=state.analyser;
     if(!state.spec.data||state.spec.data.length!==an.frequencyBinCount) state.spec.data=new Uint8Array(an.frequencyBinCount);
+    if(!state.spec.timeData||state.spec.timeData.length!==Math.min(1024,an.fftSize)) state.spec.timeData=new Uint8Array(Math.min(1024,an.fftSize));
     an.getByteFrequencyData(state.spec.data);
+    an.getByteTimeDomainData(state.spec.timeData);
 
     if(!state._logRanges||state._logRanges.length!==state.spec.bins){
       const r=makeLogBins(an,state.spec.bins);
@@ -556,6 +671,7 @@ function drawCircularSpectrum(c,W,H){
       state.spec.peakY=new Float32Array(state.spec.bins).fill(0);
     }
     const targetFade=$.v.paused?0:1; state.spec.pausedFade = (state.spec.pausedFade*0.88) + (targetFade*0.12);
+    const rms = computeRMS(state.spec.timeData);
 
     const W=canvas.width, H=canvas.height;
     if(state.anim.specTrails){
@@ -565,9 +681,29 @@ function drawCircularSpectrum(c,W,H){
     }
 
     const dtSec=Math.max(0.001,dt/1000);
-    if(state.spec.mode==='circular'){ drawCircularSpectrum(c,W,H) } else { drawBarSpectrum(c,W,H,dtSec) }
+    if(state.spec.mode==='circular'){ drawCircularSpectrum(c,W,H,rms) } else { drawBarSpectrum(c,W,H,dtSec,rms) }
 
-    const isAudio=($.v.videoWidth===0&&$.v.videoHeight===0);
+    window.OPRuntime?.renderSpectrumOverlays?.({
+      canvas,
+      ctx:c,
+      width:W,
+      height:H,
+      dpr,
+      dtMs:dt,
+      dtSec,
+      analyser:an,
+      freqData:state.spec.data,
+      timeData:state.spec.timeData,
+      bins:state.spec.bins,
+      ranges:state._logRanges,
+      centers:state._logCenters,
+      rms,
+      mode:state.spec.mode,
+      overlayOnVideo:state.spec.overlayOnVideo,
+      isAudioOnly:state.isAudioOnly
+    });
+
+    const isAudio=(state.mediaKind==='html5' && $.v.videoWidth===0&&$.v.videoHeight===0);
     $.spectrum.classList.toggle('on-video',!isAudio);
   }
 
@@ -575,20 +711,21 @@ function drawCircularSpectrum(c,W,H){
     try{
       ensureAudioGraph();
       state._logRanges=null; state._startTime=performance.now(); state.spec.lastDraw=0;
+      state.spec.canvasCssW=0; state.spec.canvasCssH=0; state.spec.canvasPxW=0; state.spec.canvasPxH=0;
       $.spectrum.style.display='block';
       if(resizeObs){ try{resizeObs.disconnect()}catch(e){} }
       resizeObs=new ResizeObserver(()=>{ state.spec.lastDraw=0 });
       resizeObs.observe($.wrap);
       if(state.spectrumRAF) cancelAnimationFrame(state.spectrumRAF);
       state.spectrumRAF=requestAnimationFrame(drawSpectrum);
-      const isAudio=($.v.videoWidth===0&&$.v.videoHeight===0);
+      const isAudio=(state.mediaKind==='html5' && $.v.videoWidth===0&&$.v.videoHeight===0);
       if(isAudio) toast('音声モード（カラー・スペクトラム）');
     }catch(e){ stopSpectrum() }
   }
   function updateSpectrumVisibility(){
-    const isAudio=($.v.videoWidth===0&&$.v.videoHeight===0);
+    const isAudio=(state.mediaKind==='html5' && $.v.videoWidth===0&&$.v.videoHeight===0);
     state.isAudioOnly=isAudio; updateAudioMetaVisibility();
-    const shouldShow=(isAudio&&!state.usingYouTube&&!state.usingIframe)||(state.spec.overlayOnVideo&&!state.usingYouTube&&!state.usingIframe);
+    const shouldShow=(isAudio&&state.mediaKind==='html5')||(state.spec.overlayOnVideo&&state.mediaKind==='html5');
     if(shouldShow){ startSpectrum() } else { stopSpectrum() }
     enforceBackdropPolicy(); // ★ 背景ポリシー適用（重要）
   }
@@ -602,7 +739,7 @@ function detachAudio(){ if(state.driftTimer){clearTimeout(state.driftTimer);stat
 /* ========= Media abstraction ========= */
 function mediaDuration(){ return state.usingYouTube ? (state.yt?.getDuration?.()||0) : ($.v.duration||0) }
 function mediaCurrent(){ return state.usingYouTube ? (state.yt?.getCurrentTime?.()||0) : ($.v.currentTime||0) }
-function mediaSeekTo(t){ if(state.usingYouTube){ try{ state.yt?.seekTo?.(t,true) }catch(e){}; return } if(!state.usingIframe){ $.v.currentTime=Math.max(0,Math.min($.v.duration||0,t)) } }
+function mediaSeekTo(t){ if(state.usingYouTube){ try{ state.yt?.seekTo?.(t,true) }catch(e){}; return } if(state.mediaKind==='html5'){ $.v.currentTime=Math.max(0,Math.min($.v.duration||0,t)) } }
 function mediaPaused(){ return state.usingYouTube ? !(state.yt && state.yt.getPlayerState && state.yt.getPlayerState()===1) : !!$.v.paused }
 
 /* ========= thumbs & seek ========= */
@@ -650,29 +787,14 @@ $.back10.onclick=()=>{ mediaSeekTo(Math.max(0, mediaCurrent()-10)) };
 $.fwd10.onclick=()=>{ mediaSeekTo(Math.min(mediaDuration(), mediaCurrent()+10)) };
 $.pip.onclick=async()=>{ if(state.usingYouTube||state.usingIframe){ toast('PiP not available for embed','warn'); return } try{ if(document.pictureInPictureElement){ await document.exitPictureInPicture() } else { await $.v.requestPictureInPicture() } }catch(e){ toast('PiP unsupported','warn') } };
 $.vol.oninput=()=>{
-  const vol=+$.vol.value;
   updateSliderReadouts();
-  if(state.usingYouTube){
-    try{
-      state.yt?.setVolume?.(Math.round(Math.max(0,Math.min(1,vol))*100));
-      if(vol===0) state.yt?.mute?.(); else state.yt?.unMute?.();
-    }catch(e){}
-  }else if(!state.usingIframe){
-    $.v.volume=vol;
-    if(state.extAudio) state.extAudio.volume=$.v.volume;
-  }
+  applyCurrentMediaTunables();
   store.set('pc.vol',$.vol.value);
   if($.v.volume>0) forceUnmute();
 };
 $.rate.oninput=()=>{
-  const rate=+$.rate.value;
   updateSliderReadouts();
-  if(state.usingYouTube){
-    try{ state.yt?.setPlaybackRate?.(rate) }catch(e){}
-  }else if(!state.usingIframe){
-    $.v.playbackRate=rate;
-    if(state.extAudio) state.extAudio.playbackRate=$.v.playbackRate;
-  }
+  applyCurrentMediaTunables();
   store.set('pc.rate',$.rate.value);
 };
 $.master.oninput=()=>{ updateSliderReadouts(); ensureAudioGraph(); const v=+$.master.value; try{ state.outGain.gain.setTargetAtTime(v, state.audioCtx.currentTime, 0.05) }catch(e){ state.outGain.gain.value=v } };
@@ -727,7 +849,17 @@ function renderPlaylist(){
     el.style.cssText='display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;border-bottom:1px solid color-mix(in oklab, var(--panel-2), #000 10%)';
     el.innerHTML='<span class="drag">☰</span><div class="meta" style="flex:1;min-width:0"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.title||it.url||(it.file?it.file.name:'Item'))+'</div><div class="s" style="color:var(--muted);font-size:12px">'+(it.url?'URL':(it.file?'FILE':'?'))+'</div></div><button class="btn ghost play">▶</button><button class="btn ghost rm">×</button>';
     el.querySelector('.play').onclick=()=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); selectIndex(i) };
-    el.querySelector('.rm').onclick=()=>{ state.list.splice(i,1); if(i===state.cur){state.cur=-1; $.v.removeAttribute('src'); stopSpectrum()} renderPlaylist(); savePlaylistAuto() };
+    el.querySelector('.rm').onclick=()=>{
+      state.list.splice(i,1);
+      if(i===state.cur){
+        state.cur=-1;
+        resetUiForHTML5();
+        resetHtml5Video();
+        clearAudioMeta();
+      }
+      renderPlaylist();
+      savePlaylistAuto();
+    };
     el.addEventListener('dragstart',(e)=>{e.dataTransfer.setData('text/plain',String(i))});
     el.addEventListener('dragover',(e)=>{e.preventDefault(); el.style.background='color-mix(in oklab, var(--panel-2), transparent 25%)'});
     el.addEventListener('dragleave',()=>{el.style.background=''});
@@ -746,10 +878,11 @@ async function selectIndex(i){
     showLoader();
     if(it.url) return loadUrl(it.url).finally(()=>hideLoader());
     if(it.file){
+      state.activeUrl = '';
       resetUiForHTML5(); resetHtml5Video(); clearAudioMeta();
       const obj=URL.createObjectURL(it.file);
       if(state.lastObjUrl){ try{URL.revokeObjectURL(state.lastObjUrl)}catch(e){} }
-      state.lastObjUrl=obj; $.v.src=obj; $.v.load(); handleAudioMetaForFile(it.file); buildThumbsDebounced();
+      state.lastObjUrl=obj; $.v.src=obj; $.v.load(); applyCurrentMediaTunables(); handleAudioMetaForFile(it.file); buildThumbsDebounced();
       requestPlay('selectIndex'); setTimeout(()=>rampTo(+($.master?.value||1),0.18),60);
       hideLoader();
     }
@@ -779,7 +912,7 @@ initSpecControlsFromState();
 function wireMediaErrorHandlers(){
   $.v.onerror=()=>{ const err=$.v.error; hideLoader(); toast('このメディアは再生できません'+(err? ' ('+err.code+')':''),'err',5000) };
   $.v.onloadstart=()=>{ showLoader() };
-  $.v.onloadedmetadata=()=>{ updateSpectrumVisibility(); unlockAudioCtx(); startUnmuteWatchdog(); ensureAudioOn(); requestPlay('loadedmetadata') };
+  $.v.onloadedmetadata=()=>{ syncMediaPresentation(); unlockAudioCtx(); startUnmuteWatchdog(); ensureAudioOn(); applyCurrentMediaTunables(); requestPlay('loadedmetadata') };
   $.v.oncanplay=()=>{ hideLoader(); unlockAudioCtx(); startUnmuteWatchdog(); ensureAudioOn(); requestPlay('canplay') };
   $.v.onwaiting=()=>{ showLoader() };
   $.v.onplaying=()=>{ hideLoader(); };
@@ -819,6 +952,12 @@ function parseYouTubeUrl(url){
     if(!data.videoId && !data.listId) return null;
     return data;
   }catch(e){ return null }
+}
+function canUseYouTubeEmbed(){
+  return /^https?:$/i.test(location.protocol) && !!location.origin && location.origin !== 'null';
+}
+function getYouTubeContextMessage(){
+  return 'YouTube 埋め込みは file:// 直開きでは失敗します。http://localhost などの HTTP(S) 経由で開いて再試行してください。';
 }
 const isYouTube=u=>!!parseYouTubeUrl(u);
 const isHls=u=>/\.m3u8($|\?)/i.test(u);
@@ -883,7 +1022,9 @@ function enforceBackdropPolicy(){
 /* ========= 切替系 ========= */
 function switchToIframe(src,type){
   hideEmbedError();
-  state.usingIframe=true; state.usingYouTube=false; state.isAudioOnly=false; updateAudioMetaVisibility(); unloadASS(); stopSpectrum(); clearAudioMeta(); safePause();
+  setPortraitFrameMode(false);
+  setMediaMode('iframe',{ url:src });
+  state.isAudioOnly=false; updateAudioMetaVisibility(); unloadASS(); stopSpectrum(); clearAudioMeta(); safePause();
   $.v.style.display='none'; if(state.iframe){ state.iframe.remove() }
   const ifr=document.createElement('iframe');
   ifr.allow='autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share';
@@ -892,36 +1033,52 @@ function switchToIframe(src,type){
   showLoader(); setTimeout(()=>hideLoader(),500);
   toast(type==='niconico'?'ニコニコ動画 を埋め込み再生中':'SoundCloud を埋め込み再生中');
   window.OPAnim?.setEmbedPlaying?.(true);
-  enforceBackdropPolicy();
+  syncMediaPresentation();
 }
 async function switchToYouTube(url){
   hideEmbedError();
+  setPortraitFrameMode(false);
+  state.activeUrl = url;
   state.isAudioOnly=false; updateAudioMetaVisibility();
   unloadASS(); stopSpectrum(); clearAudioMeta(); safePause();
   $.v.style.display='none'; if(state.iframe){ state.iframe.remove(); state.iframe=null }
   const old=state.ytEl||document.getElementById('yt'); if(old){ try{old.remove()}catch(e){} state.ytEl=null }
   const ytData=parseYouTubeUrl(url);
   if(!ytData){
-    state.usingYouTube=false; state.usingIframe=false;
+    setMediaMode('html5');
     $.v.style.display='block';
     toast('Invalid YouTube URL','err');
     showEmbedError('YouTube URL を解析できません','`youtu.be` / `youtube.com/watch` / `shorts` / `playlist` 形式を確認してください。');
     return;
   }
-  state.usingYouTube=true; state.usingIframe=false;
+  if(!canUseYouTubeEmbed()){
+    setMediaMode('html5');
+    $.v.style.display='block';
+    toast('YouTube は HTTP(S) 経由で開いてください','err');
+    showEmbedError('YouTube はこの開き方では再生できません', getYouTubeContextMessage(), {
+      hint:'このアプリは `http://localhost` やローカルサーバー経由で開いてください。URL 自体は直接 YouTube で開けます。',
+      actionLabel:'YouTubeで開く',
+      actionHandler:()=>window.open(url,'_blank','noopener')
+    });
+    return;
+  }
+  setMediaMode('youtube',{ url });
   showLoader();
   try{
     await injectYTApi();
   }catch(e){
-    state.usingYouTube=false; state.usingIframe=false;
+    setMediaMode('html5');
     $.v.style.display='block';
     hideLoader();
     toast('YouTube API load failed','err');
-    showEmbedError('YouTube API の読み込みに失敗しました','ネットワーク制限か CDN ブロックの可能性があります。時間を置いて再試行してください。');
+    showEmbedError('YouTube API の読み込みに失敗しました','ネットワーク制限か CDN ブロックの可能性があります。時間を置いて再試行してください。',{
+      actionLabel:'YouTubeで開く',
+      actionHandler:()=>window.open(url,'_blank','noopener')
+    });
     return;
   }
   const holder=document.createElement('div'); holder.id='yt'; holder.style.width='100%'; holder.style.height='100%'; $.wrap.appendChild(holder); state.ytEl=holder;
-  const origin = /^https?:$/i.test(location.protocol) ? location.origin : undefined;
+  const origin = canUseYouTubeEmbed() ? location.origin : undefined;
   let seekApplied = false;
   state.yt=new YT.Player(holder,{
     ...(ytData.videoId ? {videoId:ytData.videoId} : {}),
@@ -948,27 +1105,36 @@ async function switchToYouTube(url){
           setTimeout(()=>{
             try{
               e.target.unMute?.();
-              const vol=Math.round((+($.vol?.value||1))*100);
-              if(Number.isFinite(vol)) e.target.setVolume?.(Math.max(0,Math.min(100,vol)));
             }catch(err){}
           }, 250);
         }
+        applyCurrentMediaTunables();
         startSeekRAF();
         window.OPAnim?.setEmbedPlaying?.(true);
         hideLoader();
-        enforceBackdropPolicy();
+        syncMediaPresentation();
       },
-      onStateChange:()=>{ startSeekRAF(); enforceBackdropPolicy(); },
+      onStateChange:()=>{ startSeekRAF(); syncMediaPresentation(); },
       onError:(e)=>{
         hideLoader();
         const code=e?.data;
         let title='YouTube 埋め込みエラー';
         let message='再生を開始できませんでした。';
+        let hint='';
         if(code===2){ title='URL または動画IDが不正です'; message='URL 形式が崩れているか、対応していない動画 ID です。'; }
         else if(code===5){ title='プレイヤー初期化に失敗しました'; message='ブラウザ側で HTML5 プレイヤーを開始できませんでした。'; }
         else if(code===100){ title='動画が見つからないか非公開です'; message='削除済み、非公開、または移動済みの可能性があります。'; }
-        else if(code===101 || code===150){ title='埋め込み再生が禁止されています'; message='この動画は YouTube 外部サイトへの埋め込みが許可されていません。'; }
-        showEmbedError(title,message);
+        else if(code===101 || code===150){ title='埋め込み再生が禁止されています'; message='この動画は YouTube 外部サイトへの埋め込みが許可されていません。'; hint='埋め込み不可でも、YouTube 本体では再生できる場合があります。'; }
+        else if(code===153){ title='YouTube がクライアント情報を確認できません'; message=getYouTubeContextMessage(); hint='`file://` 直開きや Referer が送れない環境で発生します。'; }
+        if(code===153){
+          window.OPAnim?.setEmbedPlaying?.(false);
+          syncMediaPresentation();
+        }
+        showEmbedError(title,message,{
+          hint,
+          actionLabel:url ? 'YouTubeで開く' : '',
+          actionHandler:url ? (()=>window.open(url,'_blank','noopener')) : null
+        });
         toast('YouTube error: '+code,'err');
       }
     }
@@ -976,21 +1142,22 @@ async function switchToYouTube(url){
 }
 function resetUiForHTML5(){
   hideEmbedError();
-  state.usingYouTube=false; state.usingIframe=false;
+  setPortraitFrameMode(false);
+  setMediaMode('html5');
   if(state.yt){ try{state.yt.destroy?.()}catch(e){} state.yt=null; }
   const yEl=state.ytEl||document.getElementById('yt'); if(yEl){ try{yEl.remove()}catch(e){} state.ytEl=null }
   if(state.iframe){ state.iframe.remove(); state.iframe=null }
   state.isAudioOnly=false; updateAudioMetaVisibility();
   $.v.style.display='block';
-  [$.setA,$.setB,$.clearAB,$.pip].forEach(b=>{ if(b) b.disabled=false })
   window.OPAnim?.setEmbedPlaying?.(false);
-  enforceBackdropPolicy();
+  syncMediaPresentation();
 }
-function resetHtml5Video(){ if($.v._hls){ try{$.v._hls.destroy()}catch(e){} $.v._hls=null } stopSpectrum(); safePause(); $.v.srcObject=null; $.v.removeAttribute('src'); $.v.load() }
+function resetHtml5Video(){ if($.v._hls){ try{$.v._hls.destroy()}catch(e){} $.v._hls=null } stopSpectrum(); safePause(); setPortraitFrameMode(false); $.v.srcObject=null; $.v.removeAttribute('src'); $.v.load() }
 
 /* ========= URL読み込み ========= */
 async function loadUrl(url){
   if(!url) return;
+  state.activeUrl = url;
   hideEmbedError();
   unloadASS(); stopSpectrum(); clearAudioMeta(); forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog();
   if ($.v._hls) { try { $.v._hls.destroy() } catch(e) {} $.v._hls = null }
@@ -1000,7 +1167,7 @@ async function loadUrl(url){
   if(isSoundCloud(url)) return switchToIframe(scEmbedUrl(url),'soundcloud');
   if (isDash(url)) {
   resetUiForHTML5(); safePause();
-  $.v.removeAttribute('src'); $.v.load();
+  $.v.removeAttribute('src'); $.v.load(); applyCurrentMediaTunables();
   showLoader();
   try{
     const player = dashjs.MediaPlayer().create();
@@ -1017,7 +1184,7 @@ async function loadUrl(url){
 }
 
 
-  resetUiForHTML5(); safePause(); $.v.removeAttribute('src'); $.v.load();
+  resetUiForHTML5(); safePause(); $.v.removeAttribute('src'); $.v.load(); applyCurrentMediaTunables();
   showLoader();
 
   if(isHls(url)){
@@ -1028,10 +1195,10 @@ async function loadUrl(url){
       hls.on(Hls.Events.MANIFEST_PARSED,()=>{ safeVolumeBump(); ensureAudioOn(); requestPlay('hls:manifest'); hideLoader(); });
       hls.on(Hls.Events.ERROR,(_,data)=>{ if(data.fatal){ switch(data.type){ case Hls.ErrorTypes.NETWORK_ERROR:hls.startLoad();break; case Hls.ErrorTypes.MEDIA_ERROR:hls.recoverMediaError();break; default:hls.destroy(); } }});
     } else if($.v.canPlayType('application/vnd.apple.mpegurl')) {
-      $.v.src=url;
+      $.v.src=url; applyCurrentMediaTunables();
     } else { hideLoader(); toast('HLS not supported','err',6000) }
   } else {
-    $.v.src=url; handleAudioMetaForUrl(url).finally(()=>hideLoader());
+    $.v.src=url; applyCurrentMediaTunables(); handleAudioMetaForUrl(url).finally(()=>hideLoader());
   }
   buildThumbsDebounced();
 }
@@ -1042,7 +1209,7 @@ async function loadUrl(url){
   $.file.addEventListener('change',(e)=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.target.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
   document.addEventListener('dragover',(e)=>{e.preventDefault()});
   document.addEventListener('drop',(e)=>{ e.preventDefault(); state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.dataTransfer.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
-  $.btnClear.addEventListener('click',()=>{ state.list=[]; state.cur=-1; renderPlaylist(); $.v.removeAttribute('src'); stopSpectrum(); clearAudioMeta(); savePlaylistAuto() });
+  $.btnClear.addEventListener('click',()=>{ state.list=[]; state.cur=-1; renderPlaylist(); resetUiForHTML5(); resetHtml5Video(); clearAudioMeta(); savePlaylistAuto() });
   $.btnShuffle.addEventListener('click',()=>{ state.list.sort(()=>Math.random()-0.5); renderPlaylist(); savePlaylistAuto() });
   $.saveList.addEventListener('click',savePlaylistManual);
   $.loadList.addEventListener('click',loadPlaylist);
@@ -1066,6 +1233,7 @@ window.addEventListener('resize',()=>{ try{ updateSpectrumVisibility() }catch(e)
 const savedVol=store.get('pc.vol',0.9); $.v.volume=savedVol; $.vol.value=savedVol;
 const savedRate=store.get('pc.rate',1.0); $.v.playbackRate=savedRate; $.rate.value=savedRate;
 updateSliderReadouts();
+syncMediaControlAvailability();
 function applySubStylePreset(v){ const m={std:{size:28,outline:3,margin:30},large:{size:40,outline:4,margin:40},small:{size:20,outline:2,margin:20},shadow:{size:28,outline:6,margin:30}}; const p=m[v]||m.std; $.subSize.value=p.size; $.subOutline.value=p.outline; $.subMargin.value=p.margin; applySubStyle() }
 function applyPresetStd(){ $.subPreset.value='std'; applySubStylePreset('std') }
 applyPresetStd();
@@ -1143,42 +1311,77 @@ function enableCoverTilt(){
   if(state._coverTiltOn) return;
   state._coverTiltOn=true;
   const el=$.artWrap;
-  const onMove=(e)=>{
-    const r=el.getBoundingClientRect();
-    const px=( (e.clientX ?? (e.touches?.[0]?.clientX||0)) - r.left )/r.width - .5;
-    const py=( (e.clientY ?? (e.touches?.[0]?.clientY||0)) - r.top )/r.height - .5;
+  let raf=0, rect=null, px=0, py=0;
+  const measure=()=>{ rect=el.getBoundingClientRect() };
+  const flush=()=>{
+    raf=0;
+    if(!rect) measure();
+    const rx=px-rect.left, ry=py-rect.top;
+    const nx=(rx/rect.width)-.5, ny=(ry/rect.height)-.5;
     const max=10;
-    el.style.setProperty('--cover-tilt', `rotateY(${px*max}deg) rotateX(${ -py*max }deg)`);
+    el.style.setProperty('--cover-tilt', `rotateY(${nx*max}deg) rotateX(${-ny*max}deg)`);
   };
-  const onLeave=()=>{ el.style.setProperty('--cover-tilt','rotateX(0deg) rotateY(0deg)') };
-  el.__tiltHandlers={onMove,onLeave};
+  const queue=(e)=>{
+    px=(e.clientX ?? (e.touches?.[0]?.clientX||0));
+    py=(e.clientY ?? (e.touches?.[0]?.clientY||0));
+    if(!raf) raf=requestAnimationFrame(flush);
+  };
+  const onEnter=()=>{ measure(); el.classList.add('rt-active') };
+  const onMove=(e)=>{ if(!rect) onEnter(); queue(e) };
+  const onLeave=()=>{
+    if(raf){ cancelAnimationFrame(raf); raf=0 }
+    rect=null;
+    el.classList.remove('rt-active');
+    el.style.setProperty('--cover-tilt','rotateX(0deg) rotateY(0deg)');
+  };
+  el.__tiltHandlers={onEnter,onMove,onLeave};
+  el.addEventListener('mouseenter',onEnter);
   el.addEventListener('mousemove',onMove);
   el.addEventListener('mouseleave',onLeave);
   el.addEventListener('touchmove',onMove,{passive:true});
+  el.addEventListener('touchstart',onEnter,{passive:true});
   el.addEventListener('touchend',onLeave);
 }
 function disableCoverTilt(){
   if(!state._coverTiltOn) return;
   state._coverTiltOn=false;
   const el=$.artWrap, h=el.__tiltHandlers||{};
+  el.removeEventListener('mouseenter',h.onEnter);
   el.removeEventListener('mousemove',h.onMove);
   el.removeEventListener('mouseleave',h.onLeave);
+  el.removeEventListener('touchstart',h.onEnter);
   el.removeEventListener('touchmove',h.onMove);
   el.removeEventListener('touchend',h.onLeave);
+  el.classList.remove('rt-active');
   el.style.setProperty('--cover-tilt','rotateX(0deg) rotateY(0deg)');
 }
 function enableCardParallax(){
   if(state._cardParallaxOn) return;
   state._cardParallaxOn=true;
   const el=$.wrap;
-  const onMove=(e)=>{
-    const r=el.getBoundingClientRect();
-    const px=(e.clientX-r.left)/r.width - .5;
-    const py=(e.clientY-r.top )/r.height- .5;
-    el.style.setProperty('--card-rot', `rotateY(${px*4}deg) rotateX(${ -py*3 }deg)`);
+  let raf=0, rect=null, px=0, py=0;
+  const measure=()=>{ rect=el.getBoundingClientRect() };
+  const flush=()=>{
+    raf=0;
+    if(!rect) measure();
+    const nx=((px-rect.left)/rect.width)-.5;
+    const ny=((py-rect.top)/rect.height)-.5;
+    el.style.setProperty('--card-rot', `rotateY(${nx*4}deg) rotateX(${-ny*3}deg)`);
   };
-  const onLeave=()=>{ el.style.setProperty('--card-rot','rotateX(0deg) rotateY(0deg)') };
-  el.__parallaxHandlers={onMove,onLeave};
+  const queue=(e)=>{
+    px=e.clientX; py=e.clientY;
+    if(!raf) raf=requestAnimationFrame(flush);
+  };
+  const onEnter=()=>{ measure(); el.classList.add('rt-active') };
+  const onMove=(e)=>{ if(!rect) onEnter(); queue(e) };
+  const onLeave=()=>{
+    if(raf){ cancelAnimationFrame(raf); raf=0 }
+    rect=null;
+    el.classList.remove('rt-active');
+    el.style.setProperty('--card-rot','rotateX(0deg) rotateY(0deg)');
+  };
+  el.__parallaxHandlers={onEnter,onMove,onLeave};
+  el.addEventListener('mouseenter',onEnter);
   el.addEventListener('mousemove',onMove);
   el.addEventListener('mouseleave',onLeave);
 }
@@ -1186,8 +1389,10 @@ function disableCardParallax(){
   if(!state._cardParallaxOn) return;
   state._cardParallaxOn=false;
   const el=$.wrap, h=el.__parallaxHandlers||{};
+  el.removeEventListener('mouseenter',h.onEnter);
   el.removeEventListener('mousemove',h.onMove);
   el.removeEventListener('mouseleave',h.onLeave);
+  el.classList.remove('rt-active');
   el.style.setProperty('--card-rot','rotateX(0deg) rotateY(0deg)');
 }
 function applyAnimInteractivity(){

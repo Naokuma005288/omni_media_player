@@ -1,29 +1,28 @@
 // spec-boost.plugin.js
 (() => {
-  const qs = (s,r=document)=>r.querySelector(s);
+  const qs = (s, r = document) => r.querySelector(s);
   const wrap = qs('#playerWrap');
   const seek = qs('#seek');
   const spec = qs('#spectrum');
+  if (!wrap || !seek || !spec) return;
 
-  if(!wrap || !seek || !spec) return;
-
-  /* ====== 設定の保存 ====== */
   const store = {
-    get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch{ return d } },
-    set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch{} }
+    get(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch{ return d } },
+    set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch{} }
   };
+
   const KEY = 'pc.specboost';
   const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   let cfg = Object.assign({
     neonGlow: true,
     waveform: true,
-    orbitSparks: false,       // 円形モード専用
-    trails: 0.18,             // 0..0.4 ぐらい推奨
-    glowStrength: 1.0,        // 0.5..1.5
-    fps: prefersReduced ? 45 : 96,
+    orbitSparks: false,
+    trails: 0.18,
+    glowStrength: 1.0,
+    fps: prefersReduced ? 45 : 60,
+    autoLow: true
   }, store.get(KEY, {}));
 
-  /* ====== レイヤー作成 ====== */
   const ovGlow = document.createElement('canvas');
   ovGlow.className = 'spec-ov-glow';
   const ov = document.createElement('canvas');
@@ -31,183 +30,184 @@
   wrap.appendChild(ovGlow);
   wrap.appendChild(ov);
   const cg = ovGlow.getContext('2d');
-  const c  = ov.getContext('2d');
+  const c = ov.getContext('2d');
 
-  const dpr = Math.max(1, window.devicePixelRatio||1);
+  const runtime = { avgMs: 0, low: false };
+  let peaks = null;
+  let detachOverlay = null;
+  let lastLayoutKey = '';
+
+  function getState(){ return window.OPRuntime?.state || window.state || {} }
+  function clear(){
+    cg.clearRect(0, 0, ovGlow.width, ovGlow.height);
+    c.clearRect(0, 0, ov.width, ov.height);
+  }
+
   function sizeToSpectrum(){
-    const r = spec.getBoundingClientRect();
     const pr = wrap.getBoundingClientRect();
-
-    // ベース #spectrum に重ねる（左右余白は #seek に合わせ目視揃え）
-    const left  = Math.round(seek.getBoundingClientRect().left - pr.left);
-    const right = Math.round(pr.right - seek.getBoundingClientRect().right);
-    const bottom= Math.round(pr.bottom - seek.getBoundingClientRect().bottom);
-    const h     = Math.round(spec.clientHeight);
-
-    for(const el of [ovGlow, ov]){
-      el.style.left   = left+'px';
-      el.style.right  = right+'px';
-      el.style.bottom = bottom+'px';
-      el.style.height = h+'px';
-      el.width  = Math.max(1, Math.floor((pr.width-left-right)*dpr));
-      el.height = Math.max(1, Math.floor(h*dpr));
+    const seekRect = seek.getBoundingClientRect();
+    const left = Math.round(seekRect.left - pr.left);
+    const right = Math.round(pr.right - seekRect.right);
+    const bottom = Math.round(pr.bottom - seekRect.bottom);
+    const h = Math.round(spec.clientHeight);
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const widthPx = Math.max(1, Math.floor((pr.width - left - right) * dpr));
+    const heightPx = Math.max(1, Math.floor(h * dpr));
+    const layoutKey = [left, right, bottom, h, widthPx, heightPx].join(':');
+    if (layoutKey === lastLayoutKey) return;
+    lastLayoutKey = layoutKey;
+    for (const el of [ovGlow, ov]){
+      el.style.left = left + 'px';
+      el.style.right = right + 'px';
+      el.style.bottom = bottom + 'px';
+      el.style.height = h + 'px';
+      el.width = widthPx;
+      el.height = heightPx;
     }
   }
-  sizeToSpectrum();
-  new ResizeObserver(sizeToSpectrum).observe(wrap);
-  new ResizeObserver(sizeToSpectrum).observe(spec);
 
-  /* ====== 音声データ参照 ====== */
-  const getState = () => (window.OPRuntime?.state || window.state || {});
-  const getAnalyser = () => getState().analyser || null;
-
-  // 既存のログバンド定義があればそれを使う（バー位置を同期）
-  function ensureLogBins(analyser){
+  function syncFpsToCore(){
+    const fps = Math.max(50, Math.min(60, +cfg.fps || 60));
     const s = getState();
-    if (s._logRanges && s._logCenters && s._logRanges.length === (s.spec?.bins||0)){
-      return { ranges: s._logRanges, centers: s._logCenters, bins: s.spec.bins };
-    }
-    // フォールバック：線形割当
-    const bins = Math.max(60, Math.min(220, s.spec?.bins||160));
-    const N = analyser.frequencyBinCount;
-    const step = Math.floor(N / bins);
-    const ranges=[], centers=[];
-    for(let i=0;i<bins;i++){
-      const a = i*step, b = (i===bins-1)? N : (i+1)*step;
-      ranges.push([a,b]);
-      centers.push((a+b)/2);
-    }
-    return { ranges, centers, bins };
+    if (s?.spec) s.spec.maxFps = fps;
+    store.set('pc.spec.maxFps', fps);
+    cfg.fps = fps;
   }
 
-  /* ====== ループ ====== */
-  let peaks = null, raf=0, last=0;
-  function loop(t){
-    const an = getAnalyser();
-    if(!an || spec.style.display==='none'){ cg.clearRect(0,0,ovGlow.width,ovGlow.height); c.clearRect(0,0,ov.width,ov.height); raf=0; return; }
+  function detectLowMode(dtMs){
+    runtime.avgMs = runtime.avgMs ? (runtime.avgMs * 0.88 + dtMs * 0.12) : dtMs;
+    if (!cfg.autoLow){
+      runtime.low = false;
+      return;
+    }
+    if (!runtime.low && runtime.avgMs > 20) runtime.low = true;
+    else if (runtime.low && runtime.avgMs < 14) runtime.low = false;
+  }
 
-    raf = requestAnimationFrame(loop);
+  function colorForBand(i, bins, frame, specState){
+    const sat = +(specState?.sat || 88);
+    const baseL = +(specState?.light || 82);
+    const loud = Math.min(1, frame.rms * 1.8);
+    if (frame.mode === 'mono') return `hsla(0, 0%, ${baseL * (0.78 + 0.22 * loud)}%, 1)`;
+    if ((frame.mode === 'pitch' || frame.mode === 'circular') && frame.centers?.[i]){
+      const ny = (getState().audioCtx?.sampleRate || 48000) / 2;
+      const hueLow = +(specState?.hueLow || 18);
+      const hueHigh = +(specState?.hueHigh || 260);
+      const p = Math.log10(Math.max(30, frame.centers[i])) / Math.log10(ny);
+      const h = hueLow + (hueHigh - hueLow) * p;
+      return `hsla(${h}, ${sat}%, ${baseL * (0.78 + 0.22 * loud)}%, 1)`;
+    }
+    const phase = (i / Math.max(1, bins)) * 360 + +(specState?.rainbowPhase || 0);
+    return `hsla(${phase}, ${sat}%, ${baseL * (0.78 + 0.22 * loud)}%, 1)`;
+  }
 
-    const maxFps = Math.max(24, Math.min(144, cfg.fps));
-    if (t - last < 1000/maxFps) return; last = t;
+  function render(frame){
+    if (spec.style.display === 'none'){
+      clear();
+      return;
+    }
+    sizeToSpectrum();
+    detectLowMode(frame.dtMs);
 
-    const W = ov.width, H = ov.height;
-    const data = new Uint8Array(an.frequencyBinCount);
-    an.getByteFrequencyData(data);
+    const specState = getState().spec || {};
+    const bins = Math.max(60, Math.min(220, frame.bins || specState.bins || 160));
+    const ranges = frame.ranges?.length ? frame.ranges : new Array(bins).fill(0).map((_, i) => [i, i + 1]);
+    if (!peaks || peaks.length !== bins) peaks = new Float32Array(bins).fill(0);
 
-    const mode = (getState().spec?.mode)||'mono'; // mono/pitch/rainbow/circular
-    const { ranges, bins } = ensureLogBins(an);
-    if (!peaks || peaks.length!==bins) peaks = new Float32Array(bins).fill(an.minDecibels);
+    const W = ov.width;
+    const H = ov.height;
+    const gain = +(specState.sens || 1.0);
+    const trailsEnabled = !!getState().anim?.specTrails;
+    const minDb = frame.analyser.minDecibels;
+    const maxDb = frame.analyser.maxDecibels;
+    const rangeDb = Math.max(1, maxDb - minDb);
+    const barW = W / bins;
+    const pad = Math.max(2 * frame.dpr, Math.floor(barW * 0.12));
+    const inner = Math.max(1 * frame.dpr, barW - pad);
 
-    // Trails（グロー層だけゆっくり消す）
-    if (cfg.trails>0){
-      cg.globalAlpha = Math.max(0.02, Math.min(0.45, cfg.trails));
+    if (trailsEnabled && cfg.trails > 0){
+      cg.globalAlpha = runtime.low ? Math.max(0.02, cfg.trails * 0.55) : Math.max(0.02, Math.min(0.45, cfg.trails));
       cg.globalCompositeOperation = 'source-over';
       cg.fillStyle = 'rgba(0,0,0,1)';
-      cg.fillRect(0,0,W,H);
-    }else{
-      cg.clearRect(0,0,W,H);
+      cg.fillRect(0, 0, W, H);
+    } else {
+      cg.clearRect(0, 0, W, H);
     }
-    c.clearRect(0,0,W,H);
+    c.clearRect(0, 0, W, H);
 
-    // 参照値
-    const minDb = an.minDecibels, maxDb = an.maxDecibels, range = maxDb - minDb;
-    const gain  = (getState().spec?.sens)||1.0;
-    const barW  = W / bins;
-    const pad   = Math.max(2*dpr, Math.floor(barW*0.12));
-    const inner = Math.max(1*dpr, barW - pad);
-    const capH  = Math.max(2*dpr, Math.floor(H*0.015));
-
-    // RMS（下地の呼吸 & カラー強度）
-    const td = new Uint8Array(Math.min(1024, an.fftSize));
-    an.getByteTimeDomainData(td);
-    let acc=0; for(let i=0;i<td.length;i++){ const v=(td[i]-128)/128; acc+=v*v }
-    const rms = Math.min(1, Math.sqrt(acc/td.length)*1.6);
-
-    // ====== バー位置に合わせた“ネオン/キャップ” ======
-    for (let i=0;i<bins;i++){
-      const [a,b] = ranges[i];
-      let sum=0, count=Math.max(1,b-a);
-      for (let k=a;k<b;k++) sum += data[k];
+    for (let i = 0; i < bins; i++){
+      const [a, b] = ranges[i];
+      let sum = 0;
+      const count = Math.max(1, b - a);
+      for (let k = a; k < b; k++) sum += frame.freqData[k] || 0;
       const mag = sum / count;
-      const db  = minDb + (mag/255) * range;
-      // Peak hold
-      const prev = peaks[i];
-      const alpha = 0.22; // 平滑
-      const smoothed = (1-alpha)*db + alpha*prev;
-      peaks[i] = Math.max(smoothed, prev - 0.8); // 毎フレーム少しずつ落下
+      const db = minDb + (mag / 255) * rangeDb;
+      peaks[i] = Math.max(db, peaks[i] - (runtime.low ? 1.4 : 0.8));
 
-      // 0..1
-      let val = (smoothed - minDb)/range * gain;
-      val = Math.max(0, Math.min(1, val));
-      const h = Math.floor((val*val) * (H - capH*1.8));
-
-      const x = i*barW + pad/2;
+      let val = (db - minDb) / rangeDb;
+      val = Math.max(0, Math.min(1, val * gain));
+      const h = Math.floor((val * val) * (H - 6 * frame.dpr));
+      const x = i * barW + pad / 2;
       const y = H - h;
 
-      // Neon glow（下層）
       if (cfg.neonGlow){
         cg.globalCompositeOperation = 'lighter';
-        cg.globalAlpha = (0.55 + 0.35*rms) * cfg.glowStrength;
-        cg.fillStyle = mode==='mono'
-          ? 'rgba(255,255,255,1)'
-          : `hsl(${(i/bins)*360}, 90%, ${70 + rms*10}%)`;
+        cg.globalAlpha = (runtime.low ? 0.48 : 0.72) * cfg.glowStrength + frame.rms * 0.22;
+        cg.fillStyle = colorForBand(i, bins, frame, specState);
         cg.fillRect(x, y, inner, h);
       }
-
     }
 
-    // ====== 波形オーバーレイ ======
     if (cfg.waveform){
-      c.globalAlpha = 0.25 + 0.35*rms;
-      c.globalCompositeOperation = 'lighter';
-      c.lineWidth = Math.max(1, 1.25*dpr);
+      c.globalAlpha = runtime.low ? (0.62 + 0.14 * frame.rms) : (0.78 + 0.18 * frame.rms);
+      c.globalCompositeOperation = 'source-over';
+      c.lineWidth = runtime.low ? Math.max(1.2, 1.15 * frame.dpr) : Math.max(1.8, 1.75 * frame.dpr);
       c.strokeStyle = 'rgba(255,255,255,1)';
+      c.shadowBlur = runtime.low ? 4 * frame.dpr : 7 * frame.dpr;
+      c.shadowColor = 'rgba(255,255,255,0.55)';
       c.beginPath();
-      for(let i=0;i<td.length;i++){
-        const nx = (i/(td.length-1))*W;
-        const ny = (1 - (td[i]/255))*H;
-        (i===0)? c.moveTo(nx,ny) : c.lineTo(nx,ny);
+      const td = frame.timeData || [];
+      for (let i = 0; i < td.length; i++){
+        const nx = (i / Math.max(1, td.length - 1)) * W;
+        const ny = (1 - td[i] / 255) * H;
+        if (i === 0) c.moveTo(nx, ny);
+        else c.lineTo(nx, ny);
       }
       c.stroke();
+      c.shadowBlur = 0;
     }
 
-    // ====== 円形モードなら “オービット火花” 追加 ======
-    if (cfg.orbitSparks && (getState().spec?.mode)==='circular'){
-      const cx=W/2, cy=H/2;
-      const R = Math.min(W,H)*0.38;
+    if (cfg.orbitSparks && frame.mode === 'circular' && !runtime.low){
+      const cx = W / 2;
+      const cy = H / 2;
+      const R = Math.min(W, H) * 0.38;
       const n = 8;
-      c.globalCompositeOperation='lighter';
-      for(let i=0;i<n;i++){
-        const a = (t/1000 * (0.6 + i*0.03)) + i*(Math.PI*2/n);
-        const r = R + Math.sin(t/500 + i)*6*dpr;
-        const x = cx + Math.cos(a)*r;
-        const y = cy + Math.sin(a)*r;
-        c.globalAlpha = 0.35 + 0.45*rms;
+      c.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < n; i++){
+        const a = (performance.now() / 1000 * (0.6 + i * 0.03)) + i * (Math.PI * 2 / n);
+        const r = R + Math.sin(performance.now() / 500 + i) * 6 * frame.dpr;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        c.globalAlpha = 0.35 + 0.45 * frame.rms;
         c.beginPath();
-        c.arc(x,y, (1.2+2*rms)*dpr, 0, Math.PI*2);
-        c.fillStyle = `hsl(${(i/n)*360}, 90%, ${60 + rms*20}%)`;
+        c.arc(x, y, (1.2 + 2 * frame.rms) * frame.dpr, 0, Math.PI * 2);
+        c.fillStyle = `hsl(${(i / n) * 360}, 90%, ${60 + frame.rms * 20}%)`;
         c.fill();
       }
     }
+
+    const badge = document.getElementById('sbRuntime');
+    if (badge) badge.textContent = runtime.low ? 'AutoLow: ON' : 'AutoLow: OFF';
   }
 
-  function start(){ if(!raf) raf = requestAnimationFrame(loop) }
-  function stop(){ if(raf){ cancelAnimationFrame(raf); raf=0 } }
-
-  // #spectrum の表示に追従
-  const visObs = new MutationObserver(()=>{ (spec.style.display!=='none')? start():stop() });
-  visObs.observe(spec, { attributes:true, attributeFilter:['style','class'] });
-  window.addEventListener('load', ()=>{ (spec.style.display!=='none')? start():stop() });
-
-  /* ====== 設定UIを “スペクトラム” タブに挿入 ====== */
   function panelSpec(){
     return document.querySelector('#settings .settings-panels [data-tab-panel="spec"]')
-        || document.querySelector('#settings .settings-grid');
+      || document.querySelector('#settings .settings-grid');
   }
+
   function buildSettings(){
-    const p = panelSpec(); if(!p) return;
-    if (p.querySelector('[data-spec-boost]')) return;
+    const p = panelSpec();
+    if (!p || p.querySelector('[data-spec-boost]')) return;
 
     const sec = document.createElement('div');
     sec.className = 'settings-section';
@@ -215,52 +215,57 @@
     sec.innerHTML = `
       <h4>スペクトラム強化 <span class="spec-boost-on">Boost</span></h4>
       <div class="row switch"><input id="sbNeon" type="checkbox"><label for="sbNeon">ネオングロー</label></div>
-      <div class="row switch"><input id="sbWave" type="checkbox"><label for="sbWave">波形オーバーレイ</label></div>
+      <div class="row switch"><input id="sbWave" type="checkbox"><label for="sbWave">白波形を表示</label></div>
       <div class="row switch"><input id="sbOrbit" type="checkbox"><label for="sbOrbit">オービット火花（円形時）</label></div>
+      <div class="row switch"><input id="sbAutoLow" type="checkbox"><label for="sbAutoLow">省エネ自動調整</label><span class="badge" id="sbRuntime">AutoLow: OFF</span></div>
 
-      <div class="row"><label>トレイル</label>
-        <input id="sbTrail" type="range" min="0" max="0.4" step="0.02"/>
-      </div>
-      <div class="row"><label>グロー強度</label>
-        <input id="sbGlow" type="range" min="0.5" max="1.5" step="0.05"/>
-      </div>
-      <div class="row"><label>FPS制限</label>
-        <input id="sbFps" type="range" min="24" max="144" step="1"/>
-      </div>
-      <div class="row"><span class="spec-boost-note">※ CPU/GPUが厳しい時はFPSやトレイルを下げてね。</span></div>
+      <div class="row"><label>トレイル</label><input id="sbTrail" type="range" min="0" max="0.4" step="0.02"/></div>
+      <div class="row"><label>グロー強度</label><input id="sbGlow" type="range" min="0.5" max="1.5" step="0.05"/></div>
+      <div class="row"><label>FPS制限</label><input id="sbFps" type="range" min="50" max="60" step="1"/></div>
+      <div class="row"><span class="spec-boost-note">※ このチェックで白波形の表示/非表示を切り替えます。重い時は AutoLow が火花や強い発光を先に抑えます。</span></div>
     `;
     p.appendChild(sec);
-
-    // 初期反映
-    const byId = id => sec.querySelector('#'+id);
+    const byId = id => sec.querySelector('#' + id);
     byId('sbNeon').checked = !!cfg.neonGlow;
     byId('sbWave').checked = !!cfg.waveform;
-    byId('sbOrbit').checked= !!cfg.orbitSparks;
-    byId('sbTrail').value  = cfg.trails;
-    byId('sbGlow').value   = cfg.glowStrength;
-    byId('sbFps').value    = cfg.fps;
+    byId('sbOrbit').checked = !!cfg.orbitSparks;
+    byId('sbAutoLow').checked = !!cfg.autoLow;
+    byId('sbTrail').value = cfg.trails;
+    byId('sbGlow').value = cfg.glowStrength;
+    byId('sbFps').value = cfg.fps;
 
     const read = () => ({
-      neonGlow:  byId('sbNeon').checked,
-      waveform:  byId('sbWave').checked,
+      neonGlow: byId('sbNeon').checked,
+      waveform: byId('sbWave').checked,
       orbitSparks: byId('sbOrbit').checked,
-      trails:    +byId('sbTrail').value,
-      glowStrength:+byId('sbGlow').value,
-      fps:       +byId('sbFps').value,
+      autoLow: byId('sbAutoLow').checked,
+      trails: +byId('sbTrail').value,
+      glowStrength: +byId('sbGlow').value,
+      fps: +byId('sbFps').value
     });
 
-    sec.addEventListener('input', ()=>{
-      cfg = read(); store.set(KEY, cfg);
-    });
-    sec.addEventListener('change', ()=>{
-      cfg = read(); store.set(KEY, cfg);
-    });
+    const apply = () => {
+      cfg = read();
+      store.set(KEY, cfg);
+      syncFpsToCore();
+    };
+    sec.addEventListener('input', apply);
+    sec.addEventListener('change', apply);
+    apply();
   }
 
-  // 設定を開いた時・起動時に挿入
-  document.getElementById('btnSettings')?.addEventListener('click', () => setTimeout(buildSettings, 0), { once:true });
-  window.addEventListener('load', () => setTimeout(buildSettings, 400));
+  sizeToSpectrum();
+  new ResizeObserver(sizeToSpectrum).observe(wrap);
+  new ResizeObserver(sizeToSpectrum).observe(spec);
+  const visObs = new MutationObserver(() => {
+    if (spec.style.display === 'none') clear();
+    sizeToSpectrum();
+  });
+  visObs.observe(spec, { attributes: true, attributeFilter: ['style', 'class'] });
 
-  // ページ離脱で解放
-  window.addEventListener('beforeunload', stop);
+  syncFpsToCore();
+  detachOverlay = window.OPRuntime?.registerSpectrumOverlay?.(render) || null;
+  document.getElementById('btnSettings')?.addEventListener('click', () => setTimeout(buildSettings, 0), { once: true });
+  window.addEventListener('load', () => setTimeout(buildSettings, 300));
+  window.addEventListener('beforeunload', () => { try{ detachOverlay?.() }catch{} });
 })();

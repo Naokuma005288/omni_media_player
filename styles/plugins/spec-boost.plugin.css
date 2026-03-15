@@ -10,8 +10,8 @@
 }
 
 .spec-ov-glow{
-  filter: blur(14px) saturate(1.2);
-  opacity: .85;
+  filter: blur(22px) saturate(1.35);
+  opacity: .96;
 }
 
 /* 設定UIの小見出し */
