@@ -1,7 +1,7 @@
 {
   "name": "omni_media_web_player",
   "version": "1.0.0",
-  "main": "main.js",
+  "main": "scripts/electron/main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder"

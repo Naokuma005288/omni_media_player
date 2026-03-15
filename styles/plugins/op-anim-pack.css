@@ -1,0 +1,115 @@
+/* Omni Player — Animation Pack (CSS) */
+
+:root{
+  --ken-scale-from: 1.04;
+  --ken-scale-to: 1.12;
+  --ken-shift: 4%;
+  --tilt-max: 10deg;
+  --card-zoom-on: 1.02;
+  --shim-speed: 2.8s;
+  --toast-slide-y: 10px;
+}
+
+/* 背景 Ken Burns */
+@keyframes op-kenburns {
+  0%   { transform: scale(var(--ken-scale-from)) translate3d(var(--ken-shift),var(--ken-shift),0); }
+  100% { transform: scale(var(--ken-scale-to)) translate3d(calc(var(--ken-shift)*-1),calc(var(--ken-shift)*-1),0); }
+}
+body.anim-bgken .bg-art{ animation: op-kenburns 16s ease-in-out infinite alternate; }
+
+/* カバー：回転/呼吸 */
+@keyframes op-spin { to { transform: rotate(360deg) } }
+@keyframes op-breathe { 0%,100%{ transform: scale(1) } 50%{ transform: scale(1.03) } }
+body.anim-cover-spin.is-playing #artWrap img{ animation: op-spin 12s linear infinite; will-change: transform; }
+body.anim-cover-bob #artWrap img{ animation: op-breathe 3.2s ease-in-out infinite }
+
+/* ボタン浮遊 */
+body.anim-btn-lift .btn{ transition: transform .12s ease, box-shadow .18s ease, filter .18s ease }
+body.anim-btn-lift .btn:hover{ transform: translateY(-2px) scale(1.02); box-shadow: 0 10px 28px var(--shadow) }
+
+/* スペクトラム演出 */
+body.anim-spec-glow #spectrum{ filter: drop-shadow(0 10px 26px rgba(0,0,0,.45)) }
+body.anim-spec-beat #spectrum{ transition: transform .06s linear }
+
+/* シークつまみパルス */
+@keyframes op-pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(255,255,255,.25) } 60%{ box-shadow:0 0 0 10px rgba(255,255,255,0) } }
+:root.light @keyframes op-pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(0,0,0,.22) } 60%{ box-shadow:0 0 0 10px rgba(0,0,0,0) } }
+body.anim-thumb-pulse .seekbar .thumb{ animation: op-pulse 2s ease-out infinite }
+
+/* トースト/モーダル */
+@keyframes op-slide-in { from{ transform: translateY(var(--toast-slide-y)); opacity: 0 } to{ transform: translateY(0); opacity: 1 } }
+body.anim-toast-slide .toast .t{ animation: op-slide-in .22s ease both }
+@keyframes op-zoom-in { from{ transform: scale(.94); opacity:0 } to{ transform: scale(1); opacity:1 } }
+body.anim-modal-zoom .kbd-card,
+body.anim-modal-zoom .settings-card{ animation: op-zoom-in .18s ease both }
+
+/* プレイリスト行 */
+body.anim-pl-slide .playlist .pl-item:hover{ transform: translateX(4px); background: color-mix(in oklab, var(--panel-2), transparent 18%) }
+
+/* ABループ点滅 */
+@keyframes op-blink { 0%,100%{ filter:none } 50%{ filter:brightness(1.35) saturate(1.2) } }
+body.anim-ab-blink.ab-on #abLoopStat{ animation: op-blink 1s steps(2,end) infinite }
+
+/* シマー */
+@keyframes op-shimmer { 0%{ background-position:-200% 0 } 100%{ background-position:200% 0 } }
+body.anim-header-shimmer header h1{
+  background: linear-gradient(90deg, color-mix(in oklab,var(--text),transparent 40%), var(--text), color-mix(in oklab,var(--text),transparent 40%));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  background-size:200% 100%; animation: op-shimmer var(--shim-speed) linear infinite;
+}
+
+/* 粒子/ボケのホスト（JSがDOM生成） */
+#opParticles, #opBokeh{ position:absolute; inset:0; pointer-events:none }
+#opParticles{ z-index:2; mix-blend-mode:screen }
+#opBokeh{ z-index:2; overflow:hidden }
+#opBokeh .blob{
+  position:absolute; width:20vmin; height:20vmin; border-radius:50%;
+  filter: blur(18px); opacity:.55;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(255,255,255,.05) 60%, transparent 70%);
+  mix-blend-mode: screen; animation: op-bokeh-float 12s ease-in-out infinite;
+}
+@keyframes op-bokeh-float{ 0%,100%{ transform: translate3d(0,0,0) scale(1) } 50%{ transform: translate3d(6%, -6%, 0) scale(1.08) } }
+
+/* 走査線／グラデ枠／CRT／ヴィネット */
+body.anim-scanlines .player-wrap::after{
+  content:""; position:absolute; inset:0; z-index:5; pointer-events:none;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,.28), rgba(0,0,0,.28) 1px, transparent 1px, transparent 3px);
+  mix-blend-mode:multiply; opacity:.35
+}
+body.anim-grad-border .player-wrap{ position:relative }
+body.anim-grad-border .player-wrap::before{
+  content:""; position:absolute; inset:-1px; border-radius:inherit; z-index:1; pointer-events:none;
+  padding:1px; background: conic-gradient(from 0deg, #2e72f6, #9a5cff, #ff4975, #2e72f6);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: op-rot 6s linear infinite
+}
+@keyframes op-rot { to { transform: rotate(360deg) } }
+
+body.anim-crt .player-wrap::after{
+  content:""; position:absolute; inset:0; z-index:5; pointer-events:none;
+  background: radial-gradient(120% 90% at 50% 50%, rgba(255,255,255,.07), transparent 55%),
+              repeating-linear-gradient(0deg, rgba(255,255,255,.04), rgba(255,255,255,.04) 1px, transparent 1px, transparent 2px);
+  mix-blend-mode: overlay; animation: op-crt-flicker 1.4s steps(12,end) infinite
+}
+@keyframes op-crt-flicker{ 50%{ opacity:.9 } }
+
+body.anim-vignette-breathe .bg-vignette{ animation: op-vignette 5.5s ease-in-out infinite }
+@keyframes op-vignette{ 0%,100%{ opacity:.85 } 50%{ opacity:.72 } }
+
+/* グリッチ（停止時だけ） */
+@keyframes op-glitch {
+  0%{ clip-path: inset(0 0 0 0); transform: translate3d(0,0,0) }
+  10%{ clip-path: inset(10% 0 80% 0); transform: translate3d(2px,-2px,0) }
+  20%{ clip-path: inset(80% 0 10% 0); transform: translate3d(-1px,1px,0) }
+  30%{ clip-path: inset(20% 0 60% 0); transform: translate3d(1px,0,0) }
+  40%{ clip-path: inset(60% 0 20% 0); transform: translate3d(0,1px,0) }
+  50%,100%{ clip-path: inset(0 0 0 0); transform: translate3d(0,0,0) }
+}
+body.anim-glitch:not(.is-playing) .player-wrap{ animation: op-glitch 1.2s steps(8,end) infinite }
+
+/* パララックス補助 */
+body.anim-card-parallax .player-wrap{ will-change: transform }
+
+/* 細かな調整 */
+body.anim-spec-trails #spectrum{ opacity:.96 }
