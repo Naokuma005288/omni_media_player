@@ -131,7 +131,6 @@
 <div class="app">
   <header>
     <h1>Omni Player</h1>
-    <div class="chip">HLS / YouTube / Niconico / SoundCloud / SRT・VTT・ASS</div>
     <div class="spacer"></div>
     <label class="switch" title="Language">
       <select id="langSelect" aria-label="Language">
@@ -141,19 +140,23 @@
     <label class="switch" title="ライト/ダーク/自動" style="margin-left:.35rem">
       <select id="themeSelect"><option value="auto">自動 (OS連動)</option><option value="dark">ダーク</option><option value="light">ライト</option></select>
     </label>
-    <button class="btn ghost" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">設定</button>
-    <button class="btn ghost" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">ショートカット</button>
+    <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
+    <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" title="version">v1.9.0</span>
   </header>
 
   <aside>
     <div class="section">
-      <h2>ソースを開く</h2>
+      <h2>ソース</h2>
       <div class="row">
         <input id="url" type="url" placeholder="https://（.m3u8 / .mp4 / .mp3 / YouTube / ニコ動 / SoundCloud）" />
-        <button class="btn" id="openUrl">開く</button>
+        <button class="btn icon-btn side-icon-btn" id="openUrl" title="URLを開く" aria-label="URLを開く">↗</button>
       </div>
-      <div class="row"><input id="fileInput" type="file" multiple accept="video/*,audio/*,.m3u8,.mp3,.mp4" /></div>
+      <div class="row file-row">
+        <label class="btn ghost icon-btn side-icon-btn" for="fileInput" title="メディアを選択" aria-label="メディアを選択">＋</label>
+        <input id="fileInput" class="file-input-hidden" type="file" multiple accept="video/*,audio/*,.m3u8,.mp3,.mp4" />
+        <span class="file-meta" id="fileMeta">ファイル未選択</span>
+      </div>
       <div class="row switch"><input id="dropMode" type="checkbox"/><label for="dropMode">ドラッグ&ドロップを <b>置換</b> にする（未チェック: 追記）</label></div>
       <div class="row">
         <button class="btn ghost" id="saveList">プレイリスト保存</button>
@@ -163,26 +166,35 @@
     </div>
 
     <div class="section">
-      <h2>字幕 / 外部音声</h2>
-      <div class="row">
-        <input id="srtInput" type="file" accept=".srt,.vtt,.ass" />
-        <button class="btn" id="btnUnloadSub">字幕解除</button>
+      <h2>字幕 / 音声</h2>
+      <div class="row file-row">
+        <label class="btn ghost icon-btn side-icon-btn side-icon-wide" for="srtInput" title="字幕を選択" aria-label="字幕を選択">CC</label>
+        <input id="srtInput" class="file-input-hidden" type="file" accept=".srt,.vtt,.ass" />
+        <span class="file-meta" id="srtMeta">字幕未選択</span>
+        <button class="btn ghost icon-btn side-icon-btn" id="btnUnloadSub" title="字幕解除" aria-label="字幕解除">×</button>
       </div>
-      <div class="row" title="ASS fonts">
-        <input id="fontInput" type="file" accept=".ttf,.otf,.woff,.woff2" multiple />
-        <button class="btn ghost" id="btnClearFonts">ASSフォント解除</button>
+      <div class="row file-row" title="ASS fonts">
+        <label class="btn ghost icon-btn side-icon-btn side-icon-wide" for="fontInput" title="ASSフォントを追加" aria-label="ASSフォントを追加">Aa</label>
+        <input id="fontInput" class="file-input-hidden" type="file" accept=".ttf,.otf,.woff,.woff2" multiple />
+        <span class="file-meta" id="fontMeta">フォント未選択</span>
+        <button class="btn ghost icon-btn side-icon-btn" id="btnClearFonts" title="ASSフォント解除" aria-label="ASSフォント解除">×</button>
       </div>
-      <div class="row"><input id="audInput" type="file" accept="audio/*" /><button class="btn" id="btnUnloadAud">外部音声解除</button></div>
+      <div class="row file-row">
+        <label class="btn ghost icon-btn side-icon-btn side-icon-wide" for="audInput" title="外部音声を選択" aria-label="外部音声を選択">♪</label>
+        <input id="audInput" class="file-input-hidden" type="file" accept="audio/*" />
+        <span class="file-meta" id="audMeta">音声未選択</span>
+        <button class="btn ghost icon-btn side-icon-btn" id="btnUnloadAud" title="外部音声解除" aria-label="外部音声解除">×</button>
+      </div>
       <div class="row"><label>ドリフト補正</label>
         <select id="driftMode"><option value="off">オフ</option><option value="std" selected>標準</option><option value="strong">強め</option></select>
       </div>
-      <div class="row"><input id="subSearch" type="search" placeholder="字幕検索…"><button class="btn ghost" id="btnSubSearch">検索</button></div>
+      <div class="row"><input id="subSearch" type="search" placeholder="字幕検索…"><button class="btn ghost icon-btn side-icon-btn" id="btnSubSearch" title="字幕検索" aria-label="字幕検索">⌕</button></div>
       <div class="subhits" id="subHits" aria-label="subtitle search results"></div>
-      <div class="row"><span class="badge">字幕の詳細設定・スペクトラム・EQ・アニメは「設定」から</span></div>
+      <div class="row"><span class="badge">詳細は設定</span></div>
     </div>
 
     <div class="section">
-      <h2>プレイリスト</h2>
+      <h2>リスト</h2>
       <div class="row">
         <button class="btn" id="btnClear">全クリア</button>
         <button class="btn" id="btnShuffle">シャッフル</button>
@@ -243,33 +255,64 @@
       <div class="toast" id="toasts"></div>
     </div>
     <div class="panel">
-      <span class="badge">保存: 設定・言語・テーマ・速度・音量・字幕・UI・プレイリスト</span>
-      <span class="badge" id="abLoopStat" title="A-Bリピート状態">AB Loop: OFF</span>
+      <div class="control-dock">
+        <canvas id="statusCanvas" class="ui-canvas status-canvas" width="960" height="124" aria-hidden="true"></canvas>
+        <div class="ctrl ctrl-dock">
+          <section class="control-module transport-module" aria-label="再生コントロール">
+            <div class="module-kicker">PLAY</div>
+            <div class="transport-layout">
+              <button class="btn playpulse icon-btn play-main" id="play" title="再生 / 一時停止">▶</button>
+              <div class="transport-cluster">
+                <button class="btn icon-btn" id="back10" title="10秒戻る">⟲</button>
+                <button class="btn icon-btn" id="fwd10" title="10秒進む">⟳</button>
+                <button class="btn icon-btn" id="pip" title="Picture in Picture">▣</button>
+                <button class="btn icon-btn" id="fullscreen" title="フルスクリーン">⛶</button>
+              </div>
+            </div>
+          </section>
+          <section class="control-module mix-module" aria-label="音量と速度">
+            <div class="module-kicker">MIX</div>
+            <div class="slider-stack">
+              <label class="slider-cell">
+                <div class="slider-head">
+                  <span class="slider-tag">VOL</span>
+                  <span class="badge readout" id="volRead">90%</span>
+                </div>
+                <input id="vol" type="range" min="0" max="1" step="0.01" />
+              </label>
+              <label class="slider-cell">
+                <div class="slider-head">
+                  <span class="slider-tag">SPD</span>
+                  <span class="badge readout" id="rateRead">100%</span>
+                </div>
+                <input id="rate" type="range" min="0.25" max="2" step="0.05" />
+              </label>
+              <label class="slider-cell">
+                <div class="slider-head">
+                  <span class="slider-tag">GAIN</span>
+                  <span class="badge readout" id="masterRead">100%</span>
+                </div>
+                <input id="master" type="range" min="0" max="2" step="0.01" value="1" title="Master gain (0–+6dB)" />
+              </label>
+            </div>
+          </section>
+          <section class="control-module loop-module" aria-label="A-Bループ">
+            <div class="module-kicker">A-B</div>
+            <div class="loop-status">
+              <span id="abDisp" class="badge loop-badge">A:- B:-</span>
+              <span class="badge loop-badge" id="abLoopStat" title="A-Bリピート状態">AB Loop: OFF</span>
+            </div>
+            <div class="loop-actions">
+              <button class="btn ghost" id="setA" title="A点">A</button>
+              <button class="btn ghost" id="setB" title="B点">B</button>
+              <button class="btn ghost" id="clearAB" title="A-B解除">×</button>
+              <button class="btn ghost" id="toggleABLoop" title="A-Bループ">Loop</button>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   </main>
-
-  <div class="ctrl">
-    <div class="group">
-      <button class="btn playpulse" id="play">▶︎ / ⏸</button>
-      <button class="btn" id="back10">⟲ 10s</button>
-      <button class="btn" id="fwd10">⟳ 10s</button>
-      <button class="btn" id="pip">PiP</button>
-      <button class="btn" id="fullscreen" title="フルスクリーン">⛶</button>
-    </div>
-    <div class="group">
-      <label>音量</label><input id="vol" type="range" min="0" max="1" step="0.01" /><span class="badge readout" id="volRead">90%</span>
-      <label>速度</label><input id="rate" type="range" min="0.25" max="2" step="0.05" /><span class="badge readout" id="rateRead">100%</span>
-      <label>マスター</label><input id="master" type="range" min="0" max="2" step="0.01" value="1" title="Master gain (0–+6dB)" /><span class="badge readout" id="masterRead">100%</span>
-    </div>
-    <div class="group">
-      <span>AB:</span>
-      <button class="btn" id="setA">A</button>
-      <button class="btn" id="setB">B</button>
-      <button class="btn" id="clearAB">解除</button>
-      <button class="btn ghost" id="toggleABLoop" title="A-Bをループ">ABループ</button>
-      <span id="abDisp" class="badge">A:- B:-</span>
-    </div>
-  </div>
 </div>
 
 <!-- Keyboard help -->

@@ -2,6 +2,7 @@
 const qs=(s,r=document)=>r.querySelector(s); const qsa=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const $={
   v:qs('#v'),wrap:qs('#playerWrap'),bgArt:qs('#bgArt'),artWrap:qs('#artWrap'),
+  headerCanvas:qs('#headerCanvas'),statusCanvas:qs('#statusCanvas'),
   // ★ 追加: FX要素
   fxAurora:qs('#fxAurora'),fxStars:qs('#fxStars'),fxGrid:qs('#fxGrid'),fxBeams:qs('#fxBeams'),fxNebula:qs('#fxNebula'),
 
@@ -11,7 +12,9 @@ const $={
 
   seek:qs('#seek'),seekProg:qs('#seekProg'),seekThumb:qs('#seekThumb'),seekPrev:qs('#seekPrev'),seekImg:qs('#seekImg'),seekTime:qs('#seekTime'),
   toasts:qs('#toasts'),url:qs('#url'),openUrl:qs('#openUrl'),file:qs('#fileInput'),
+  fileMeta:qs('#fileMeta'),
   srt:qs('#srtInput'),aud:qs('#audInput'),unloadSub:qs('#btnUnloadSub'),unloadAud:qs('#btnUnloadAud'),driftMode:qs('#driftMode'),
+  srtMeta:qs('#srtMeta'),audMeta:qs('#audMeta'),
   subSize:qs('#subSize'),subOutline:qs('#subOutline'),subMargin:qs('#subMargin'),subPreset:qs('#subPreset'),
   vol:qs('#vol'),rate:qs('#rate'),master:qs('#master'),
   volRead:qs('#volRead'),rateRead:qs('#rateRead'),masterRead:qs('#masterRead'),
@@ -22,7 +25,7 @@ const $={
   saveList:qs('#saveList'),loadList:qs('#loadList'),clearList:qs('#clearList'),
   themeSelect:qs('#themeSelect'), langSelect:qs('#langSelect'),
   assLayer:qs('#assLayer'), spectrum:qs('#spectrum'),
-  fontInput:qs('#fontInput'), btnClearFonts:qs('#btnClearFonts'),
+  fontInput:qs('#fontInput'), fontMeta:qs('#fontMeta'), btnClearFonts:qs('#btnClearFonts'),
   audioInfo:qs('#audioInfo'), audioCover:qs('#audioCover'), audioTitle:qs('#audioTitle'), audioSub:qs('#audioSub'),
   settings:qs('#settings'), btnSettings:qs('#btnSettings'), btnSettingsClose:qs('#btnSettingsClose'),
   specMode:qs('#specMode'), specOverlay:qs('#specOverlay'), specSens:qs('#specSens'), specBins:qs('#specBins'),
@@ -48,6 +51,13 @@ const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.
 function toast(msg,type='ok',timeout=3400){const d=document.createElement('div');d.className='t '+type;d.textContent=msg;$.toasts.appendChild(d);setTimeout(()=>d.remove(),timeout)}
 const fmt=s=>{if(s==null||isNaN(s))return '-';const sec=Math.floor(s%60).toString().padStart(2,'0');const m=Math.floor(s/60);return `${m}:${sec}`};
 function pct(v){ return `${Math.round((+v||0)*100)}%` }
+function setFileMeta(el, files, emptyText){
+  if(!el) return;
+  const list = Array.from(files||[]).filter(Boolean);
+  if(!list.length){ el.textContent = emptyText; return; }
+  if(list.length===1){ el.textContent = list[0].name || emptyText; return; }
+  el.textContent = `${list[0].name} +${list.length-1}`;
+}
 function updateSliderReadouts(){
   if($.volRead) $.volRead.textContent = pct($.vol?.value);
   if($.rateRead) $.rateRead.textContent = pct($.rate?.value);
@@ -218,6 +228,128 @@ window.OPRuntime = {
     });
   }
 };
+
+/* ========= canvas HUD ========= */
+function fitHudCanvas(canvas){
+  if(!canvas) return null;
+  const dpr=Math.max(1, window.devicePixelRatio||1);
+  const rect=canvas.getBoundingClientRect();
+  const w=Math.max(1, Math.round(rect.width));
+  const h=Math.max(1, Math.round(rect.height));
+  const pxW=Math.max(1, Math.round(w*dpr));
+  const pxH=Math.max(1, Math.round(h*dpr));
+  if(canvas.width!==pxW || canvas.height!==pxH){ canvas.width=pxW; canvas.height=pxH; }
+  const ctx=canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return { ctx, w, h };
+}
+function drawHeaderHud(t){
+  const fit=fitHudCanvas($.headerCanvas); if(!fit) return;
+  const {ctx,w,h}=fit;
+  ctx.clearRect(0,0,w,h);
+  const grad=ctx.createLinearGradient(0,0,w,h);
+  grad.addColorStop(0,'rgba(39,110,241,.18)');
+  grad.addColorStop(1,'rgba(255,255,255,.02)');
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,w,h);
+
+  const types=['html5','youtube','iframe'];
+  const active=types.indexOf(state.mediaKind);
+  for(let i=0;i<6;i++){
+    const x=18+i*18;
+    const y=h/2;
+    const on=i<=Math.max(0,active+1);
+    ctx.beginPath();
+    ctx.arc(x,y, on?4.5:3, 0, Math.PI*2);
+    ctx.fillStyle=on?'rgba(121,197,255,.95)':'rgba(255,255,255,.18)';
+    ctx.shadowBlur=on?12:0;
+    ctx.shadowColor='rgba(80,170,255,.55)';
+    ctx.fill();
+  }
+  ctx.shadowBlur=0;
+  ctx.lineWidth=2;
+  ctx.strokeStyle='rgba(255,255,255,.16)';
+  ctx.beginPath();
+  ctx.moveTo(18,h/2);
+  ctx.lineTo(108,h/2);
+  ctx.stroke();
+
+  const pulse = mediaPaused() ? 0.28 : 0.58 + Math.sin(t/420)*0.14;
+  ctx.beginPath();
+  for(let i=0;i<36;i++){
+    const x=128 + i*2.25;
+    const p=i/35;
+    const y=(h/2) + Math.sin((t/220)+(p*8))*7*pulse;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='rgba(154,224,255,.95)';
+  ctx.shadowBlur=10;
+  ctx.shadowColor='rgba(70,170,255,.42)';
+  ctx.stroke();
+  ctx.shadowBlur=0;
+}
+function drawStatusHud(t){
+  const fit=fitHudCanvas($.statusCanvas); if(!fit) return;
+  const {ctx,w,h}=fit;
+  ctx.clearRect(0,0,w,h);
+  const base=ctx.createLinearGradient(0,0,w,h);
+  base.addColorStop(0,'rgba(255,255,255,.028)');
+  base.addColorStop(1,'rgba(39,110,241,.075)');
+  ctx.fillStyle=base;
+  ctx.fillRect(0,0,w,h);
+
+  const vol=+($.vol?.value||0);
+  const rate=Math.max(0.25, Math.min(2, +($.rate?.value||1)));
+  const master=Math.max(0, Math.min(2, +($.master?.value||1)));
+  const pulse=mediaPaused() ? 0.18 : 0.34 + Math.sin(t/420)*0.08;
+
+  const glowA=ctx.createRadialGradient(w*0.18,h*0.5,8,w*0.18,h*0.5,w*0.22);
+  glowA.addColorStop(0,`rgba(110,196,255,${0.18 + vol*0.16})`);
+  glowA.addColorStop(1,'rgba(110,196,255,0)');
+  ctx.fillStyle=glowA;
+  ctx.fillRect(0,0,w,h);
+
+  const glowB=ctx.createRadialGradient(w*0.52,h*0.52,10,w*0.52,h*0.52,w*0.26);
+  glowB.addColorStop(0,`rgba(89,134,255,${0.12 + Math.abs(rate-1)*0.22})`);
+  glowB.addColorStop(1,'rgba(89,134,255,0)');
+  ctx.fillStyle=glowB;
+  ctx.fillRect(0,0,w,h);
+
+  const glowC=ctx.createRadialGradient(w*0.84,h*0.48,8,w*0.84,h*0.48,w*0.18);
+  glowC.addColorStop(0,`rgba(163,218,255,${0.12 + master*0.08})`);
+  glowC.addColorStop(1,'rgba(163,218,255,0)');
+  ctx.fillStyle=glowC;
+  ctx.fillRect(0,0,w,h);
+
+  ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(255,255,255,.08)';
+  ctx.beginPath();
+  ctx.moveTo(20,h-18);
+  ctx.lineTo(w-20,h-18);
+  ctx.stroke();
+
+  ctx.strokeStyle='rgba(154,224,255,.28)';
+  ctx.shadowBlur=16;
+  ctx.shadowColor='rgba(70,170,255,.18)';
+  ctx.beginPath();
+  for(let i=0;i<48;i++){
+    const p=i/47;
+    const x=24 + p*(w-48);
+    const y=(h*0.62) + Math.sin((t/250)+(p*8.5))*8*pulse;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+}
+function initCanvasHud(){
+  let raf=0;
+  const loop=(t)=>{
+    drawHeaderHud(t||0);
+    drawStatusHud(t||0);
+    raf=requestAnimationFrame(loop);
+  };
+  if(!raf) raf=requestAnimationFrame(loop);
+}
 
 /* ========= ローダー表示 ========= */
 function showLoader(){ try{$.loader?.classList.add('show')}catch(e){} }
@@ -734,7 +866,7 @@ function drawCircularSpectrum(c,W,H,rms){
 
 /* ========= external audio sync ========= */
 async function attachAudio(file){ detachAudio(); const url=URL.createObjectURL(file); state.extAudioUrl=url; const a=new Audio(url); a.crossOrigin='anonymous'; a.loop=false; state.extAudio=a; const tick=function(){ if(!state.extAudio||state.usingYouTube||state.usingIframe) return; const v=$.v; const A=state.extAudio; const diff=(A.currentTime||0)-(v.currentTime||0); const mode=$.driftMode.value; const thr=mode==='strong'?0.05:mode==='std'?0.12:9e9; if(Math.abs(diff)>thr){ A.currentTime=v.currentTime } if(!v.paused && A.paused) A.play().catch(()=>{}); if(v.paused && !A.paused) A.pause(); state.driftTimer=setTimeout(tick,120) }; tick(); toast('External audio loaded') }
-function detachAudio(){ if(state.driftTimer){clearTimeout(state.driftTimer);state.driftTimer=null} if(state.extAudio){try{state.extAudio.pause()}catch(e){} state.extAudio=null; } if(state.extAudioUrl){ try{URL.revokeObjectURL(state.extAudioUrl)}catch(e){} state.extAudioUrl=null } }
+function detachAudio(){ if(state.driftTimer){clearTimeout(state.driftTimer);state.driftTimer=null} if(state.extAudio){try{state.extAudio.pause()}catch(e){} state.extAudio=null; } if(state.extAudioUrl){ try{URL.revokeObjectURL(state.extAudioUrl)}catch(e){} state.extAudioUrl=null } if($.aud){ $.aud.value='' } setFileMeta($.audMeta, [], '音声未選択') }
 
 /* ========= Media abstraction ========= */
 function mediaDuration(){ return state.usingYouTube ? (state.yt?.getDuration?.()||0) : ($.v.duration||0) }
@@ -1206,7 +1338,7 @@ async function loadUrl(url){
 /* ========= open / file / dnd ========= */
 ;(() => {
   $.openUrl.addEventListener('click',()=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const u=$.url.value.trim(); if(!u){ toast('URLを入力してね','warn'); return } const it={ url:u, title:u }; const replace=$.dropMode.checked && state.list.length===0; addToPlaylist([it],replace); selectIndex(state.list.length-1); savePlaylistAuto() });
-  $.file.addEventListener('change',(e)=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.target.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
+  $.file.addEventListener('change',(e)=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.target.files||[]); setFileMeta($.fileMeta, files, 'ファイル未選択'); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
   document.addEventListener('dragover',(e)=>{e.preventDefault()});
   document.addEventListener('drop',(e)=>{ e.preventDefault(); state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.dataTransfer.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
   $.btnClear.addEventListener('click',()=>{ state.list=[]; state.cur=-1; renderPlaylist(); resetUiForHTML5(); resetHtml5Video(); clearAudioMeta(); savePlaylistAuto() });
@@ -1239,16 +1371,22 @@ function applyPresetStd(){ $.subPreset.value='std'; applySubStylePreset('std') }
 applyPresetStd();
 renderPlaylist();
 startSeekRAF();
+initCanvasHud();
 
 /* ========= メニュー/検索/EQ ========= */
 qs('#btnUnloadSub')?.addEventListener('click',()=>{unloadTracks();unloadASS();toast('字幕解除')});
-qs('#btnClearFonts')?.addEventListener('click',()=>{ state.assFonts=[]; toast('ASSフォント解除') });
-qs('#fontInput')?.addEventListener('change',async(e)=>{ const files=Array.from(e.target.files||[]); state.assFonts=await Promise.all(files.map(async f=>({name:f.name,url:URL.createObjectURL(f)}))); toast('フォント追加: '+files.length) });
-qs('#srtInput')?.addEventListener('change',async(e)=>{ const f=e.target.files?.[0]; if(!f) return; if(f.name.endsWith('.ass')) await attachASSFromFile(f); else await attachSrtOrVttFromFile(f) });
-qs('#audInput')?.addEventListener('change',(e)=>{ const f=e.target.files?.[0]; if(f) attachAudio(f) });
+qs('#btnUnloadSub')?.addEventListener('click',()=>{ if($.srt) $.srt.value=''; setFileMeta($.srtMeta, [], '字幕未選択') });
+qs('#btnClearFonts')?.addEventListener('click',()=>{ state.assFonts=[]; if($.fontInput) $.fontInput.value=''; setFileMeta($.fontMeta, [], 'フォント未選択'); toast('ASSフォント解除') });
+qs('#fontInput')?.addEventListener('change',async(e)=>{ const files=Array.from(e.target.files||[]); setFileMeta($.fontMeta, files, 'フォント未選択'); state.assFonts=await Promise.all(files.map(async f=>({name:f.name,url:URL.createObjectURL(f)}))); if(files.length) toast('フォント追加: '+files.length) });
+qs('#srtInput')?.addEventListener('change',async(e)=>{ const f=e.target.files?.[0]; setFileMeta($.srtMeta, f?[f]:[], '字幕未選択'); if(!f) return; if(f.name.endsWith('.ass')) await attachASSFromFile(f); else await attachSrtOrVttFromFile(f) });
+qs('#audInput')?.addEventListener('change',(e)=>{ const f=e.target.files?.[0]; setFileMeta($.audMeta, f?[f]:[], '音声未選択'); if(f) attachAudio(f) });
 qs('#btnUnloadAud')?.addEventListener('click',detachAudio);
 $.btnSubSearch.addEventListener('click',()=> searchSubs($.subSearch.value));
 $.subSearch.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); searchSubs($.subSearch.value) }});
+setFileMeta($.fileMeta, [], 'ファイル未選択');
+setFileMeta($.srtMeta, [], '字幕未選択');
+setFileMeta($.fontMeta, [], 'フォント未選択');
+setFileMeta($.audMeta, [], '音声未選択');
 ensureAudioGraph(); buildEqUI();
 if(state.eq.values){ restoreEqValues() } else { applyEqPreset(state.eq.preset||'flat') }
 

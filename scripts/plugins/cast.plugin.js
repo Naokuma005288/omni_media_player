@@ -11,8 +11,10 @@
   const pip = document.getElementById('pip');
   const btn = document.createElement('button');
   btn.id = 'btnCast';
-  btn.className = 'btn';
-  btn.textContent = 'Cast';
+  btn.className = 'btn icon-btn';
+  btn.textContent = '◫';
+  btn.title = 'Cast';
+  btn.setAttribute('aria-label','Cast');
   pip?.parentElement?.insertBefore(btn, pip.nextSibling);
 
   function guessType(u = '') {

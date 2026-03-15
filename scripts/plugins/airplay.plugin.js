@@ -9,8 +9,10 @@
   const pip = document.getElementById('pip');
   const btn = document.createElement('button');
   btn.id = 'btnAirPlay';
-  btn.className = 'btn';
-  btn.textContent = 'AirPlay';
+  btn.className = 'btn icon-btn';
+  btn.textContent = '△';
+  btn.title = 'AirPlay';
+  btn.setAttribute('aria-label','AirPlay');
   pip?.parentElement?.insertBefore(btn, pip.nextSibling);
 
   btn.onclick = () => {
