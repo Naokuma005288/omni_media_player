@@ -65,6 +65,23 @@ function fileLooksLikeAudio(file){
   const name = String(file?.name || '');
   return !!(file?.type?.startsWith?.('audio/') || /\.(mp3|m4a|aac|flac|wav|ogg|opus|oga)$/i.test(name));
 }
+function srcLooksLikeAudio(src=''){
+  return /\.(mp3|m4a|aac|flac|wav|ogg|opus|oga)(\?|$)/i.test(String(src));
+}
+function currentHtml5IsAudio(){
+  if(state.mediaKind !== 'html5') return false;
+  const currentItem = state.list[state.cur];
+  if(currentItem?.file){
+    if(fileLooksLikeAudio(currentItem.file)) return true;
+    if(fileLooksLikeVideo(currentItem.file)) return false;
+  }
+  const src = $.v?.currentSrc || $.v?.src || state.activeUrl || '';
+  if(srcLooksLikeAudio(src)) return true;
+  const vw = +($.v?.videoWidth || 0);
+  const vh = +($.v?.videoHeight || 0);
+  if(vw > 0 || vh > 0) return false;
+  return false;
+}
 function setFileMeta(el, files, emptyText){
   if(!el) return;
   const list = Array.from(files||[]).filter(Boolean);
@@ -230,7 +247,8 @@ const state={
     rainbowPhase: store.get('pc.spec.rainbowPhase',0)
   },
   lastCoverUrl:null, lastObjUrl:null,
-  triedOnce:false, playToken:0, playDesired:false, playDebounce:null,
+  thumbs:[], thumbAmbientBucket:-1, accentRestore:null,
+  triedOnce:false, playToken:0, playDesired:false, playDebounce:null, lastUserGestureAt:0,
   extAudioUrl:null, _unmuteWdg:null,
   _logRanges:null, _logCenters:null, _startTime:performance.now(),
   seekRAF:0,
@@ -470,6 +488,7 @@ function safeVolumeBump(msg=''){ try{ if ($.v.muted || $.v.volume===0){ forceUnm
 /* ========= AudioContext unlock ========= */
 function unlockAudioCtx(){ try{ if(!state.audioCtx) state.audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(state.audioCtx.state!=='running'){ state.audioCtx.resume().catch(()=>{}); const src=state.audioCtx.createBufferSource(); src.buffer=state.audioCtx.createBuffer(1,1,state.audioCtx.sampleRate); src.connect(state.audioCtx.destination); src.start(0); setTimeout(()=>{try{src.stop()}catch(e){}},0) } }catch(e){} }
 function startUnmuteWatchdog(){ try{ clearInterval(state._unmuteWdg) }catch(e){} const t0=Date.now(); state._unmuteWdg=setInterval(()=>{ forceUnmute(); if (!Number.isFinite($.v.volume)||$.v.volume===0){ const f=+($.vol?.value||0.8)||0.8; $.vol.value=f; $.v.volume=f } if (state.extAudio){ state.extAudio.muted=false; if (state.extAudio.volume===0) state.extAudio.volume=$.v.volume } if (Date.now()-t0>4000) clearInterval(state._unmuteWdg) },120) }
+function markUserGesture(){ state.triedOnce=true; state.lastUserGestureAt=Date.now(); forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog() }
 
 /* ========= Theme/lang ========= */
 function applyTheme(t){
@@ -578,34 +597,44 @@ function rampTo(value,t=0.12){ try{ ensureAudioGraph(); const g=state.outGain; c
 
 /* ========= Play serialization ========= */
 async function ensureAudioOn(){ try{ if(!state.audioCtx) state.audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(state.audioCtx.state==='suspended' && state.triedOnce) await state.audioCtx.resume().catch(()=>{}); if (state.triedOnce) forceUnmute(); }catch(e){} }
+async function performPlayAttempt(){
+  await ensureAudioOn(); forceUnmute(); safeVolumeBump();
+  ensureAudioGraph(); rampTo(0,0.01);
+  const p=$.v.play();
+  if(p&&typeof p.then==='function'){ await p.catch(err=>{ if(err?.name!=='AbortError') throw err }) }
+  rampTo(+($.master?.value||1),0.12); setPlayingUI(true);
+  if(state.extAudio && !$.v.paused && state.extAudio.paused){ try{ await state.extAudio.play() }catch(e){} }
+  enforceBackdropPolicy();
+}
 async function requestPlay(reason){
   if(state.mediaKind!=='html5'){ if(state.usingYouTube) try{state.yt?.playVideo?.()}catch(e){}; setPlayingUI(true); enforceBackdropPolicy(); return }
   state.playDesired=true; const my=++state.playToken; clearTimeout(state.playDebounce);
   state.playDebounce=setTimeout(async()=>{
     if(my!==state.playToken||!state.playDesired) return;
-    await ensureAudioOn(); forceUnmute(); safeVolumeBump();
-    try{
-      ensureAudioGraph(); rampTo(0,0.01);
-      const p=$.v.play();
-      if(p&&typeof p.then==='function'){ await p.catch(err=>{ if(err?.name!=='AbortError') throw err }) }
-      rampTo(+($.master?.value||1),0.12); setPlayingUI(true);
-      if(state.extAudio && !$.v.paused && state.extAudio.paused){ try{ await state.extAudio.play() }catch(e){} }
-      enforceBackdropPolicy();
-    }catch(err){ if(err?.name==='AbortError')return; toast('再生に失敗: '+(err?.name||'Error')+' '+(err?.message||''),'warn',5000) }
+    try{ await performPlayAttempt() }catch(err){ if(err?.name==='AbortError')return; toast('再生に失敗: '+(err?.name||'Error')+' '+(err?.message||''),'warn',5000) }
   },60)
+}
+async function requestPlayImmediate(reason){
+  if(state.mediaKind!=='html5'){ return requestPlay(reason) }
+  state.playDesired=true;
+  state.playToken++;
+  clearTimeout(state.playDebounce);
+  try{ await performPlayAttempt() }catch(err){ if(err?.name==='AbortError')return; toast('再生に失敗: '+(err?.name||'Error')+' '+(err?.message||''),'warn',5000) }
 }
 function safePause(){ state.playDesired=false; state.playToken++; if(state.usingYouTube){ try{state.yt?.pauseVideo?.()}catch(e){} setPlayingUI(false); enforceBackdropPolicy(); return } try{ ensureAudioGraph(); rampTo(0,0.12); setTimeout(()=>{ try{$.v.pause()}catch(e){}; setPlayingUI(false); enforceBackdropPolicy() },130) }catch(e){ try{$.v.pause()}catch(e2){}; setPlayingUI(false); enforceBackdropPolicy() } }
 
 /* ========= First gesture ========= */
 ;(() => {
   const fire=()=>{
-    state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog();
-    ensureAudioOn(); requestPlay('gesture');
+    markUserGesture();
+    ensureAudioOn(); requestPlayImmediate('gesture');
     document.removeEventListener('click',fire);
     document.removeEventListener('keydown',fire);
+    document.removeEventListener('touchstart',fire);
   };
   document.addEventListener('click',fire,{once:true});
   document.addEventListener('keydown',fire,{once:true});
+  document.addEventListener('touchstart',fire,{once:true,passive:true});
 })();
 
 /* ========= Captions ========= */
@@ -638,6 +667,7 @@ function searchSubs(q){
 
 /* ========= audio meta / 背景アート ========= */
 function clearAudioMeta(){
+  restoreAmbientAccent();
   try { $.audioCover.onerror = null } catch(e){}
   const prev = state.lastCoverUrl;
   $.audioCover.removeAttribute('src'); $.audioTitle.textContent=''; $.audioSub.textContent='';
@@ -779,6 +809,62 @@ function applyThumbAsCurrentCover(url, kind='video'){
     $.bgArt.style.backgroundImage='none';
     $.bgArt.classList.remove('show');
   }
+}
+function sampleCanvasColor(ctx, w, h){
+  try{
+    const data = ctx.getImageData(0,0,w,h).data;
+    const stride = Math.max(4, Math.floor(Math.max(w,h)/28));
+    let r=0,g=0,b=0,n=0;
+    for(let y=0;y<h;y+=stride){
+      for(let x=0;x<w;x+=stride){
+        const i=((y*w)+x)*4;
+        const a=data[i+3];
+        if(a<32) continue;
+        r += data[i];
+        g += data[i+1];
+        b += data[i+2];
+        n++;
+      }
+    }
+    if(!n) return null;
+    return {
+      r: Math.round(r/n),
+      g: Math.round(g/n),
+      b: Math.round(b/n)
+    };
+  }catch(e){ return null }
+}
+function applyAmbientAccent(rgb){
+  if(!rgb) return;
+  const root = document.documentElement;
+  if(state.accentRestore===null){
+    state.accentRestore = root.style.getPropertyValue('--accent');
+  }
+  root.style.setProperty('--accent', `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`);
+}
+function restoreAmbientAccent(){
+  if(state.accentRestore===null) return;
+  const root = document.documentElement;
+  if(state.accentRestore){
+    root.style.setProperty('--accent', state.accentRestore);
+  }else{
+    root.style.removeProperty('--accent');
+  }
+  state.accentRestore = null;
+  state.thumbAmbientBucket = -1;
+}
+function syncAmbientFromThumbTime(t){
+  if(state.mediaKind!=='html5' || state.isAudioOnly || !state.thumbs?.length) return;
+  const bucket = Math.floor(Math.max(0,t)/5)*5;
+  if(bucket===state.thumbAmbientBucket) return;
+  state.thumbAmbientBucket = bucket;
+  const exact = state.thumbs.find(th=>th.bucket===bucket && th.color);
+  const fallback = exact || state.thumbs.reduce((best, cur)=>{
+    if(!cur.color) return best;
+    if(!best) return cur;
+    return Math.abs(cur.t-bucket) < Math.abs(best.t-bucket) ? cur : best;
+  }, null);
+  if(fallback?.color) applyAmbientAccent(fallback.color);
 }
 function setAudioMetaView(meta,fallback){
   const title=(meta&&meta.title)||fallback||''; const lines=[]; if(meta?.artist) lines.push(meta.artist); if(meta?.album) lines.push(meta.album);
@@ -1044,8 +1130,7 @@ function drawCircularSpectrum(c,W,H,rms){
       isAudioOnly:state.isAudioOnly
     });
 
-    const isAudio=(state.mediaKind==='html5' && $.v.videoWidth===0&&$.v.videoHeight===0);
-    $.spectrum.classList.toggle('on-video',!isAudio);
+    $.spectrum.classList.toggle('on-video', !currentHtml5IsAudio());
   }
 
   function startSpectrum(){
@@ -1059,12 +1144,11 @@ function drawCircularSpectrum(c,W,H,rms){
       resizeObs.observe($.wrap);
       if(state.spectrumRAF) cancelAnimationFrame(state.spectrumRAF);
       state.spectrumRAF=requestAnimationFrame(drawSpectrum);
-      const isAudio=(state.mediaKind==='html5' && $.v.videoWidth===0&&$.v.videoHeight===0);
-      if(isAudio) toast('音声モード（カラー・スペクトラム）');
+      if(currentHtml5IsAudio()) toast('音声モード（カラー・スペクトラム）');
     }catch(e){ stopSpectrum() }
   }
   function updateSpectrumVisibility(){
-    const isAudio=(state.mediaKind==='html5' && $.v.videoWidth===0&&$.v.videoHeight===0);
+    const isAudio=currentHtml5IsAudio();
     state.isAudioOnly=isAudio; updateAudioMetaVisibility();
     const shouldShow=(isAudio&&state.mediaKind==='html5')||(state.spec.overlayOnVideo&&state.mediaKind==='html5');
     if(shouldShow){ startSpectrum() } else { stopSpectrum() }
@@ -1091,15 +1175,19 @@ async function buildThumbs(){ state.thumbs=[]; const v=$.v; if(state.usingYouTub
     const wasPaused=v.paused, prevTime=v.currentTime, prevRate=v.playbackRate, prevMuted=v.muted;
     v.pause();
     const cvs=document.createElement('canvas'), ctx=cvs.getContext('2d');
-    const cols=10; const w=320; const h=Math.round(w*v.videoHeight/v.videoWidth);
+    const stepSec=1;
+    const w=224; const h=Math.round(w*v.videoHeight/v.videoWidth);
+    const totalSec=Math.max(0, Math.floor(v.duration));
     cvs.width=w; cvs.height=h;
-    for(let i=0;i<=cols;i++){
-      const t=v.duration*(i/cols);
-      v.currentTime=Math.min(v.duration-0.05,Math.max(0,t));
+    for(let sec=0;sec<=totalSec;sec+=stepSec){
+      const t=Math.min(v.duration-0.05,Math.max(0,sec));
+      const bucket=(Math.floor(sec/5)*5);
+      v.currentTime=t;
       await new Promise(r=>{ v.onseeked=r });
       ctx.drawImage(v,0,0,w,h);
-      let url=''; try{ url=cvs.toDataURL('image/jpeg',0.7) }catch(e){ url='' }
-      state.thumbs.push({t,url})
+      let url=''; try{ url=cvs.toDataURL('image/jpeg',0.56) }catch(e){ url='' }
+      const color = (sec % 5 === 0) ? sampleCanvasColor(ctx, w, h) : null;
+      state.thumbs.push({t,url,color,bucket})
     }
     const currentItem = state.list[state.cur];
     if(currentItem?.file && fileLooksLikeVideo(currentItem.file) && state.thumbs[0]?.url){
@@ -1107,6 +1195,7 @@ async function buildThumbs(){ state.thumbs=[]; const v=$.v; if(state.usingYouTub
       if(!state.lastCoverUrl || state.lastCoverUrl===makeIconDataURL('video')){
         applyThumbAsCurrentCover(getItemThumb(currentItem) || state.thumbs[0].url, 'video');
       }
+      if(state.thumbs[0]?.color) applyAmbientAccent(state.thumbs[0].color);
       renderPlaylist();
     }
     v.currentTime=prevTime; await new Promise(r=>{ v.onseeked=r }); v.muted=prevMuted; v.playbackRate=prevRate; if(!wasPaused){ requestPlay('thumbs-restore') }
@@ -1114,7 +1203,7 @@ async function buildThumbs(){ state.thumbs=[]; const v=$.v; if(state.usingYouTub
   }catch(e){ toast('プレビュー失敗（CORS？）','warn',6000) }
 }
 function updateSeekUI(){ const dur=mediaDuration(), cur=mediaCurrent(); if(dur<=0) return; const p=100*(cur/dur); $.seekProg.style.width=p+'%'; $.seekThumb.style.left=p+'%'; $.seek.setAttribute('aria-valuenow',String(Math.round(p))) }
-function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ const cur=mediaCurrent(); if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
+function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); const cur=mediaCurrent(); syncAmbientFromThumbTime(cur); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
 startSeekRAF();
 function seekFromClientX(x){ const rect=$.seek.getBoundingClientRect(); const ratio=Math.min(1,Math.max(0,(x-rect.left)/rect.width)); mediaSeekTo((mediaDuration()||0)*ratio); rampTo(+($.master?.value||1),0.06) }
 function showPreview(clientX){
@@ -1131,7 +1220,7 @@ function showPreview(clientX){
 }
 
 /* ========= controls ========= */
-$.play.onclick=()=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); if(mediaPaused()) requestPlay('ui'); else safePause() };
+$.play.onclick=()=>{ markUserGesture(); if(mediaPaused()) requestPlayImmediate('ui'); else safePause() };
 $.back10.onclick=()=>{ mediaSeekTo(Math.max(0, mediaCurrent()-10)) };
 $.fwd10.onclick=()=>{ mediaSeekTo(Math.min(mediaDuration(), mediaCurrent()+10)) };
 $.pip.onclick=async()=>{
@@ -1235,7 +1324,7 @@ function renderPlaylist(){
     const fallbackThumb = it.url ? makeIconDataURL('video') : makeIconDataURL(fileLooksLikeAudio(it.file) ? 'audio' : 'video');
     const thumb = getItemThumb(it) || fallbackThumb;
     el.innerHTML='<span class="drag">☰</span><div class="pl-thumb" style="width:38px;height:38px;border-radius:10px;overflow:hidden;flex:0 0 auto;background:#0b1017;border:1px solid rgba(255,255,255,.08)"><img alt="" src="'+thumb+'" style="width:100%;height:100%;object-fit:cover;display:block"></div><div class="meta" style="flex:1;min-width:0"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.title||it.url||(it.file?it.file.name:'Item'))+'</div><div class="s" style="color:var(--muted);font-size:12px">'+(it.url?'URL':(it.file?'FILE':'?'))+'</div></div><button class="btn ghost play">▶</button><button class="btn ghost rm">×</button>';
-    el.querySelector('.play').onclick=()=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); selectIndex(i) };
+    el.querySelector('.play').onclick=()=>{ markUserGesture(); selectIndex(i) };
     el.querySelector('.rm').onclick=()=>{
       state.list.splice(i,1);
       if(i===state.cur){
@@ -1272,7 +1361,7 @@ async function selectIndex(i){
   rampTo(0,0.15);
   setTimeout(async()=>{
     safePause(); if(state.extAudio){ try{state.extAudio.pause()}catch(e){} }
-    forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog();
+    markUserGesture();
     showLoader();
     if(it.url) return loadUrl(it.url).finally(()=>hideLoader());
     if(it.file){
@@ -1613,10 +1702,10 @@ async function loadUrl(url){
 
 /* ========= open / file / dnd ========= */
 ;(() => {
-  $.openUrl.addEventListener('click',()=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const u=$.url.value.trim(); if(!u){ toast('URLを入力してね','warn'); return } const it={ url:u, title:u }; const replace=$.dropMode.checked && state.list.length===0; addToPlaylist([it],replace); selectIndex(state.list.length-1); savePlaylistAuto() });
-  $.file.addEventListener('change',(e)=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.target.files||[]); setFileMeta($.fileMeta, files, 'ファイル未選択'); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
+  $.openUrl.addEventListener('click',()=>{ markUserGesture(); const u=$.url.value.trim(); if(!u){ toast('URLを入力してね','warn'); return } const it={ url:u, title:u }; const replace=$.dropMode.checked && state.list.length===0; addToPlaylist([it],replace); selectIndex(state.list.length-1); savePlaylistAuto() });
+  $.file.addEventListener('change',(e)=>{ markUserGesture(); const files=Array.from(e.target.files||[]); setFileMeta($.fileMeta, files, 'ファイル未選択'); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
   document.addEventListener('dragover',(e)=>{e.preventDefault()});
-  document.addEventListener('drop',(e)=>{ e.preventDefault(); state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); const files=Array.from(e.dataTransfer.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
+  document.addEventListener('drop',(e)=>{ e.preventDefault(); markUserGesture(); const files=Array.from(e.dataTransfer.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
   $.btnClear.addEventListener('click',()=>{ state.list=[]; state.cur=-1; renderPlaylist(); resetUiForHTML5(); resetHtml5Video(); clearAudioMeta(); savePlaylistAuto() });
   $.btnShuffle.addEventListener('click',()=>{ state.list.sort(()=>Math.random()-0.5); renderPlaylist(); savePlaylistAuto() });
   $.saveList.addEventListener('click',savePlaylistManual);

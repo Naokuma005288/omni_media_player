@@ -480,3 +480,33 @@ html,body{height:100%}
     .transport-layout{grid-template-columns:52px 1fr}
     .slider-stack{grid-template-columns:1fr}
   }
+  @media (max-width: 720px){
+    header{
+      flex-wrap:wrap;align-items:flex-start;gap:.45rem;
+      padding:.55rem .65rem
+    }
+    header h1{flex:1 1 100%;font-size:15px}
+    header .spacer{display:none}
+    header .switch{max-width:calc(50% - .25rem)}
+    header select{max-width:100%}
+    main{padding:.7rem;gap:.18rem}
+    aside .section{padding:.8rem}
+    .row{gap:.45rem}
+    .row.switch{align-items:flex-start}
+    .row.switch label{line-height:1.45}
+    .row:not(.switch){flex-wrap:wrap}
+    .row > input[type=url],.row > input[type=text],.row > input[type=search],.row > input[type=number],.row > select,.row > .file-meta{min-width:0}
+    .file-row{display:grid;grid-template-columns:44px 1fr 36px;align-items:center}
+    .file-row .file-meta{width:100%}
+    .player-wrap{border-radius:12px;min-height:46vh}
+    .seekbar{left:10px;right:10px;bottom:10px}
+    .control-dock{gap:.4rem}
+    .ctrl.ctrl-dock{padding:.55rem 0 0;gap:.4rem}
+    .control-module{padding:.52rem .58rem;border-radius:13px}
+    .transport-layout{grid-template-columns:48px 1fr}
+    .play-main{width:48px;min-width:48px;height:48px;border-radius:15px;font-size:20px}
+    .transport-cluster{gap:.32rem}
+    .transport-cluster .btn,.transport-module .btn[id^="cast"],.transport-module .btn[id^="airplay"]{min-width:38px;height:38px;border-radius:12px}
+    .loop-status{gap:.22rem}
+    .loop-actions{gap:.28rem}
+  }
