@@ -96,11 +96,31 @@ function updateVideoFrameMode(){
   const isPortraitVideo = state.mediaKind==='html5' && vw > 0 && vh > vw;
   setPortraitFrameMode(isPortraitVideo);
 }
+function canUsePiP(){
+  const v = $.v;
+  if(state.mediaKind !== 'html5' || !v) return false;
+  if(typeof v.requestPictureInPicture === 'function' && document.pictureInPictureEnabled) return true;
+  if(typeof v.webkitSupportsPresentationMode === 'function' && typeof v.webkitSetPresentationMode === 'function'){
+    try{ return !!v.webkitSupportsPresentationMode('picture-in-picture'); }catch(e){}
+  }
+  return false;
+}
+function canUseFullscreen(){
+  const v = $.v, wrap = $.wrap;
+  if(state.mediaKind !== 'html5' || !v || !wrap) return false;
+  return !!(
+    wrap.requestFullscreen ||
+    wrap.webkitRequestFullscreen ||
+    wrap.msRequestFullscreen ||
+    v.webkitEnterFullscreen
+  );
+}
 function syncMediaControlAvailability(){
   const kind = state.mediaKind || 'html5';
   const isHtml5 = kind === 'html5';
   const isIframeMode = kind === 'iframe';
-  [$.pip].forEach(el=>{ if(el) el.disabled = !isHtml5; });
+  if($.pip) $.pip.disabled = !canUsePiP();
+  if($.fullscreen) $.fullscreen.disabled = !canUseFullscreen();
   [$.setA,$.setB,$.clearAB,$.toggleABLoop].forEach(el=>{ if(el) el.disabled = isIframeMode; });
   [$.srt,$.unloadSub,$.subSearch,$.btnSubSearch].forEach(el=>{ if(el) el.disabled = !isHtml5; });
   if($.rate) $.rate.disabled = isIframeMode;
@@ -1114,7 +1134,28 @@ function showPreview(clientX){
 $.play.onclick=()=>{ state.triedOnce=true; forceUnmute(); unlockAudioCtx(); startUnmuteWatchdog(); if(mediaPaused()) requestPlay('ui'); else safePause() };
 $.back10.onclick=()=>{ mediaSeekTo(Math.max(0, mediaCurrent()-10)) };
 $.fwd10.onclick=()=>{ mediaSeekTo(Math.min(mediaDuration(), mediaCurrent()+10)) };
-$.pip.onclick=async()=>{ if(state.usingYouTube||state.usingIframe){ toast('PiP not available for embed','warn'); return } try{ if(document.pictureInPictureElement){ await document.exitPictureInPicture() } else { await $.v.requestPictureInPicture() } }catch(e){ toast('PiP unsupported','warn') } };
+$.pip.onclick=async()=>{
+  if(state.usingYouTube||state.usingIframe){ toast('PiP not available for embed','warn'); return }
+  try{
+    const v = $.v;
+    if(document.pictureInPictureElement){
+      await document.exitPictureInPicture();
+      return;
+    }
+    if(typeof v.requestPictureInPicture === 'function' && document.pictureInPictureEnabled){
+      await v.requestPictureInPicture();
+      return;
+    }
+    if(typeof v.webkitSupportsPresentationMode === 'function' && typeof v.webkitSetPresentationMode === 'function'){
+      if(v.webkitSupportsPresentationMode('picture-in-picture')){
+        const mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+        v.webkitSetPresentationMode(mode);
+        return;
+      }
+    }
+    toast('PiP unsupported','warn');
+  }catch(e){ toast('PiP unsupported','warn') }
+};
 $.vol.oninput=()=>{
   updateSliderReadouts();
   applyCurrentMediaTunables();
@@ -1127,7 +1168,22 @@ $.rate.oninput=()=>{
   store.set('pc.rate',$.rate.value);
 };
 $.master.oninput=()=>{ updateSliderReadouts(); ensureAudioGraph(); const v=+$.master.value; try{ state.outGain.gain.setTargetAtTime(v, state.audioCtx.currentTime, 0.05) }catch(e){ state.outGain.gain.value=v } };
-$.fullscreen.onclick=()=>{ if(!document.fullscreenElement){ try{ $.wrap.requestFullscreen() }catch(e){toast('Fullscreen failed','err')} } else { try{ document.exitFullscreen() }catch(e){} } };
+$.fullscreen.onclick=()=>{
+  try{
+    const wrap = $.wrap;
+    const v = $.v;
+    const doc = document;
+    if(doc.fullscreenElement || doc.webkitFullscreenElement){
+      if(doc.exitFullscreen) doc.exitFullscreen();
+      else if(doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+      return;
+    }
+    if(wrap.requestFullscreen) { wrap.requestFullscreen(); return; }
+    if(wrap.webkitRequestFullscreen) { wrap.webkitRequestFullscreen(); return; }
+    if(v.webkitEnterFullscreen) { v.webkitEnterFullscreen(); return; }
+    toast('Fullscreen unsupported','warn');
+  }catch(e){ toast('Fullscreen failed','err') }
+};
 
 document.addEventListener('keydown',(e)=>{
   if(e.key===' '){ e.preventDefault(); $.play.click() }
