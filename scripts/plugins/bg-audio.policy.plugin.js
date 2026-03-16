@@ -1,6 +1,11 @@
 // bg-audio.policy.plugin.js
 (() => {
   const KEY = 'pc.bg.allow'; // trueならタブを離れてもAudioContextを止めない（慎重）
+  const isStandalone = () =>
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true ||
+    document.referrer.startsWith?.('android-app://');
+  const isEnabled = () => isStandalone() || !!store.get(KEY, false);
 
   function resumeSafely(delay=50){
     setTimeout(() => {
@@ -14,7 +19,7 @@
   }
 
   function onVis(){
-    if (!store.get(KEY, false)) return;
+    if (!isEnabled()) return;
     // 再生中なら、hiddenになっても直後にresumeして維持
     try {
       if (document.hidden) {
@@ -28,7 +33,13 @@
   function applyPolicy(enabled){
     // 既存の匿名ハンドラは外せないので、こちらで“後追いresume”する
     document.removeEventListener('visibilitychange', onVis, false);
-    if (enabled) document.addEventListener('visibilitychange', onVis, false);
+    window.removeEventListener('pagehide', onVis, false);
+    window.removeEventListener('pageshow', onVis, false);
+    if (enabled) {
+      document.addEventListener('visibilitychange', onVis, false);
+      window.addEventListener('pagehide', onVis, false);
+      window.addEventListener('pageshow', onVis, false);
+    }
   }
 
   function injectSettingsToggle(){
@@ -41,14 +52,15 @@
 
     const sec = document.createElement('div');
     sec.className = 'settings-section';
-    const enabled = !!store.get(KEY, false);
+    const manualEnabled = !!store.get(KEY, false);
+    const enabled = isEnabled();
     sec.innerHTML = `
       <h4>バックグラウンド再生</h4>
       <div class="row switch">
         <input id="bgAudioAllow" type="checkbox" ${enabled ? 'checked' : ''}>
-        <label for="bgAudioAllow">タブを離れても音を止めない（慎重に）</label>
+        <label for="bgAudioAllow">タブを離れても音を止めない</label>
       </div>
-      <div class="row"><span class="subtitle">※ CPU/バッテリー消費が増える可能性があります。iOSなど一部環境では制限されます。</span></div>
+      <div class="row"><span class="subtitle">※ PWA起動時は自動で有効化します。通常タブでは手動設定です。</span></div>
     `;
     extPanel.appendChild(sec);
 
@@ -59,10 +71,17 @@
       toast(v ? 'バックグラウンド再生を許可: ON' : 'バックグラウンド再生を許可: OFF', v ? 'ok' : 'warn');
       if (v) resumeSafely(0);
     });
+
+    if (isStandalone() && !manualEnabled) {
+      store.set(KEY, true);
+    }
   }
 
   window.addEventListener('load', () => {
     injectSettingsToggle();
-    applyPolicy(!!store.get(KEY, false));
+    if (isStandalone() && !store.get(KEY, false)) {
+      store.set(KEY, true);
+    }
+    applyPolicy(isEnabled());
   });
 })();

@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#0b0e12" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Omni Player" />
 <title>Omni Player — Anim+ DX</title>
+<link rel="manifest" href="./assets/pwa/alpha.webmanifest">
+<link rel="icon" href="./assets/pwa/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./assets/pwa/icon.svg">
 
 <!-- === コア再生ライブラリ（先頭・deferで非ブロッキング） === -->
 <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
@@ -140,9 +148,11 @@
     <label class="switch" title="ライト/ダーク/自動" style="margin-left:.35rem">
       <select id="themeSelect"><option value="auto">自動 (OS連動)</option><option value="dark">ダーク</option><option value="light">ライト</option></select>
     </label>
+    <button class="btn ghost icon-btn" id="btnInstallPwa" style="margin-left:.35rem;display:none" title="Omni Player をインストール" aria-label="Omni Player をインストール">↓</button>
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
-    <span class="badge" title="version">v1.9.0</span>
+    <span class="badge" id="pwaBadge" hidden>PWA</span>
+    <span class="badge" title="version">v2.2.0</span>
   </header>
 
   <aside>
