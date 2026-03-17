@@ -2,6 +2,8 @@
 // 依存: cast_sender.js / #v / toast() / state, $（既存）
 
 (() => {
+  const canUseCast = location.protocol === 'https:' || location.hostname === 'localhost';
+  if (!canUseCast) return;
   const runtime = window.OPRuntime;
   const pageState = runtime?.state || window.state;
   const v = runtime?.refs?.v || window.$?.v;

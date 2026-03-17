@@ -12,6 +12,7 @@
  * =======================================================================
  */
 (function () {
+  let gestureUnlocked = false;
   // 既存参照の有無チェック
   const has$ = typeof window.$ === "object" && window.$.v instanceof HTMLMediaElement;
   const $ = has$ ? window.$ : null;
@@ -59,6 +60,7 @@
 
   async function resumeAudioCtx() {
     try {
+      if (!gestureUnlocked) return;
       if (!state.audioCtx) state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (state.audioCtx.state !== "running") {
         try { await state.audioCtx.resume(); } catch (_) {}
@@ -125,6 +127,7 @@
   // === コア: グラフを健全化して再生できる状態にする ===
   async function hardResumeAudio() {
     try {
+      if (!gestureUnlocked) return;
       unlockAudioCtxOnce();
       await resumeAudioCtx();
 
@@ -250,13 +253,16 @@
 
   // 初回のユーザー操作でのアンロック
   const firstGesture = () => {
+    gestureUnlocked = true;
     unlockAudioCtxOnce();
     hardResumeAudio();
     document.removeEventListener("click", firstGesture, { once: true });
     document.removeEventListener("keydown", firstGesture, { once: true });
+    document.removeEventListener("touchstart", firstGesture, { once: true });
   };
   document.addEventListener("click", firstGesture, { once: true });
   document.addEventListener("keydown", firstGesture, { once: true });
+  document.addEventListener("touchstart", firstGesture, { once: true, passive: true });
 
   // 外部音声（extAudio）を使っているケースの同期（存在する実装を尊重）
   // → ここではミュート/音量だけを合わせる
@@ -273,5 +279,5 @@
   });
 
   // 仕上げ: 読み込み直後にも一度だけ実行（状態が落ちている時の保険）
-  hardResumeAudio();
+  // 初回ジェスチャ前に AudioContext を触ると警告が出るので待つ
 })();

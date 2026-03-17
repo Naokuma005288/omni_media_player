@@ -9,7 +9,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Omni Player" />
 <title>Omni Player — Anim+ DX</title>
-<link rel="manifest" href="./assets/pwa/alpha.webmanifest">
 <link rel="icon" href="./assets/pwa/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./assets/pwa/icon.svg">
 
@@ -83,9 +82,6 @@
 
 <!-- Omni Boost bootstrap -->
 <script defer src="./scripts/omni-boost.classic.js"></script>
-
-<!-- Google Cast Sender（https/localhostで有効） -->
-<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
 <!-- ColorThief（カバー画像→テーマ色） -->
 <script defer src="https://cdn.jsdelivr.net/npm/colorthief@2.3.2/dist/color-thief.umd.js"></script>
@@ -219,6 +215,8 @@
   </aside>
 
   <main>
+    <div class="player-shell" id="playerShell">
+    <canvas id="ambientLight" class="ambient-light" aria-hidden="true"></canvas>
     <div class="player-wrap" id="playerWrap">
       <div class="bg-art" id="bgArt" aria-hidden="true"></div>
 
@@ -264,24 +262,34 @@
       </div>
       <div class="toast" id="toasts"></div>
     </div>
+    </div>
     <div class="panel">
       <div class="control-dock">
-        <canvas id="statusCanvas" class="ui-canvas status-canvas" width="960" height="124" aria-hidden="true"></canvas>
+        <canvas id="statusCanvas" class="ui-canvas status-canvas" width="960" height="138" aria-hidden="true"></canvas>
         <div class="ctrl ctrl-dock">
           <section class="control-module transport-module" aria-label="再生コントロール">
-            <div class="module-kicker">PLAY</div>
+            <div class="module-head">
+              <div class="module-kicker">PLAY</div>
+              <span class="module-chip" aria-hidden="true">▶</span>
+            </div>
             <div class="transport-layout">
               <button class="btn playpulse icon-btn play-main" id="play" title="再生 / 一時停止">▶</button>
-              <div class="transport-cluster">
-                <button class="btn icon-btn" id="back10" title="10秒戻る">⟲</button>
-                <button class="btn icon-btn" id="fwd10" title="10秒進む">⟳</button>
-                <button class="btn icon-btn" id="pip" title="Picture in Picture">▣</button>
-                <button class="btn icon-btn" id="fullscreen" title="フルスクリーン">⛶</button>
+              <div class="transport-stack">
+                <div class="transport-cluster">
+                  <button class="btn icon-btn" id="back10" title="10秒戻る">⟲</button>
+                  <button class="btn icon-btn" id="fwd10" title="10秒進む">⟳</button>
+                  <button class="btn icon-btn" id="pip" title="Picture in Picture">▣</button>
+                  <button class="btn icon-btn" id="fullscreen" title="フルスクリーン">⛶</button>
+                </div>
+                <div class="module-line" aria-hidden="true"></div>
               </div>
             </div>
           </section>
           <section class="control-module mix-module" aria-label="音量と速度">
-            <div class="module-kicker">MIX</div>
+            <div class="module-head">
+              <div class="module-kicker">MIX</div>
+              <span class="module-chip" aria-hidden="true">≈</span>
+            </div>
             <div class="slider-stack">
               <label class="slider-cell">
                 <div class="slider-head">
@@ -307,7 +315,10 @@
             </div>
           </section>
           <section class="control-module loop-module" aria-label="A-Bループ">
-            <div class="module-kicker">A-B</div>
+            <div class="module-head">
+              <div class="module-kicker">A-B</div>
+              <span class="module-chip" aria-hidden="true">A↔B</span>
+            </div>
             <div class="loop-status">
               <span id="abDisp" class="badge loop-badge">A:- B:-</span>
               <span class="badge loop-badge" id="abLoopStat" title="A-Bリピート状態">AB Loop: OFF</span>
@@ -460,6 +471,7 @@
         <div class="row switch"><input id="animBokeh" type="checkbox"><label for="animBokeh">背景ボケ光（Bokeh）</label></div>
         <div class="row switch"><input id="animScanlines" type="checkbox"><label for="animScanlines">走査線（Scanlines）</label></div>
         <div class="row switch"><input id="animGradBorder" type="checkbox"><label for="animGradBorder">グラデ枠（流れるボーダー）</label></div>
+        <div class="row switch"><input id="animVideoEdge" type="checkbox"><label for="animVideoEdge">映像縁カラー追従</label></div>
         <div class="row switch"><input id="animCRT" type="checkbox"><label for="animCRT">CRTフリッカー</label></div>
         <div class="row switch"><input id="animVignette" type="checkbox"><label for="animVignette">Vignette呼吸</label></div>
         <div class="row switch"><input id="animGlitch" type="checkbox"><label for="animGlitch">グリッチ（停止時）</label></div>

@@ -1,7 +1,7 @@
 /* ========= util & refs ========= */
 const qs=(s,r=document)=>r.querySelector(s); const qsa=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const $={
-  v:qs('#v'),wrap:qs('#playerWrap'),bgArt:qs('#bgArt'),artWrap:qs('#artWrap'),
+  v:qs('#v'),wrap:qs('#playerWrap'),shell:qs('#playerShell'),ambientLight:qs('#ambientLight'),bgArt:qs('#bgArt'),artWrap:qs('#artWrap'),
   headerCanvas:qs('#headerCanvas'),statusCanvas:qs('#statusCanvas'),
   // ★ 追加: FX要素
   fxAurora:qs('#fxAurora'),fxStars:qs('#fxStars'),fxGrid:qs('#fxGrid'),fxBeams:qs('#fxBeams'),fxNebula:qs('#fxNebula'),
@@ -41,6 +41,7 @@ const $={
   animAbBlink:qs('#animAbBlink'),animHeaderShim:qs('#animHeaderShim'),animParticles:qs('#animParticles'),animCardParallax:qs('#animCardParallax'),
   // New basic
   animBokeh:qs('#animBokeh'),animScanlines:qs('#animScanlines'),animGradBorder:qs('#animGradBorder'),animCRT:qs('#animCRT'),
+  animVideoEdge:qs('#animVideoEdge'),
   animVignette:qs('#animVignette'),animGlitch:qs('#animGlitch'),animSpecBeat:qs('#animSpecBeat'),animCoverBob:qs('#animCoverBob'),
   // DX
   animFxAurora:qs('#animFxAurora'),animFxStars:qs('#animFxStars'),animFxGrid:qs('#animFxGrid'),animFxBeams:qs('#animFxBeams'),animFxNebula:qs('#animFxNebula'),
@@ -105,13 +106,10 @@ function clearEmbedErrorAction(){
   }
 }
 function setPortraitFrameMode(on){
-  $.wrap?.classList.toggle('portrait-frame', !!on);
+  $.wrap?.classList.remove('portrait-frame');
 }
 function updateVideoFrameMode(){
-  const vw = +($.v?.videoWidth || 0);
-  const vh = +($.v?.videoHeight || 0);
-  const isPortraitVideo = state.mediaKind==='html5' && vw > 0 && vh > vw;
-  setPortraitFrameMode(isPortraitVideo);
+  setPortraitFrameMode(false);
 }
 function canUsePiP(){
   const v = $.v;
@@ -123,7 +121,7 @@ function canUsePiP(){
   return false;
 }
 function canUseFullscreen(){
-  const v = $.v, wrap = $.wrap;
+  const v = $.v, wrap = $.shell || $.wrap;
   if(state.mediaKind !== 'html5' || !v || !wrap) return false;
   return !!(
     wrap.requestFullscreen ||
@@ -210,13 +208,13 @@ const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const defaultAnim = prefersReduced ? {
   bgKen:false,coverTilt:false,coverSpin:false,coverBob:false,btnHoverLift:false,specGlow:false,specTrails:false,
   thumbPulse:false,toastSlide:false,modalZoom:false,plSlide:false,abBlink:false,headerShim:false,particles:false,cardParallax:false,
-  bokeh:false,scanlines:false,gradBorder:false,crt:false,vignette:false,glitchPause:false,specBeat:false,
+  bokeh:false,scanlines:false,gradBorder:false,videoEdgeGlow:false,crt:false,vignette:false,glitchPause:false,specBeat:false,
   // DX
   fxAurora:false,fxStars:false,fxGrid:false,fxBeams:false,fxNebula:false
 } : {
   bgKen:true,coverTilt:true,coverSpin:true,coverBob:false,btnHoverLift:true,specGlow:true,specTrails:false,
   thumbPulse:true,toastSlide:true,modalZoom:true,plSlide:true,abBlink:true,headerShim:true,particles:false,cardParallax:true,
-  bokeh:false,scanlines:false,gradBorder:false,crt:false,vignette:false,glitchPause:false,specBeat:true,
+  bokeh:false,scanlines:false,gradBorder:false,videoEdgeGlow:false,crt:false,vignette:false,glitchPause:false,specBeat:true,
   // DX（既定オフ）
   fxAurora:false,fxStars:false,fxGrid:false,fxBeams:false,fxNebula:false
 };
@@ -247,7 +245,9 @@ const state={
     rainbowPhase: store.get('pc.spec.rainbowPhase',0)
   },
   lastCoverUrl:null, lastObjUrl:null,
-  thumbs:[], thumbAmbientBucket:-1, accentRestore:null,
+  thumbs:[], thumbAmbientBucket:-1, thumbAmbientKey:'', accentRestore:null,
+  thumbBuildToken:0, thumbBuildCleanup:null,
+  videoEdgeCanvas:null, videoEdgeCtx:null, videoEdgeKey:'',
   triedOnce:false, playToken:0, playDesired:false, playDebounce:null, lastUserGestureAt:0,
   extAudioUrl:null, _unmuteWdg:null,
   _logRanges:null, _logCenters:null, _startTime:performance.now(),
@@ -408,6 +408,21 @@ function initCanvasHud(){
   const installBtn = $.installPwa;
   const pwaBadge = $.pwaBadge;
   const canOfferInstall = () => location.protocol === 'https:' || location.hostname === 'localhost';
+  if(canOfferInstall()){
+    if(!document.querySelector('link[rel="manifest"]')){
+      const manifest = document.createElement('link');
+      manifest.rel = 'manifest';
+      manifest.href = './assets/pwa/alpha.webmanifest';
+      document.head.appendChild(manifest);
+    }
+    if(!document.querySelector('script[data-cast-sdk="1"]')){
+      const castSdk = document.createElement('script');
+      castSdk.src = 'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+      castSdk.async = true;
+      castSdk.dataset.castSdk = '1';
+      document.head.appendChild(castSdk);
+    }
+  }
   const showStandalone = () => {
     const on = isStandalonePwa();
     document.body.classList.toggle('app-standalone', on);
@@ -814,24 +829,49 @@ function sampleCanvasColor(ctx, w, h){
   try{
     const data = ctx.getImageData(0,0,w,h).data;
     const stride = Math.max(4, Math.floor(Math.max(w,h)/28));
-    let r=0,g=0,b=0,n=0;
+    let r=0,g=0,b=0,weightSum=0;
+    let totalLuma=0, totalSat=0, samples=0, brightHits=0;
     for(let y=0;y<h;y+=stride){
       for(let x=0;x<w;x+=stride){
         const i=((y*w)+x)*4;
         const a=data[i+3];
         if(a<32) continue;
-        r += data[i];
-        g += data[i+1];
-        b += data[i+2];
-        n++;
+        const pr=data[i], pg=data[i+1], pb=data[i+2];
+        const hi=Math.max(pr,pg,pb), lo=Math.min(pr,pg,pb);
+        const sat=hi-lo;
+        const luma=(pr*0.2126)+(pg*0.7152)+(pb*0.0722);
+        samples++;
+        totalLuma += luma;
+        totalSat += sat;
+        if(luma>96 || (luma>72 && sat>36)) brightHits++;
+        if(luma<18 && sat<10) continue;
+        const weight = 0.85 + Math.max(0, (luma-42)/180)*1.7 + Math.max(0, sat-18)/180;
+        r += pr*weight;
+        g += pg*weight;
+        b += pb*weight;
+        weightSum += weight;
       }
     }
-    if(!n) return null;
-    return {
-      r: Math.round(r/n),
-      g: Math.round(g/n),
-      b: Math.round(b/n)
+    if(!weightSum) return null;
+    const avgLuma = samples ? (totalLuma / samples) : 0;
+    const avgSat = samples ? (totalSat / samples) : 0;
+    if(avgLuma < 20 && avgSat < 16 && brightHits===0) return null;
+    let color = {
+      r: Math.round(r/weightSum),
+      g: Math.round(g/weightSum),
+      b: Math.round(b/weightSum)
     };
+    const peak=Math.max(color.r,color.g,color.b,1);
+    const mildTarget = avgLuma > 42 ? 170 : 146;
+    const lift=Math.min(1.12, Math.max(1, mildTarget/peak));
+    if(avgLuma > 24 || avgSat > 22){
+      color = {
+        r: Math.min(255, Math.round(color.r*lift)),
+        g: Math.min(255, Math.round(color.g*lift)),
+        b: Math.min(255, Math.round(color.b*lift))
+      };
+    }
+    return color;
   }catch(e){ return null }
 }
 function applyAmbientAccent(rgb){
@@ -852,19 +892,150 @@ function restoreAmbientAccent(){
   }
   state.accentRestore = null;
   state.thumbAmbientBucket = -1;
+  state.thumbAmbientKey = '';
 }
 function syncAmbientFromThumbTime(t){
   if(state.mediaKind!=='html5' || state.isAudioOnly || !state.thumbs?.length) return;
-  const bucket = Math.floor(Math.max(0,t)/5)*5;
-  if(bucket===state.thumbAmbientBucket) return;
-  state.thumbAmbientBucket = bucket;
-  const exact = state.thumbs.find(th=>th.bucket===bucket && th.color);
-  const fallback = exact || state.thumbs.reduce((best, cur)=>{
-    if(!cur.color) return best;
-    if(!best) return cur;
-    return Math.abs(cur.t-bucket) < Math.abs(best.t-bucket) ? cur : best;
-  }, null);
-  if(fallback?.color) applyAmbientAccent(fallback.color);
+  const source = state.thumbs;
+  const time = Math.max(0, +t || 0);
+  let nearest = source[0];
+  let prev = null;
+  let next = null;
+  for(let i=0;i<source.length;i++){
+    const item = source[i];
+    if(Math.abs(item.t-time) < Math.abs((nearest?.t ?? 0)-time)) nearest = item;
+    if(item.t <= time && item.color) prev = item;
+    if(item.t >= time && item.color){ next = item; break; }
+  }
+  if(!nearest?.color){
+    if(state.thumbAmbientKey!=='__none'){
+      state.thumbAmbientKey='__none';
+      restoreAmbientAccent();
+    }
+    return;
+  }
+  if(!prev) prev = next || nearest;
+  if(!next) next = prev || nearest;
+  let color = prev?.color || next?.color;
+  if(prev?.color && next?.color && next.t > prev.t){
+    const p = Math.max(0, Math.min(1, (time - prev.t) / (next.t - prev.t)));
+    color = {
+      r: Math.round(prev.color.r + (next.color.r - prev.color.r) * p),
+      g: Math.round(prev.color.g + (next.color.g - prev.color.g) * p),
+      b: Math.round(prev.color.b + (next.color.b - prev.color.b) * p)
+    };
+  }
+  if(!color) return;
+  const key = `${color.r}|${color.g}|${color.b}`;
+  if(key===state.thumbAmbientKey) return;
+  state.thumbAmbientKey = key;
+  applyAmbientAccent(color);
+}
+function clearVideoEdgeGlow(){
+  state.videoEdgeKey = '';
+  const cvs = $.ambientLight;
+  if(cvs){
+    const ctx = cvs.getContext('2d');
+    if(ctx) ctx.clearRect(0,0,cvs.width,cvs.height);
+  }
+}
+function ensureVideoEdgeSampler(){
+  if(state.videoEdgeCanvas && state.videoEdgeCtx) return { canvas:state.videoEdgeCanvas, ctx:state.videoEdgeCtx };
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently:true });
+  if(!ctx) return null;
+  state.videoEdgeCanvas = canvas;
+  state.videoEdgeCtx = ctx;
+  return { canvas, ctx };
+}
+function fitAmbientCanvas(){
+  const canvas = $.ambientLight;
+  const shell = $.shell;
+  if(!canvas || !shell) return null;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const pad = 18;
+  const rect = shell.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width + pad*2));
+  const h = Math.max(1, Math.round(rect.height + pad*2));
+  const pxW = Math.max(1, Math.round(w * dpr));
+  const pxH = Math.max(1, Math.round(h * dpr));
+  if(canvas.width !== pxW || canvas.height !== pxH){
+    canvas.width = pxW;
+    canvas.height = pxH;
+  }
+  const ctx = canvas.getContext('2d');
+  if(!ctx) return null;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return { canvas, ctx, width:w, height:h, pad };
+}
+function sampleVideoEdgeColor(){
+  if(state.mediaKind!=='html5' || currentHtml5IsAudio() || !state.anim.videoEdgeGlow) return null;
+  const v = $.v;
+  if(!v || v.readyState < 2 || !v.videoWidth || !v.videoHeight) return null;
+  const sampler = ensureVideoEdgeSampler();
+  if(!sampler) return null;
+  const { canvas, ctx } = sampler;
+  const targetW = 128;
+  const targetH = Math.max(72, Math.round(targetW * (v.videoHeight / v.videoWidth)));
+  if(canvas.width !== targetW || canvas.height !== targetH){
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
+  try{
+    ctx.drawImage(v, 0, 0, targetW, targetH);
+    const data = ctx.getImageData(0,0,targetW,targetH).data;
+    const margin = 0;
+    return {
+      canvas,
+      width: targetW,
+      height: targetH,
+      margin
+    };
+  }catch(e){
+    return null;
+  }
+}
+function syncVideoEdgeGlow(){
+  if(!state.anim.videoEdgeGlow || state.mediaKind!=='html5' || currentHtml5IsAudio()){
+    clearVideoEdgeGlow();
+    return;
+  }
+  const frame = sampleVideoEdgeColor();
+  const ambient = fitAmbientCanvas();
+  if(!frame || !ambient){
+    clearVideoEdgeGlow();
+    return;
+  }
+  const { ctx, width:aw, height:ah, pad } = ambient;
+  const band = Math.max(28, Math.round(Math.min(aw, ah) * 0.16));
+  const coreW = aw - pad*2;
+  const coreH = ah - pad*2;
+  const src = frame.canvas;
+  const sw = frame.width;
+  const sh = frame.height;
+  const m = frame.margin;
+  ctx.clearRect(0,0,aw,ah);
+  const drawBand = (sourceRect, drawRect, horizontal=true, invert=false)=>{
+    const steps = horizontal ? band : Math.round(band * 0.82);
+    for(let i=0;i<steps;i++){
+      const p = i / Math.max(1, steps-1);
+      const alpha = Math.pow(1-p, 1.28) * 0.82;
+      if(alpha <= 0.002) continue;
+      ctx.globalAlpha = alpha;
+      if(horizontal){
+        const y = invert ? (drawRect.y + drawRect.h - i - 1) : (drawRect.y + i);
+        ctx.drawImage(src, sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, drawRect.x, y, drawRect.w, 1);
+      }else{
+        const x = invert ? (drawRect.x + drawRect.w - i - 1) : (drawRect.x + i);
+        ctx.drawImage(src, sourceRect.x, sourceRect.y, sourceRect.w, sourceRect.h, x, drawRect.y, 1, drawRect.h);
+      }
+    }
+  };
+  drawBand({ x:m, y:m, w:Math.max(1, sw - m*2), h:1 }, { x:pad, y:pad, w:coreW, h:band }, true, false);
+  drawBand({ x:m, y:Math.max(0, sh-m-1), w:Math.max(1, sw - m*2), h:1 }, { x:pad, y:pad + coreH - band, w:coreW, h:band }, true, true);
+  drawBand({ x:m, y:m, w:1, h:Math.max(1, sh - m*2) }, { x:pad, y:pad, w:band, h:coreH }, false, false);
+  drawBand({ x:Math.max(0, sw-m-1), y:m, w:1, h:Math.max(1, sh - m*2) }, { x:pad + coreW - band, y:pad, w:band, h:coreH }, false, true);
+  ctx.globalAlpha = 1;
 }
 function setAudioMetaView(meta,fallback){
   const title=(meta&&meta.title)||fallback||''; const lines=[]; if(meta?.artist) lines.push(meta.artist); if(meta?.album) lines.push(meta.album);
@@ -1147,9 +1318,10 @@ function drawCircularSpectrum(c,W,H,rms){
       if(currentHtml5IsAudio()) toast('音声モード（カラー・スペクトラム）');
     }catch(e){ stopSpectrum() }
   }
-  function updateSpectrumVisibility(){
+function updateSpectrumVisibility(){
     const isAudio=currentHtml5IsAudio();
     state.isAudioOnly=isAudio; updateAudioMetaVisibility();
+    if(isAudio) clearVideoEdgeGlow();
     const shouldShow=(isAudio&&state.mediaKind==='html5')||(state.spec.overlayOnVideo&&state.mediaKind==='html5');
     if(shouldShow){ startSpectrum() } else { stopSpectrum() }
     enforceBackdropPolicy(); // ★ 背景ポリシー適用（重要）
@@ -1170,40 +1342,118 @@ function mediaPaused(){ return state.usingYouTube ? !(state.yt && state.yt.getPl
 /* ========= thumbs & seek ========= */
 let buildThumbsTimer=null;
 function buildThumbsDebounced(){ clearTimeout(buildThumbsTimer); buildThumbsTimer=setTimeout(buildThumbs,500) }
-async function buildThumbs(){ state.thumbs=[]; const v=$.v; if(state.usingYouTube||state.usingIframe) return; if(!v.videoWidth||!v.duration) return;
+function cancelThumbBuild(clearThumbs=false){
+  clearTimeout(buildThumbsTimer);
+  state.thumbBuildToken++;
+  if(state.thumbBuildCleanup){
+    try{ state.thumbBuildCleanup() }catch(e){}
+    state.thumbBuildCleanup = null;
+  }
+  if(clearThumbs){
+    state.thumbs = [];
+    state.thumbAmbientBucket = -1;
+    state.thumbAmbientKey = '';
+  }
+}
+async function createThumbSampler(){
+  const currentItem = state.list[state.cur];
+  const video = document.createElement('video');
+  let tempUrl = '';
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.crossOrigin = 'anonymous';
+  const src = currentItem?.file ? (tempUrl = URL.createObjectURL(currentItem.file)) : ($.v.currentSrc || $.v.src || state.activeUrl || '');
+  if(!src) return null;
+  const cleanup = ()=>{
+    video.pause?.();
+    video.removeAttribute('src');
+    video.load?.();
+    if(tempUrl){ try{ URL.revokeObjectURL(tempUrl) }catch(e){} }
+  };
   try{
-    const wasPaused=v.paused, prevTime=v.currentTime, prevRate=v.playbackRate, prevMuted=v.muted;
-    v.pause();
-    const cvs=document.createElement('canvas'), ctx=cvs.getContext('2d');
+    await new Promise((resolve,reject)=>{
+      let done = false;
+      const finish = (fn,arg)=>{ if(done) return; done = true; video.removeEventListener('loadedmetadata', onMeta); video.removeEventListener('error', onErr); fn(arg); };
+      const onMeta = ()=>finish(resolve);
+      const onErr = ()=>finish(reject, new Error('thumb sampler error'));
+      video.addEventListener('loadedmetadata', onMeta, { once:true });
+      video.addEventListener('error', onErr, { once:true });
+      video.src = src;
+      video.load?.();
+    });
+    if(!video.videoWidth || !video.duration){ cleanup(); return null; }
+    return { video, cleanup };
+  }catch(e){
+    cleanup();
+    return null;
+  }
+}
+async function seekThumbSampler(video, t){
+  return new Promise((resolve,reject)=>{
+    let done = false;
+    const timer = setTimeout(()=>finish(reject, new Error('thumb seek timeout')), 8000);
+    const finish = (fn,arg)=>{
+      if(done) return;
+      done = true;
+      clearTimeout(timer);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('error', onError);
+      fn(arg);
+    };
+    const onSeeked = ()=>finish(resolve);
+    const onError = ()=>finish(reject, new Error('thumb seek error'));
+    video.addEventListener('seeked', onSeeked, { once:true });
+    video.addEventListener('error', onError, { once:true });
+    try{ video.currentTime = t; }catch(e){ finish(reject, e); }
+  });
+}
+async function buildThumbs(){
+  cancelThumbBuild(true);
+  const v=$.v;
+  if(state.usingYouTube||state.usingIframe) return;
+  if(!v.videoWidth||!v.duration) return;
+  const token = state.thumbBuildToken;
+  const sampler = await createThumbSampler();
+  if(token!==state.thumbBuildToken || !sampler) return;
+  const { video, cleanup } = sampler;
+  state.thumbBuildCleanup = cleanup;
+  try{
+    const cvs=document.createElement('canvas'), ctx=cvs.getContext('2d', { willReadFrequently:true });
     const stepSec=1;
-    const w=224; const h=Math.round(w*v.videoHeight/v.videoWidth);
-    const totalSec=Math.max(0, Math.floor(v.duration));
+    const w=144; const h=Math.max(1, Math.round(w*video.videoHeight/video.videoWidth));
+    const totalSec=Math.max(0, Math.floor(video.duration));
     cvs.width=w; cvs.height=h;
-    for(let sec=0;sec<=totalSec;sec+=stepSec){
-      const t=Math.min(v.duration-0.05,Math.max(0,sec));
-      const bucket=(Math.floor(sec/5)*5);
-      v.currentTime=t;
-      await new Promise(r=>{ v.onseeked=r });
-      ctx.drawImage(v,0,0,w,h);
-      let url=''; try{ url=cvs.toDataURL('image/jpeg',0.56) }catch(e){ url='' }
-      const color = (sec % 5 === 0) ? sampleCanvasColor(ctx, w, h) : null;
-      state.thumbs.push({t,url,color,bucket})
-    }
     const currentItem = state.list[state.cur];
-    if(currentItem?.file && fileLooksLikeVideo(currentItem.file) && state.thumbs[0]?.url){
-      if(!getItemThumb(currentItem)) setItemThumb(currentItem, state.thumbs[0].url);
-      if(!state.lastCoverUrl || state.lastCoverUrl===makeIconDataURL('video')){
-        applyThumbAsCurrentCover(getItemThumb(currentItem) || state.thumbs[0].url, 'video');
+    for(let sec=0;sec<=totalSec;sec+=stepSec){
+      if(token!==state.thumbBuildToken) break;
+      const t=Math.min(video.duration-0.05,Math.max(0,sec));
+      await seekThumbSampler(video, t);
+      ctx.drawImage(video,0,0,w,h);
+      let url=''; try{ url=cvs.toDataURL('image/jpeg',0.34) }catch(e){ url='' }
+      const color = sampleCanvasColor(ctx, w, h);
+      state.thumbs.push({t,url,color});
+      if(sec===0 && currentItem?.file && fileLooksLikeVideo(currentItem.file) && url){
+        if(!getItemThumb(currentItem)) setItemThumb(currentItem, url);
+        if(!state.lastCoverUrl || state.lastCoverUrl===makeIconDataURL('video')){
+          applyThumbAsCurrentCover(getItemThumb(currentItem) || url, 'video');
+        }
+        if(color) applyAmbientAccent(color);
+        renderPlaylist();
       }
-      if(state.thumbs[0]?.color) applyAmbientAccent(state.thumbs[0].color);
-      renderPlaylist();
+      await new Promise(r=>setTimeout(r, 16));
     }
-    v.currentTime=prevTime; await new Promise(r=>{ v.onseeked=r }); v.muted=prevMuted; v.playbackRate=prevRate; if(!wasPaused){ requestPlay('thumbs-restore') }
-    toast('プレビュー生成完了')
+    if(token===state.thumbBuildToken) toast('プレビュー生成完了');
   }catch(e){ toast('プレビュー失敗（CORS？）','warn',6000) }
+  finally{
+    if(token===state.thumbBuildToken){
+      cleanup();
+      state.thumbBuildCleanup = null;
+    }
+  }
 }
 function updateSeekUI(){ const dur=mediaDuration(), cur=mediaCurrent(); if(dur<=0) return; const p=100*(cur/dur); $.seekProg.style.width=p+'%'; $.seekThumb.style.left=p+'%'; $.seek.setAttribute('aria-valuenow',String(Math.round(p))) }
-function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); const cur=mediaCurrent(); syncAmbientFromThumbTime(cur); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
+function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); const cur=mediaCurrent(); syncAmbientFromThumbTime(cur); syncVideoEdgeGlow(); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
 startSeekRAF();
 function seekFromClientX(x){ const rect=$.seek.getBoundingClientRect(); const ratio=Math.min(1,Math.max(0,(x-rect.left)/rect.width)); mediaSeekTo((mediaDuration()||0)*ratio); rampTo(+($.master?.value||1),0.06) }
 function showPreview(clientX){
@@ -1259,7 +1509,7 @@ $.rate.oninput=()=>{
 $.master.oninput=()=>{ updateSliderReadouts(); ensureAudioGraph(); const v=+$.master.value; try{ state.outGain.gain.setTargetAtTime(v, state.audioCtx.currentTime, 0.05) }catch(e){ state.outGain.gain.value=v } };
 $.fullscreen.onclick=()=>{
   try{
-    const wrap = $.wrap;
+    const wrap = $.shell || $.wrap;
     const v = $.v;
     const doc = document;
     if(doc.fullscreenElement || doc.webkitFullscreenElement){
@@ -1638,6 +1888,8 @@ async function switchToYouTube(url){
   });
 }
 function resetUiForHTML5(){
+  cancelThumbBuild(true);
+  clearVideoEdgeGlow();
   hideEmbedError();
   setPortraitFrameMode(false);
   setMediaMode('html5');
@@ -1649,7 +1901,7 @@ function resetUiForHTML5(){
   window.OPAnim?.setEmbedPlaying?.(false);
   syncMediaPresentation();
 }
-function resetHtml5Video(){ if($.v._hls){ try{$.v._hls.destroy()}catch(e){} $.v._hls=null } stopSpectrum(); safePause(); setPortraitFrameMode(false); $.v.srcObject=null; $.v.removeAttribute('src'); $.v.load() }
+function resetHtml5Video(){ cancelThumbBuild(true); clearVideoEdgeGlow(); if($.v._hls){ try{$.v._hls.destroy()}catch(e){} $.v._hls=null } stopSpectrum(); safePause(); setPortraitFrameMode(false); $.v.srcObject=null; $.v.removeAttribute('src'); $.v.load() }
 
 /* ========= URL読み込み ========= */
 async function loadUrl(url){
@@ -1807,6 +2059,7 @@ function applyAnimClasses(){
   root.toggle('anim-card-parallax',!!m.cardParallax);
   root.toggle('anim-spec-beat',!!m.specBeat);
 
+  if(!m.videoEdgeGlow) clearVideoEdgeGlow();
   enforceBackdropPolicy();
 }
 function applyAnimClassesToModal(){ document.body.classList.toggle('anim-modal-zoom', !!state.anim.modalZoom) }
@@ -1863,7 +2116,7 @@ function disableCoverTilt(){
 function enableCardParallax(){
   if(state._cardParallaxOn) return;
   state._cardParallaxOn=true;
-  const el=$.wrap;
+  const el=$.shell || $.wrap;
   let raf=0, rect=null, px=0, py=0;
   const measure=()=>{ rect=el.getBoundingClientRect() };
   const flush=()=>{
@@ -1893,7 +2146,7 @@ function enableCardParallax(){
 function disableCardParallax(){
   if(!state._cardParallaxOn) return;
   state._cardParallaxOn=false;
-  const el=$.wrap, h=el.__parallaxHandlers||{};
+  const el=$.shell || $.wrap, h=el.__parallaxHandlers||{};
   el.removeEventListener('mouseenter',h.onEnter);
   el.removeEventListener('mousemove',h.onMove);
   el.removeEventListener('mouseleave',h.onLeave);
@@ -1917,7 +2170,7 @@ function loadAnimTogglesToUI(){
   safe($.animAbBlink, a.abBlink); safe($.animHeaderShim, a.headerShim);
   safe($.animParticles, a.particles); safe($.animCardParallax, a.cardParallax);
   safe($.animBokeh, a.bokeh); safe($.animScanlines, a.scanlines);
-  safe($.animGradBorder, a.gradBorder); safe($.animCRT, a.crt);
+  safe($.animGradBorder, a.gradBorder); safe($.animVideoEdge, a.videoEdgeGlow); safe($.animCRT, a.crt);
   safe($.animVignette, a.vignette); safe($.animGlitch, a.glitchPause);
   safe($.animSpecBeat, a.specBeat);
   safe($.animFxAurora, a.fxAurora); safe($.animFxStars, a.fxStars);
@@ -1929,7 +2182,7 @@ function gatherAnimFromUI(){
     btnHoverLift:$.animBtnLift?.checked, specGlow:$.animSpecGlow?.checked, specTrails:$.animSpecTrails?.checked,
     thumbPulse:$.animThumbPulse?.checked, toastSlide:$.animToastSlide?.checked, modalZoom:$.animModalZoom?.checked, plSlide:$.animPlSlide?.checked,
     abBlink:$.animAbBlink?.checked, headerShim:$.animHeaderShim?.checked, particles:$.animParticles?.checked, cardParallax:$.animCardParallax?.checked,
-    bokeh:$.animBokeh?.checked, scanlines:$.animScanlines?.checked, gradBorder:$.animGradBorder?.checked, crt:$.animCRT?.checked,
+    bokeh:$.animBokeh?.checked, scanlines:$.animScanlines?.checked, gradBorder:$.animGradBorder?.checked, videoEdgeGlow:$.animVideoEdge?.checked, crt:$.animCRT?.checked,
     vignette:$.animVignette?.checked, glitchPause:$.animGlitch?.checked, specBeat:$.animSpecBeat?.checked,
     fxAurora:$.animFxAurora?.checked, fxStars:$.animFxStars?.checked, fxGrid:$.animFxGrid?.checked, fxBeams:$.animFxBeams?.checked, fxNebula:$.animFxNebula?.checked
   };
@@ -1947,7 +2200,7 @@ function updateAnimDirtyBadge(){
 function bindAnimUI(){
   const list=[
     $.animBgKen,$.animCoverTilt,$.animCoverSpin,$.animCoverBob,$.animBtnLift,$.animSpecGlow,$.animSpecTrails,$.animThumbPulse,$.animToastSlide,$.animModalZoom,$.animPlSlide,$.animAbBlink,$.animHeaderShim,$.animParticles,$.animCardParallax,
-    $.animBokeh,$.animScanlines,$.animGradBorder,$.animCRT,$.animVignette,$.animGlitch,$.animSpecBeat,
+    $.animBokeh,$.animScanlines,$.animGradBorder,$.animVideoEdge,$.animCRT,$.animVignette,$.animGlitch,$.animSpecBeat,
     $.animFxAurora,$.animFxStars,$.animFxGrid,$.animFxBeams,$.animFxNebula
   ].filter(Boolean);
   list.forEach(el=> el.addEventListener('change', updateAnimDirtyBadge));
