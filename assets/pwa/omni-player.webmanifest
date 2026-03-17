@@ -1,0 +1,36 @@
+{
+  "id": "../../omni-player.html",
+  "name": "Omni Player",
+  "short_name": "Omni Player",
+  "description": "Omni Player v2.7.0 - installable media player with playlist, subtitles, embeds, and background playback support.",
+  "start_url": "../../omni-player.html?source=pwa",
+  "scope": "../../",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#0b0e12",
+  "theme_color": "#0b0e12",
+  "orientation": "any",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Omni Player",
+      "short_name": "Player",
+      "url": "../../omni-player.html",
+      "icons": [{ "src": "./thumb-pc.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Omni Player mini",
+      "short_name": "mini",
+      "url": "../../omni-player-mini.html",
+      "icons": [{ "src": "./thumb-touch.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "OmniMedia Home",
+      "short_name": "Home",
+      "url": "../../index.html",
+      "icons": [{ "src": "./icon.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    }
+  ]
+}

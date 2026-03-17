@@ -1,18 +1,18 @@
-/* OmniMedia SW v2.2 */
+/* OmniMedia SW v2.7 */
 const VERSION = 'v2.7.0';
 const CORE = [
   './',
   './index.html',
-  './omni_pc_α.html',
-  './omni_pc_β.html',
+  './omni-player.html',
+  './omni-player-mini.html',
   './assets/pwa/manifest.webmanifest',
-  './assets/pwa/alpha.webmanifest',
+  './assets/pwa/omni-player.webmanifest',
   './version.json',
   './assets/pwa/icon.svg',
   './assets/pwa/thumb-pc.svg',
   './assets/pwa/thumb-touch.svg',
-  './styles/pages/omni_pc_alpha.inline-1.css',
-  './scripts/pages/omni_pc_alpha.inline-1.js',
+  './styles/pages/omni-player.inline-1.css',
+  './scripts/pages/omni-player.inline-1.js',
   './styles/plugins/op-anim-pack.css',
   './scripts/plugins/op-anim-pack.js',
   './styles/plugins/op-fun-pack.css',
