@@ -1194,8 +1194,8 @@
       S._hls.on(Hls.Events.MANIFEST_PARSED, async ()=>{ debugLog('hls', 'manifest-parsed'); await ensureAudioOn(); requestPlayImmediate('hls:manifest'); tap.classList.add('hide'); trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u, artworkToken).catch(()=>{}); });
     }else{
       v.src=u;
-      setAudioMasterMode(IOS_WEBKIT && /\.(mp4|webm|mov|mkv|avi|m4v|mpg|mpeg)(\?|$)/i.test(String(u||'')));
-      if(S.audioMaster) prepareBgAudioSource(currentBackgroundMirrorSrc());
+      setAudioMasterMode(false);
+      if(IOS_WEBKIT && /\.(mp4|webm|mov|mkv|avi|m4v|mpg|mpeg)(\?|$)/i.test(String(u||''))) prepareBgAudioSource(currentBackgroundMirrorSrc());
       v.onloadedmetadata=async ()=>{ debugLog('url', 'loadedmetadata-hook'); await ensureAudioOn(); requestPlayImmediate('url:loadedmetadata'); tap.classList.add('hide'); v.onloadedmetadata=null; trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u, artworkToken).catch(()=>{}); };
     }
   }
@@ -1219,9 +1219,9 @@
     updateMiniMeta();
     try{ hidePanel($('#settingsScrim')); hidePanel($('#tipsScrim')); }catch{}
     const fileLabel = `${file.type||''} ${file.name||''}`.toLowerCase();
-    setAudioMasterMode(IOS_WEBKIT && /video\/|\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v|\.mpg|\.mpeg/.test(fileLabel));
+    setAudioMasterMode(false);
     v.src=url;
-    if(S.audioMaster) prepareBgAudioSource(url);
+    if(IOS_WEBKIT && /video\/|\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v|\.mpg|\.mpeg/.test(fileLabel)) prepareBgAudioSource(url);
     v.load(); requestPlayImmediate('localFile').catch(()=>{}); tap.classList.add('hide');
     updatePrevNextUI(); trySetupMediaSession(file);
     learnFrom(currentTitleForLearn());
