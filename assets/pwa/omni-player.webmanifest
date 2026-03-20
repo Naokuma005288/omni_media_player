@@ -2,7 +2,7 @@
   "id": "../../omni-player.html",
   "name": "Omni Player",
   "short_name": "Omni Player",
-  "description": "Omni Player v3.4.1 - installable media player with playlist, subtitles, embeds, background playback, and aspect-aware layouts.",
+  "description": "Omni Player v3.4.2 - installable media player with playlist, subtitles, embeds, background playback, and aspect-aware layouts.",
   "start_url": "../../omni-player.html?source=pwa",
   "scope": "../../",
   "display": "standalone",
