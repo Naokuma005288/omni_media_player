@@ -115,7 +115,7 @@
     fileList:[], fileIndex:0, wakeLock:null, loopA:null, loopB:null, loopOn:false, loopWholePending:false,
     lastTap:0, lastTapX:0, sleepLeft:0, sleepTimer:null, watchTimers:[], ignorePauseUntil:0,
     triedOnce:false, lastUserGestureAt:0, playDesired:false, playToken:0, playDebounce:null,
-    mediaMeta:null, mediaArtwork:[], artworkObjectUrls:[], artworkMimeMap:{}, artworkToken:0, bgAudio:null, bgMirror:false, bgSwitching:false,
+    mediaMeta:null, mediaArtwork:[], artworkObjectUrls:[], artworkMimeMap:{}, artworkToken:0, bgAudio:null, bgMirror:false, bgSwitching:false, bgPrimedSrc:'',
     // 追加: 設定の永続化領域
     sub:{ enable: loadBool('pc.sub.enable', true), plate: loadBool('pc.sub.plate', false), color: loadStr('pc.sub.color','#FFFFFF'), size: loadNum('pc.sub.size',28), outline: loadNum('pc.sub.outline',3), margin: loadNum('pc.sub.margin',30) },
     anim:{ micro: loadBool('pc.anim.micro', true), seek: loadBool('pc.anim.seek', true), play: loadBool('pc.anim.play', true), pip: loadBool('pc.anim.pip', true) },
@@ -206,13 +206,24 @@
       return trackArtworkUrl(URL.createObjectURL(new Blob([u8], { type:mime })), mime);
     }catch{ return null; }
   }
+  function bytesToDataUrl(bytes, mime='image/jpeg'){
+    try{
+      const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      let binary = '';
+      const chunk = 0x8000;
+      for(let i=0;i<u8.length;i+=chunk) binary += String.fromCharCode(...u8.subarray(i, i+chunk));
+      return `data:${mime};base64,${btoa(binary)}`;
+    }catch{ return null; }
+  }
   async function parseBlobArtwork(blob, name){
     try{
       const lib = getMetadataLib();
       if(!lib) return null;
       let mm = null;
-      if(typeof lib.parseBlob === 'function') mm = await lib.parseBlob(blob);
-      else if(typeof lib.parseBuffer === 'function'){
+      if(typeof lib.parseBlob === 'function'){
+        try{ mm = await lib.parseBlob(blob); }catch{}
+      }
+      if(!mm && typeof lib.parseBuffer === 'function'){
         const buf = await blob.arrayBuffer();
         mm = await lib.parseBuffer(new Uint8Array(buf), { mimeType: blob.type || undefined, size: blob.size || undefined });
       }
@@ -220,7 +231,7 @@
       const pic = mm.common?.picture?.[0];
       let coverUrl = null;
       if(pic?.data){
-        coverUrl = bytesToObjectUrl(pic.data, pic.format || sniffImageMime(pic.data));
+        coverUrl = bytesToDataUrl(pic.data, pic.format || sniffImageMime(pic.data));
       }
       return {
         title: mm.common?.title || name || '',
@@ -261,10 +272,7 @@
           canvas.width=w; canvas.height=h;
           const ctx=canvas.getContext('2d', { alpha:false });
           ctx.drawImage(video,0,0,w,h);
-          canvas.toBlob((blob)=>{
-            if(!blob) return fail();
-            clean(trackArtworkUrl(URL.createObjectURL(blob), 'image/jpeg'));
-          }, 'image/jpeg', 0.72);
+          clean(canvas.toDataURL('image/jpeg', 0.72));
         }catch{ fail(); }
       };
       video.addEventListener('error', fail, { once:true });
@@ -444,14 +452,52 @@
     S.bgAudio = audio;
     return audio;
   }
+  function prepareBgAudioSource(src){
+    if(!src) return null;
+    const audio = ensureBgAudio();
+    if(audio.src !== src){
+      try{
+        audio.src = src;
+        audio.load?.();
+      }catch{}
+    }
+    syncBgAudioFromVideo();
+    return audio;
+  }
+  async function primeBgAudioForCurrent(){
+    const src = currentBackgroundMirrorSrc();
+    if(!src || S.bgPrimedSrc === src) return false;
+    const audio = prepareBgAudioSource(src);
+    if(!audio) return false;
+    try{
+      const prevMuted = audio.muted;
+      const prevVol = audio.volume;
+      audio.muted = true;
+      audio.volume = 0;
+      if(Number.isFinite(v.currentTime) && v.currentTime > 0.01){
+        try{ audio.currentTime = v.currentTime; }catch{}
+      }
+      const playPromise = audio.play();
+      if(playPromise && typeof playPromise.then === 'function') await playPromise;
+      audio.pause();
+      S.bgPrimedSrc = src;
+      debugLog('bg-mirror', 'primed');
+      audio.muted = prevMuted;
+      audio.volume = prevVol;
+      syncBgAudioFromVideo();
+      return true;
+    }catch(err){
+      debugLog('bg-mirror', `prime-fail ${err?.name||'Error'}`);
+      return false;
+    }
+  }
   async function activateBackgroundAudioMirror(reason='hidden'){
     if(S.bgSwitching || S.bgMirror || v.paused) return false;
     const src = currentBackgroundMirrorSrc();
     if(!src) return false;
-    const audio = ensureBgAudio();
+    const audio = prepareBgAudioSource(src);
     S.bgSwitching = true;
     try{
-      if(audio.src !== src) audio.src = src;
       syncBgAudioFromVideo();
       if(Number.isFinite(v.currentTime) && v.currentTime > 0.01){
         try{ audio.currentTime = v.currentTime; }catch{}
@@ -589,6 +635,9 @@
     debugLog('requestPlayImmediate', `${reason||'-'} ready=${v.readyState}`);
     await ensureAudioOn();
     await playElementWithFallback();
+    if(activeMedia() === v && currentBackgroundMirrorSrc() && hasFreshGesture()){
+      primeBgAudioForCurrent().catch(()=>{});
+    }
     S.ignorePauseUntil = Date.now() + 900;
   }
   function requestPlay(reason){
@@ -651,6 +700,9 @@
       return;
     }
     if(document.hidden && (S.playDesired || !v.paused)) activateBackgroundAudioMirror('hidden').catch(()=>{});
+  });
+  window.addEventListener('pagehide', ()=>{
+    if(S.playDesired || !v.paused) activateBackgroundAudioMirror('pagehide').catch(()=>{});
   });
 
   // ===== Watchdogs =====
@@ -907,6 +959,7 @@
     }
     S.bgMirror = false;
     S.bgSwitching = false;
+    S.bgPrimedSrc = '';
   }
   function revokeBlob(){ if(S.lastBlobUrl){ try{ URL.revokeObjectURL(S.lastBlobUrl) }catch{} S.lastBlobUrl=null; } }
   async function openUrl(u){
@@ -925,6 +978,7 @@
       S._hls.on(Hls.Events.MANIFEST_PARSED, async ()=>{ debugLog('hls', 'manifest-parsed'); await ensureAudioOn(); requestPlayImmediate('hls:manifest'); tap.classList.add('hide'); trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u, artworkToken).catch(()=>{}); });
     }else{
       v.src=u;
+      prepareBgAudioSource(currentBackgroundMirrorSrc());
       v.onloadedmetadata=async ()=>{ debugLog('url', 'loadedmetadata-hook'); await ensureAudioOn(); requestPlayImmediate('url:loadedmetadata'); tap.classList.add('hide'); v.onloadedmetadata=null; trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u, artworkToken).catch(()=>{}); };
     }
   }
@@ -947,7 +1001,7 @@
     v.volume = +($('#vol').value || 0.9) || 0.9;
     updateMiniMeta();
     try{ hidePanel($('#settingsScrim')); hidePanel($('#tipsScrim')); }catch{}
-    v.src=url; v.load(); requestPlayImmediate('localFile').catch(()=>{}); tap.classList.add('hide');
+    v.src=url; prepareBgAudioSource(url); v.load(); requestPlayImmediate('localFile').catch(()=>{}); tap.classList.add('hide');
     updatePrevNextUI(); trySetupMediaSession(file);
     learnFrom(currentTitleForLearn());
     prepareArtworkForFile(file, artworkToken).catch(()=>{});
