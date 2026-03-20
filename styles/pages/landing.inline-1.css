@@ -227,6 +227,60 @@ body.idle .cursor{opacity:.18}
 body.idle .stars2.show{opacity:.4}
 
 /* Orientation-adaptive landing */
+body.landing-bp-wide .toolbar,
+body.landing-bp-wide .sec-title,
+body.landing-bp-wide .grid{width:min(1140px,94vw)}
+body.landing-bp-wide #filter{width:380px;max-width:32vw}
+body.landing-bp-wide .card-modal{width:min(900px,92vw)}
+body.landing-bp-wide #settingsModal .sgrid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+
+body.landing-bp-tablet:not(.landing-portrait) .toolbar,
+body.landing-bp-tablet:not(.landing-portrait) .sec-title,
+body.landing-bp-tablet:not(.landing-portrait) .grid{width:min(920px,94vw)}
+body.landing-bp-tablet:not(.landing-portrait) .grid{gap:16px}
+body.landing-bp-tablet:not(.landing-portrait) .card{padding:16px}
+
+body.landing-bp-compact:not(.landing-portrait) header,
+body.landing-bp-compact:not(.landing-portrait) footer{padding-inline:12px}
+body.landing-bp-compact:not(.landing-portrait) header{flex-wrap:wrap;align-items:flex-start;gap:.55rem}
+body.landing-bp-compact:not(.landing-portrait) header > div:last-child{width:100%;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.45rem}
+body.landing-bp-compact:not(.landing-portrait) .brand{width:100%;flex-wrap:wrap}
+body.landing-bp-compact:not(.landing-portrait) .version{margin-left:0}
+body.landing-bp-compact:not(.landing-portrait) .toolbar{padding:0 12px 10px;flex-wrap:wrap}
+body.landing-bp-compact:not(.landing-portrait) #filter{width:100%;max-width:none}
+body.landing-bp-compact:not(.landing-portrait) .section{padding:10px 12px 22px}
+body.landing-bp-compact:not(.landing-portrait) .sec-title,
+body.landing-bp-compact:not(.landing-portrait) .grid{width:min(760px,92vw)}
+body.landing-bp-compact:not(.landing-portrait) .grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+body.landing-bp-compact:not(.landing-portrait) .card{padding:15px;border-radius:14px}
+body.landing-bp-compact:not(.landing-portrait) .card-modal{width:min(94vw,700px)}
+body.landing-bp-compact:not(.landing-portrait) #settingsModal .sbar{flex-direction:column;align-items:stretch}
+body.landing-bp-compact:not(.landing-portrait) #settingsSearch{width:100%;max-width:none}
+body.landing-bp-compact:not(.landing-portrait) #settingsModal .sgrid{grid-template-columns:1fr}
+
+body.landing-bp-phone:not(.landing-portrait) header,
+body.landing-bp-phone:not(.landing-portrait) footer{padding-inline:12px}
+body.landing-bp-phone:not(.landing-portrait) header{flex-wrap:wrap;align-items:flex-start;gap:.5rem}
+body.landing-bp-phone:not(.landing-portrait) header > div:last-child{width:100%;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.4rem}
+body.landing-bp-phone:not(.landing-portrait) .brand{width:100%}
+body.landing-bp-phone:not(.landing-portrait) .toolbar{padding:0 12px 10px;flex-wrap:wrap}
+body.landing-bp-phone:not(.landing-portrait) #filter{width:100%;max-width:none}
+body.landing-bp-phone:not(.landing-portrait) .section{padding:10px 12px 20px}
+body.landing-bp-phone:not(.landing-portrait) .sec-title,
+body.landing-bp-phone:not(.landing-portrait) .grid{width:min(560px,92vw)}
+body.landing-bp-phone:not(.landing-portrait) .grid{grid-template-columns:1fr;gap:14px}
+body.landing-bp-phone:not(.landing-portrait) .card{padding:14px;border-radius:14px}
+body.landing-bp-phone:not(.landing-portrait) .compare{gap:6px}
+body.landing-bp-phone:not(.landing-portrait) .compare .pill{min-height:32px;font-size:11px;padding:0 10px}
+body.landing-bp-phone:not(.landing-portrait) .card-modal{width:min(94vw,560px);padding:12px}
+body.landing-bp-phone:not(.landing-portrait) #settingsModal .tabs{margin:-12px -12px 10px;padding:10px 12px}
+body.landing-bp-phone:not(.landing-portrait) #settingsModal .sbar{flex-direction:column;align-items:stretch}
+body.landing-bp-phone:not(.landing-portrait) #settingsSearch{width:100%;max-width:none}
+body.landing-bp-phone:not(.landing-portrait) #settingsModal .sgrid{grid-template-columns:1fr}
+body.landing-bp-phone:not(.landing-portrait) #clockHud{top:8px;padding:7px 10px}
+body.landing-bp-phone:not(.landing-portrait) #clockHud .t{font-size:15px}
+body.landing-bp-phone:not(.landing-portrait) #clockHud .d{font-size:11px}
+
 body.landing-landscape .toolbar,
 body.landing-landscape .sec-title,
 body.landing-landscape .grid{width:min(1080px,94vw)}

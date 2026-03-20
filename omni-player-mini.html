@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Omni Player mini v3.1.0 – Stable Audio + Minimal FS</title>
+<title>Omni Player mini v3.4.0 – Stable Audio + Minimal FS</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script src="https://cdn.jsdelivr.net/npm/music-metadata-browser/dist/music-metadata-browser.min.js"></script>
 
 <!-- 既存の大きい script 群の一番最後に追加 -->
 <script defer src="./scripts/plugins/microfade-anim-tweaks.plugin.js"></script>
@@ -18,7 +19,7 @@
 
       <div class="tap-overlay" id="tap">
         <div class="tap-card">
-          <div class="badge" style="margin-bottom:.6rem">Omni Player mini v3.1.0</div>
+          <div class="badge" style="margin-bottom:.6rem">Omni Player mini v3.4.0</div>
           <button class="tap-btn" id="tapBtn" type="button">▶︎ Omni Player mini を開始 / Start mini</button>
           <div class="tap-note">（モバイルのオーディオ制限を解除します）</div>
         </div>
@@ -36,7 +37,7 @@
             <button class="btn ghost" id="btnMute" type="button" data-i18n="btn_mute">ミュート</button>
             <button class="btn ghost" id="btnResume" type="button" style="display:none" title="Resume">⏱ RESUME</button>
             <span class="badge" id="badgeState">IDLE</span>
-            <span class="badge" title="version">v3.1.0</span>
+            <span class="badge" title="version">v3.4.0</span>
           </div>
           <div class="right-group">
             <button class="btn ghost" id="btnTips" type="button" data-i18n="btn_tips">Tips</button>
@@ -45,6 +46,17 @@
             <button class="btn ghost" id="btnPip" type="button" data-i18n="btn_pip">PiP</button>
             <button class="btn ghost" id="btnFs" type="button" data-i18n="btn_fs">FS</button>
             <button class="btn ghost" id="btnLang" type="button" title="Lang">🌐</button>
+          </div>
+        </div>
+        <div class="mini-meta" id="miniMeta" hidden>
+          <div class="mini-artwrap" id="miniArtWrap"><img id="miniArt" alt=""></div>
+          <div class="mini-meta-text">
+            <div class="mini-title" id="nowTitle">No media loaded</div>
+            <div class="mini-subline">
+              <span id="sourceKind">IDLE</span>
+              <span id="mediaKind">MEDIA</span>
+              <span id="queueState">Single</span>
+            </div>
           </div>
         </div>
 

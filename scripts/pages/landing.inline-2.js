@@ -72,6 +72,12 @@ const clockRing = document.getElementById('clockRing');
 const clockBatt = document.getElementById('clockBatt');
 const clockHud  = document.getElementById('clockHud');
 const orientationMql = window.matchMedia ? window.matchMedia('(orientation: portrait)') : null;
+const landingResponsiveMql = {
+  compact: window.matchMedia ? window.matchMedia('(max-width: 960px)') : null,
+  tablet: window.matchMedia ? window.matchMedia('(max-width: 1200px)') : null,
+  phone: window.matchMedia ? window.matchMedia('(max-width: 720px)') : null,
+  wide: window.matchMedia ? window.matchMedia('(min-width: 1440px)') : null
+};
 
 /* Section scroll cue */
 const scrollToNew = document.getElementById('scrollToNew');
@@ -85,13 +91,43 @@ function applyLandingOrientation(){
   document.body.classList.toggle('landing-landscape', !portrait);
   document.body.dataset.orientation = portrait ? 'portrait' : 'landscape';
 }
+function mqMatches(mql, fallback){
+  return mql ? !!mql.matches : fallback;
+}
+function applyLandingResponsiveUi(){
+  const compact = mqMatches(landingResponsiveMql.compact, window.innerWidth <= 960);
+  const tablet = mqMatches(landingResponsiveMql.tablet, window.innerWidth <= 1200);
+  const phone = mqMatches(landingResponsiveMql.phone, window.innerWidth <= 720);
+  const wide = mqMatches(landingResponsiveMql.wide, window.innerWidth >= 1440);
+  let bp = 'desktop';
+  if(phone) bp = 'phone';
+  else if(compact) bp = 'compact';
+  else if(tablet) bp = 'tablet';
+  else if(wide) bp = 'wide';
+  document.body.classList.toggle('landing-bp-phone', phone);
+  document.body.classList.toggle('landing-bp-compact', compact);
+  document.body.classList.toggle('landing-bp-tablet', !compact && tablet);
+  document.body.classList.toggle('landing-bp-wide', wide);
+  document.body.classList.toggle('landing-bp-desktop', !phone && !compact && !tablet && !wide);
+  document.body.dataset.viewportBp = bp;
+}
 applyLandingOrientation();
+applyLandingResponsiveUi();
 if(orientationMql){
   const onOrientationChange = ()=>applyLandingOrientation();
   if(typeof orientationMql.addEventListener === 'function') orientationMql.addEventListener('change', onOrientationChange);
   else if(typeof orientationMql.addListener === 'function') orientationMql.addListener(onOrientationChange);
 }
-window.addEventListener('resize', applyLandingOrientation, { passive:true });
+Object.values(landingResponsiveMql).forEach(mql=>{
+  if(!mql) return;
+  const handler = ()=>applyLandingResponsiveUi();
+  if(typeof mql.addEventListener === 'function') mql.addEventListener('change', handler);
+  else if(typeof mql.addListener === 'function') mql.addListener(handler);
+});
+window.addEventListener('resize', ()=>{
+  applyLandingOrientation();
+  applyLandingResponsiveUi();
+}, { passive:true });
 
 /* ===== Settings with defaults ===== */
 const settings = Object.assign(

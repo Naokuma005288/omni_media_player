@@ -115,6 +115,7 @@
     fileList:[], fileIndex:0, wakeLock:null, loopA:null, loopB:null, loopOn:false, loopWholePending:false,
     lastTap:0, lastTapX:0, sleepLeft:0, sleepTimer:null, watchTimers:[], ignorePauseUntil:0,
     triedOnce:false, lastUserGestureAt:0, playDesired:false, playToken:0, playDebounce:null,
+    mediaMeta:null, mediaArtwork:[],
     // 追加: 設定の永続化領域
     sub:{ enable: loadBool('pc.sub.enable', true), plate: loadBool('pc.sub.plate', false), color: loadStr('pc.sub.color','#FFFFFF'), size: loadNum('pc.sub.size',28), outline: loadNum('pc.sub.outline',3), margin: loadNum('pc.sub.margin',30) },
     anim:{ micro: loadBool('pc.anim.micro', true), seek: loadBool('pc.anim.seek', true), play: loadBool('pc.anim.play', true), pip: loadBool('pc.anim.pip', true) },
@@ -169,15 +170,142 @@
     if(S.fileList.length > 1) return `${S.fileIndex + 1} / ${S.fileList.length}`;
     return t('meta_queue_single');
   }
+  function currentDisplaySubline(){
+    if(S.mediaMeta?.artist && S.mediaMeta?.album) return `${S.mediaMeta.artist} / ${S.mediaMeta.album}`;
+    return S.mediaMeta?.artist || S.mediaMeta?.album || '';
+  }
+  function artworkTypeFromUrl(url=''){
+    const src = String(url || '');
+    const m = src.match(/^data:(image\/[^;]+);/i);
+    if(m) return m[1];
+    if(/\.png(\?|$)/i.test(src)) return 'image/png';
+    if(/\.webp(\?|$)/i.test(src)) return 'image/webp';
+    if(/\.gif(\?|$)/i.test(src)) return 'image/gif';
+    if(/\.svg(\?|$)/i.test(src)) return 'image/svg+xml';
+    return 'image/jpeg';
+  }
+  function buildArtworkEntries(urls=[]){
+    const uniq = [...new Set((urls||[]).filter(Boolean))].slice(0, 6);
+    return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
+  }
+  function sniffImageMime(u8){ if(!u8||!u8.length) return 'image/jpeg'; if(u8[0]===0xFF&&u8[1]===0xD8&&u8[2]===0xFF) return 'image/jpeg'; if(u8[0]===0x89&&u8[1]===0x50&&u8[2]===0x4E&&u8[3]===0x47) return 'image/png'; if(u8[0]===0x47&&u8[1]===0x49&&u8[2]===0x46&&u8[3]===0x38) return 'image/gif'; return 'image/jpeg'; }
+  function bytesToDataUrl(bytes, mime='image/jpeg'){
+    try{
+      let binary='';
+      const chunk=0x8000;
+      for(let i=0;i<bytes.length;i+=chunk) binary += String.fromCharCode(...bytes.subarray(i, i+chunk));
+      return `data:${mime};base64,${btoa(binary)}`;
+    }catch{ return null; }
+  }
+  async function parseBlobArtwork(blob, name){
+    try{
+      if(!window.musicMetadata?.parseBlob) return null;
+      const mm = await window.musicMetadata.parseBlob(blob);
+      const pic = mm.common?.picture?.[0];
+      let coverUrl = null;
+      if(pic?.data){
+        coverUrl = bytesToDataUrl(pic.data, pic.format || sniffImageMime(pic.data));
+      }
+      return {
+        title: mm.common?.title || name || '',
+        artist: mm.common?.artist || mm.common?.artists?.[0] || '',
+        album: mm.common?.album || '',
+        coverUrl
+      };
+    }catch{
+      return null;
+    }
+  }
+  async function extractVideoStill(source, atSec=0.08){
+    return new Promise((resolve)=>{
+      let tmpUrl='';
+      let done=false;
+      const video=document.createElement('video');
+      video.muted=true;
+      video.playsInline=true;
+      video.preload='metadata';
+      const clean=(result=null)=>{
+        if(done) return;
+        done=true;
+        video.pause?.();
+        video.removeAttribute('src');
+        video.load?.();
+        if(tmpUrl){ try{ URL.revokeObjectURL(tmpUrl); }catch{} }
+        resolve(result);
+      };
+      const fail=()=>clean(null);
+      const draw=()=>{
+        try{
+          const vw=video.videoWidth||0, vh=video.videoHeight||0;
+          if(!vw || !vh) return fail();
+          const scale=Math.min(1, 512/Math.max(vw, vh));
+          const w=Math.max(1, Math.round(vw*scale));
+          const h=Math.max(1, Math.round(vh*scale));
+          const canvas=document.createElement('canvas');
+          canvas.width=w; canvas.height=h;
+          const ctx=canvas.getContext('2d', { alpha:false });
+          ctx.drawImage(video,0,0,w,h);
+          clean(canvas.toDataURL('image/jpeg', 0.72));
+        }catch{ fail(); }
+      };
+      video.addEventListener('error', fail, { once:true });
+      video.addEventListener('loadeddata', ()=>{
+        const dur=Number.isFinite(video.duration)?video.duration:0;
+        const target=dur>0 ? Math.min(Math.max(atSec,0), Math.max(0, dur-0.05)) : 0;
+        if(target <= 0.001) return setTimeout(draw, 40);
+        video.addEventListener('seeked', draw, { once:true });
+        try{ video.currentTime = target; }catch{ draw(); }
+      }, { once:true });
+      if(source instanceof Blob || source instanceof File){
+        tmpUrl = URL.createObjectURL(source);
+        video.src = tmpUrl;
+      }else{
+        video.crossOrigin='anonymous';
+        video.src = source;
+      }
+    });
+  }
+  async function extractVideoArtworkList(source){
+    const points=[0.08, 0.22, 0.5, 0.78];
+    const urls=[];
+    for(const point of points){
+      const still = await extractVideoStill(source, point);
+      if(still) urls.push(still);
+    }
+    return [...new Set(urls)];
+  }
+  function clearMiniArtwork(){
+    S.mediaArtwork = [];
+    S.mediaMeta = null;
+    const artWrap = $('#miniArtWrap');
+    const art = $('#miniArt');
+    art?.removeAttribute('src');
+    artWrap?.classList.remove('has-art');
+  }
+  function setMiniArtwork(urls=[]){
+    S.mediaArtwork = buildArtworkEntries(urls);
+    const first = S.mediaArtwork[0]?.src || '';
+    const artWrap = $('#miniArtWrap');
+    const art = $('#miniArt');
+    if(first){
+      art.src = first;
+      artWrap?.classList.add('has-art');
+    }else{
+      art?.removeAttribute('src');
+      artWrap?.classList.remove('has-art');
+    }
+  }
   function updateMiniMeta(){
     const title = $('#nowTitle');
     const source = $('#sourceKind');
     const media = $('#mediaKind');
     const queue = $('#queueState');
-    if(title) title.textContent = currentDisplayTitle();
+    const metaBox = $('#miniMeta');
+    if(title) title.textContent = S.mediaMeta?.title || currentDisplayTitle();
     if(source) source.textContent = currentSourceKind();
-    if(media) media.textContent = currentMediaKind();
+    if(media) media.textContent = currentDisplaySubline() || currentMediaKind();
     if(queue) queue.textContent = currentQueueState();
+    if(metaBox) metaBox.hidden = !(S.mediaMeta?.title || S.mediaArtwork.length || S.lastUrl || S.fileList.length);
   }
   function updateMiniReadouts(){
     $('#volReadout').textContent = `${Math.round((v.volume || 0) * 100)}%`;
@@ -380,6 +508,7 @@
     }
     syncBadgeState();
     try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing'; }catch{}
+    trySetupMediaSession();
     lockWake(); bumpAutoHide(); tap.classList.add('hide'); startWatchdogs();
     sanityAfterPlay();
     // 学習AI：タイトル学習
@@ -393,7 +522,7 @@
   v.addEventListener('seeking', ()=>{ debugLog('event:seeking', `t=${fmt(v.currentTime||0)}`); });
   v.addEventListener('seeked', ()=>{ debugLog('event:seeked', `t=${fmt(v.currentTime||0)}`); });
   v.addEventListener('ratechange', ()=>{ debugLog('event:ratechange', `rate=${v.playbackRate}`); });
-  v.addEventListener('pause', ()=>{ debugLog('event:pause', `t=${fmt(v.currentTime||0)}`); syncBadgeState(); try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; }catch{} showUI(); releaseWake(); clearWatchdogs(); });
+  v.addEventListener('pause', ()=>{ debugLog('event:pause', `t=${fmt(v.currentTime||0)}`); syncBadgeState(); try{ if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; }catch{} trySetupMediaSession(); showUI(); releaseWake(); clearWatchdogs(); });
   v.addEventListener('timeupdate', ()=>{ if((v.currentTime||0) > 0 && !S._loggedTimeAdvance){ S._loggedTimeAdvance = true; debugLog('event:timeadvance', `t=${fmt(v.currentTime||0)}`); } });
 
   v.addEventListener('loadedmetadata', ()=>{
@@ -411,6 +540,11 @@
       if (v.currentTime > S.loopB - 0.03){ v.currentTime = S.loopA; }
     }
     updateTimes();
+    try{
+      if('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function' && isFinite(v.duration)){
+        navigator.mediaSession.setPositionState({ duration:v.duration||0, position:v.currentTime||0, playbackRate:v.playbackRate||1 });
+      }
+    }catch{}
     if (S.sleepLeft>0 && !v.paused){ S.sleepLeft -= 1; updateSleepBadge(); if (S.sleepLeft<=0){ v.pause(); } }
     if(isFinite(v.duration) && Math.floor(v.currentTime)%5===0){ try{ localStorage.setItem('pc.lastUrl', S.lastUrl||''); localStorage.setItem('pc.lastTime', String(v.currentTime||0)); }catch{} }
   });
@@ -453,7 +587,7 @@
   wrap.addEventListener('wheel', (e)=>{
     if(isAnyPanelOpen()) return;
     if(e.shiftKey){ e.preventDefault(); const sign=(e.deltaY>0?1:-1); v.currentTime=clamp((v.currentTime||0)+sign*10,0,v.duration||Number.MAX_SAFE_INTEGER); }
-    else{ e.preventDefault(); v.volume=clamp((v.volume||0.9)+(e.deltaY>0?-0.05:0.05),0,1); $('#vol').value=v.volume; updateMiniReadouts(); try{ localStorage.setItem('pc.vol', v.volume);}catch{} }
+    else{ e.preventDefault(); v.volume=clamp((v.volume||0.9)+(e.deltaY>0?-0.05:0.05),0,1); $('#vol').value=v.volume; updateMiniReadouts(); }
     bumpAutoHide();
   }, {passive:false});
 
@@ -472,9 +606,9 @@
   seekEl.addEventListener('touchstart', startDrag, {passive:true}); seekEl.addEventListener('touchend', endDrag);
 
   // volume / rate
-  $('#vol').addEventListener('input', e=>{ v.volume=+e.target.value; updateMiniReadouts(); try{ localStorage.setItem('pc.vol', v.volume);}catch{} bumpAutoHide(); });
+  $('#vol').addEventListener('input', e=>{ v.volume=+e.target.value; updateMiniReadouts(); bumpAutoHide(); });
   const rateSel=$('#rateSel');
-  function setPlaybackRateFromSelect(){ const val=parseFloat(rateSel.value); v.playbackRate=isFinite(val)?val:1.0; updateMiniReadouts(); try{ localStorage.setItem('pc.rate.'+(S.lastUrl||'default'), String(v.playbackRate)); }catch{} }
+  function setPlaybackRateFromSelect(){ const val=parseFloat(rateSel.value); v.playbackRate=isFinite(val)?val:1.0; updateMiniReadouts(); }
   rateSel.addEventListener('change', ()=>{ setPlaybackRateFromSelect(); bumpAutoHide(); });
   function stepRate(delta){ const opts=Array.from(rateSel.options).map(o=>parseFloat(o.value)); const cur=parseFloat(rateSel.value); let idx=opts.findIndex(x=>x===cur); if(idx<0) idx=Math.max(0,opts.findIndex(x=>x===1.0)); idx=Math.min(Math.max(idx+delta,0),opts.length-1); rateSel.value=opts[idx].toFixed(2); setPlaybackRateFromSelect(); }
 
@@ -554,16 +688,18 @@
     if(!u) return; stopHls(); revokeBlob(); v.removeAttribute('src'); v.load();
     debugLog('openUrl', u);
     S.lastUrl=u; try{ localStorage.setItem('pc.lastUrl', u);}catch{}
+    clearMiniArtwork();
+    rateSel.value='1.00'; setPlaybackRateFromSelect();
+    v.volume = +($('#vol').value || 0.9) || 0.9;
     updateMiniMeta();
     try{ hidePanel($('#settingsScrim')); hidePanel($('#tipsScrim')); }catch{}
-    try{ const r = parseFloat(localStorage.getItem('pc.rate.'+S.lastUrl)||'NaN'); if(isFinite(r)){ rateSel.value=r.toFixed(2); setPlaybackRateFromSelect(); } }catch{}
     if(isHls(u) && window.Hls && Hls.isSupported()){
       S._hls=new Hls({enableWorker:false}); S._hls.attachMedia(v);
       S._hls.on(Hls.Events.MEDIA_ATTACHED, ()=> S._hls.loadSource(u));
-      S._hls.on(Hls.Events.MANIFEST_PARSED, async ()=>{ debugLog('hls', 'manifest-parsed'); await ensureAudioOn(); requestPlayImmediate('hls:manifest'); tap.classList.add('hide'); trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); });
+      S._hls.on(Hls.Events.MANIFEST_PARSED, async ()=>{ debugLog('hls', 'manifest-parsed'); await ensureAudioOn(); requestPlayImmediate('hls:manifest'); tap.classList.add('hide'); trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u).catch(()=>{}); });
     }else{
       v.src=u;
-      v.onloadedmetadata=async ()=>{ debugLog('url', 'loadedmetadata-hook'); await ensureAudioOn(); requestPlayImmediate('url:loadedmetadata'); tap.classList.add('hide'); v.onloadedmetadata=null; trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); };
+      v.onloadedmetadata=async ()=>{ debugLog('url', 'loadedmetadata-hook'); await ensureAudioOn(); requestPlayImmediate('url:loadedmetadata'); tap.classList.add('hide'); v.onloadedmetadata=null; trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u).catch(()=>{}); };
     }
   }
   $('#openUrl').addEventListener('click', ()=>{ markUserGesture(); openUrl(($('#url').value||'').trim()); });
@@ -579,12 +715,15 @@
     if(!file) return; stopHls(); revokeBlob(); v.removeAttribute('src'); v.load();
     debugLog('openLocalFile', `${file.name||'unknown'} ${file.type||'-'}`);
     const url=URL.createObjectURL(file); S.lastBlobUrl=url; S.lastUrl='file:'+file.name;
+    clearMiniArtwork();
+    rateSel.value='1.00'; setPlaybackRateFromSelect();
+    v.volume = +($('#vol').value || 0.9) || 0.9;
     updateMiniMeta();
     try{ hidePanel($('#settingsScrim')); hidePanel($('#tipsScrim')); }catch{}
-    try{ const r = parseFloat(localStorage.getItem('pc.rate.'+S.lastUrl)||'NaN'); if(isFinite(r)){ rateSel.value=r.toFixed(2); setPlaybackRateFromSelect(); } }catch{}
     v.src=url; v.load(); requestPlayImmediate('localFile').catch(()=>{}); tap.classList.add('hide');
     updatePrevNextUI(); trySetupMediaSession(file);
     learnFrom(currentTitleForLearn());
+    prepareArtworkForFile(file).catch(()=>{});
   }
   $('#file').addEventListener('change', e=>{ markUserGesture(); S.fileList=Array.from(e.target.files||[]); S.fileIndex=0; openLocalFile(S.fileList[0]); updatePrevNextUI(); updateMiniMeta(); });
 
@@ -746,17 +885,80 @@
     }catch{}
   }
 
+  async function prepareArtworkForFile(file){
+    if(!file) return;
+    const kind = `${file.type||''} ${file.name||''}`.toLowerCase();
+    const isAudio = /audio\/|\.mp3|\.m4a|\.aac|\.wav|\.flac|\.ogg|\.opus/.test(kind);
+    const isVideo = /video\/|\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v/.test(kind);
+    let meta = null;
+    if(window.musicMetadata?.parseBlob) meta = await parseBlobArtwork(file, file.name);
+    if(isAudio){
+      S.mediaMeta = {
+        title: meta?.title || file.name || t('meta_no_media'),
+        artist: meta?.artist || '',
+        album: meta?.album || ''
+      };
+      setMiniArtwork(meta?.coverUrl ? [meta.coverUrl] : []);
+      trySetupMediaSession();
+      updateMiniMeta();
+      return;
+    }
+    if(isVideo){
+      S.mediaMeta = {
+        title: meta?.title || file.name || t('meta_no_media'),
+        artist: meta?.artist || '',
+        album: meta?.album || ''
+      };
+      if(meta?.coverUrl){
+        setMiniArtwork([meta.coverUrl]);
+      }else{
+        const stills = await extractVideoArtworkList(file);
+        setMiniArtwork(stills);
+      }
+      trySetupMediaSession();
+      updateMiniMeta();
+      return;
+    }
+    S.mediaMeta = { title:file.name || t('meta_no_media'), artist:'', album:'' };
+    setMiniArtwork([]);
+    trySetupMediaSession();
+    updateMiniMeta();
+  }
+  async function prepareArtworkForUrl(url){
+    const label = String(url||'').toLowerCase();
+    const isAudio = /(\.mp3|\.m4a|\.aac|\.wav|\.flac|\.ogg|\.opus)(\?|$)/.test(label);
+    const isVideo = /(\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v)(\?|$)/.test(label);
+    S.mediaMeta = { title: currentDisplayTitle(), artist:'', album:'' };
+    setMiniArtwork([]);
+    updateMiniMeta();
+    if(isVideo){
+      const stills = await extractVideoArtworkList(url);
+      if(stills.length){
+        setMiniArtwork(stills);
+        trySetupMediaSession();
+        updateMiniMeta();
+      }
+    }else if(isAudio){
+      trySetupMediaSession();
+    }
+  }
+
   // Media Session API
   function trySetupMediaSession(file){
     try{
       if(!('mediaSession' in navigator)) return;
-      const title = (S.lastUrl||'').replace(/^.*\//,'');
+      const title = S.mediaMeta?.title || file?.name || (S.lastUrl||'').replace(/^.*\//,'') || 'Omni Player mini';
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: file?.name || title || 'Omni Player mini',
-        artist: '', album: '', artwork: []
+        title,
+        artist: S.mediaMeta?.artist || '',
+        album: S.mediaMeta?.album || '',
+        artwork: S.mediaArtwork || []
       });
       navigator.mediaSession.playbackState = v.paused ? 'paused' : 'playing';
-      navigator.mediaSession.setActionHandler('play', ()=> v.play());
+      if(typeof navigator.mediaSession.setPositionState === 'function' && isFinite(v.duration)){
+        navigator.mediaSession.setPositionState({ duration:v.duration||0, position:v.currentTime||0, playbackRate:v.playbackRate||1 });
+      }
+      navigator.mediaSession.setActionHandler('play', ()=> requestPlayImmediate('mediaSession').catch(()=>{}));
       navigator.mediaSession.setActionHandler('pause', ()=> v.pause());
       navigator.mediaSession.setActionHandler('seekbackward', ()=> v.currentTime=Math.max(0,(v.currentTime||0)-10));
       navigator.mediaSession.setActionHandler('seekforward',  ()=> v.currentTime=Math.min(v.duration||0,(v.currentTime||0)+10));
@@ -765,6 +967,9 @@
       navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(typeof d.seekTime==='number'){ v.currentTime=d.seekTime; } });
     }catch{}
   }
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && !v.paused) trySetupMediaSession();
+  });
 
   // Media devices change -> reconnect
   try{
@@ -890,7 +1095,10 @@
   });
 
   // init prefs
-  try{ v.volume=+localStorage.getItem('pc.vol')||0.9 }catch(e){}
+  try{ localStorage.removeItem('pc.vol'); }catch(e){}
+  v.volume=0.9;
+  rateSel.value='1.00';
+  setPlaybackRateFromSelect();
   $('#vol').value=v.volume;
   (function syncRateSel(){ const opts=Array.from($('#rateSel').options).map(o=>parseFloat(o.value)); const cur=v.playbackRate||1.0; let idx=0, best=Infinity; for(let i=0;i<opts.length;i++){ const d=Math.abs(opts[i]-cur); if(d<best){best=d; idx=i;} } $('#rateSel').value=opts[idx].toFixed(2); })();
   setPlaybackRateFromSelect();
