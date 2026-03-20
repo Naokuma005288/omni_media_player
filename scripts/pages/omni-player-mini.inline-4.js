@@ -285,6 +285,45 @@
       return `data:${mime};base64,${btoa(binary)}`;
     }catch{ return null; }
   }
+  async function validateArtworkUrl(url, fallbackKind='audio'){
+    if(!url) return makeIconDataUrl(fallbackKind);
+    return await new Promise((resolve)=>{
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = ()=>{
+        try{
+          const w = img.naturalWidth || img.width || 0;
+          const h = img.naturalHeight || img.height || 0;
+          if(!w || !h) return resolve(makeIconDataUrl(fallbackKind));
+          const sw = Math.max(1, Math.min(24, w));
+          const sh = Math.max(1, Math.min(24, h));
+          const canvas = document.createElement('canvas');
+          canvas.width = sw;
+          canvas.height = sh;
+          const ctx = canvas.getContext('2d', { willReadFrequently:true });
+          ctx.drawImage(img, 0, 0, sw, sh);
+          const data = ctx.getImageData(0, 0, sw, sh).data;
+          let bright = 0;
+          let chroma = 0;
+          for(let i=0;i<data.length;i+=4){
+            const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+            if(a < 8) continue;
+            bright += (r + g + b) / 3;
+            chroma += Math.max(r, g, b) - Math.min(r, g, b);
+          }
+          const px = Math.max(1, data.length / 4);
+          const avgBright = bright / px;
+          const avgChroma = chroma / px;
+          if(avgBright > 246 && avgChroma < 6) return resolve(makeIconDataUrl(fallbackKind));
+          resolve(url);
+        }catch{
+          resolve(makeIconDataUrl(fallbackKind));
+        }
+      };
+      img.onerror = ()=>resolve(makeIconDataUrl(fallbackKind));
+      img.src = url;
+    });
+  }
   async function parseBlobArtwork(blob, name){
     try{
       const lib = getMetadataLib();
@@ -1358,28 +1397,38 @@
     if(!meta?.coverUrl && isAudio) meta = { ...(meta||{}), coverUrl: await extractId3ApicArtwork(file) };
     if(token !== S.artworkToken) return;
     if(isAudio){
+      const cover = await validateArtworkUrl(meta?.coverUrl, 'audio');
+      if(token !== S.artworkToken) return;
       S.mediaMeta = {
         title: meta?.title || file.name || t('meta_no_media'),
         artist: meta?.artist || '',
         album: meta?.album || ''
       };
-      setMiniArtwork(meta?.coverUrl ? [meta.coverUrl] : [makeIconDataUrl('audio')]);
+      setMiniArtwork([cover]);
       trySetupMediaSession();
       updateMiniMeta();
       return;
     }
     if(isVideo){
+      let cover = meta?.coverUrl ? await validateArtworkUrl(meta.coverUrl, 'video') : null;
+      if(token !== S.artworkToken) return;
       S.mediaMeta = {
         title: meta?.title || file.name || t('meta_no_media'),
         artist: meta?.artist || '',
         album: meta?.album || ''
       };
-      if(meta?.coverUrl){
-        setMiniArtwork([meta.coverUrl]);
+      if(cover){
+        setMiniArtwork([cover]);
       }else{
         const stills = await extractVideoArtworkList(file);
         if(token !== S.artworkToken) return;
-        setMiniArtwork(stills.length ? stills : [makeIconDataUrl('video')]);
+        const validated = [];
+        for(const still of stills){
+          validated.push(await validateArtworkUrl(still, 'video'));
+          if(validated.length >= 4) break;
+        }
+        if(token !== S.artworkToken) return;
+        setMiniArtwork(validated.length ? validated : [makeIconDataUrl('video')]);
       }
       trySetupMediaSession();
       updateMiniMeta();
@@ -1401,7 +1450,13 @@
       const stills = await extractVideoArtworkList(url);
       if(token !== S.artworkToken) return;
       if(stills.length){
-        setMiniArtwork(stills);
+        const validated = [];
+        for(const still of stills){
+          validated.push(await validateArtworkUrl(still, 'video'));
+          if(validated.length >= 4) break;
+        }
+        if(token !== S.artworkToken) return;
+        setMiniArtwork(validated.length ? validated : [makeIconDataUrl('video')]);
         trySetupMediaSession();
         updateMiniMeta();
       }
