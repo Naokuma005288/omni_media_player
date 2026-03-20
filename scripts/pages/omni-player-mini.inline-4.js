@@ -116,7 +116,7 @@
     fileList:[], fileIndex:0, wakeLock:null, loopA:null, loopB:null, loopOn:false, loopWholePending:false,
     lastTap:0, lastTapX:0, sleepLeft:0, sleepTimer:null, watchTimers:[], ignorePauseUntil:0,
     triedOnce:false, lastUserGestureAt:0, playDesired:false, playToken:0, playDebounce:null,
-    mediaMeta:null, mediaArtwork:[], artworkObjectUrls:[], artworkMimeMap:{}, artworkToken:0, bgAudio:null, bgMirror:false, bgSwitching:false, bgPrimedSrc:'', audioMaster:false,
+    mediaMeta:null, mediaArtwork:[], artworkObjectUrls:[], artworkMimeMap:{}, artworkToken:0, bgAudio:null, bgMirror:false, bgSwitching:false, bgPrimedSrc:'', audioMaster:false, hiddenResumeBudget:0,
     // 追加: 設定の永続化領域
     sub:{ enable: loadBool('pc.sub.enable', true), plate: loadBool('pc.sub.plate', false), color: loadStr('pc.sub.color','#FFFFFF'), size: loadNum('pc.sub.size',28), outline: loadNum('pc.sub.outline',3), margin: loadNum('pc.sub.margin',30) },
     anim:{ micro: loadBool('pc.anim.micro', true), seek: loadBool('pc.anim.seek', true), play: loadBool('pc.anim.play', true), pip: loadBool('pc.anim.pip', true) },
@@ -188,7 +188,46 @@
   }
   function buildArtworkEntries(urls=[]){
     const uniq = [...new Set((urls||[]).filter(Boolean))].slice(0, 6);
-    return uniq.map(src=>({ src, type:artworkTypeFromUrl(src) }));
+    return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
+  }
+  function makeIconDataUrl(kind='audio'){
+    try{
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d', { alpha:false });
+      const grad = ctx.createLinearGradient(0, 0, 512, 512);
+      grad.addColorStop(0, kind === 'video' ? '#6e7dff' : '#8e5dff');
+      grad.addColorStop(1, '#111827');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.fillStyle = 'rgba(255,255,255,.08)';
+      ctx.beginPath(); ctx.arc(398, 112, 56, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(118, 404, 84, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      if(kind === 'video'){
+        ctx.beginPath();
+        ctx.roundRect?.(182, 170, 148, 172, 22);
+        if(ctx.roundRect) ctx.fill();
+        else ctx.fillRect(182, 170, 148, 172);
+        ctx.fillStyle = '#111827';
+        ctx.beginPath();
+        ctx.moveTo(224, 214); ctx.lineTo(320, 256); ctx.lineTo(224, 298);
+        ctx.closePath(); ctx.fill();
+      }else{
+        ctx.beginPath(); ctx.arc(196, 310, 34, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(322, 286, 34, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(218, 170, 24, 138);
+        ctx.save();
+        ctx.translate(242, 176);
+        ctx.rotate(-0.22);
+        ctx.fillRect(0, 0, 118, 24);
+        ctx.restore();
+      }
+      return canvas.toDataURL('image/png');
+    }catch{
+      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s4N2VQAAAAASUVORK5CYII=';
+    }
   }
   function getMetadataLib(){
     return window.musicMetadata || window.musicMetadataBrowser || null;
@@ -240,6 +279,43 @@
         album: mm.common?.album || '',
         coverUrl
       };
+    }catch{
+      return null;
+    }
+  }
+  async function extractId3ApicArtwork(file){
+    try{
+      const buf = await file.slice(0, 1024 * 1024).arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      if(bytes[0]!==0x49 || bytes[1]!==0x44 || bytes[2]!==0x33) return null;
+      let pos = 10;
+      const size = ((bytes[6]&0x7f)<<21) | ((bytes[7]&0x7f)<<14) | ((bytes[8]&0x7f)<<7) | (bytes[9]&0x7f);
+      const end = pos + size;
+      while(pos + 10 < end){
+        const id = String.fromCharCode(bytes[pos], bytes[pos+1], bytes[pos+2], bytes[pos+3]);
+        const frameSize = (bytes[pos+4]<<24) | (bytes[pos+5]<<16) | (bytes[pos+6]<<8) | bytes[pos+7];
+        if(!id.trim() || frameSize <= 0) break;
+        if(id === 'APIC'){
+          const frame = bytes.slice(pos + 10, pos + 10 + frameSize);
+          let i = 0;
+          const encoding = frame[i++];
+          let mime = '';
+          while(i < frame.length && frame[i] !== 0){ mime += String.fromCharCode(frame[i++]); }
+          i++;
+          i++;
+          if(encoding === 0 || encoding === 3){
+            while(i < frame.length && frame[i] !== 0) i++;
+            i++;
+          }else{
+            while(i + 1 < frame.length && !(frame[i]===0 && frame[i+1]===0)) i++;
+            i += 2;
+          }
+          const imgData = frame.slice(i);
+          return bytesToDataUrl(imgData, mime || sniffImageMime(imgData));
+        }
+        pos += 10 + frameSize;
+      }
+      return null;
     }catch{
       return null;
     }
@@ -378,7 +454,7 @@
     }
   }
   function updateMiniReadouts(){
-    $('#volReadout').textContent = `${Math.round((v.volume || 0) * 100)}%`;
+    $('#volReadout').textContent = `${Math.round(((activeMedia().volume ?? v.volume) || 0) * 100)}%`;
     $('#rateReadout').textContent = `${(parseFloat($('#rateSel').value) || 1).toFixed(2)}x`;
     $('#sleepReadout').textContent = fmtRemain(S.sleepLeft || parseInt($('#sleepSel').value || '0', 10) || 0);
   }
@@ -446,6 +522,10 @@
       if(!S.bgMirror || S.bgSwitching) return;
       syncBadgeState();
       trySetupMediaSession();
+      if(S.audioMaster && document.hidden && S.playDesired && S.hiddenResumeBudget > 0){
+        S.hiddenResumeBudget--;
+        setTimeout(()=>{ requestPlayImmediate('audioMaster:hidden-resume').catch(()=>{}); }, 80);
+      }
     });
     audio.addEventListener('timeupdate', ()=>{
       if(!(S.bgMirror || S.audioMaster)) return;
@@ -747,13 +827,16 @@
   async function releaseWake(){ try{ await S.wakeLock?.release(); }catch{} finally{ S.wakeLock=null; } }
   document.addEventListener('visibilitychange', ()=>{
     if(document.visibilityState==='visible'){
+      S.hiddenResumeBudget = 0;
       if(S.bgMirror) deactivateBackgroundAudioMirror('visible').catch(()=>{});
       else if(!activePaused()) lockWake();
       return;
     }
+    if(S.audioMaster) S.hiddenResumeBudget = 3;
     if(document.hidden && (S.playDesired || !activePaused()) && !S.audioMaster) activateBackgroundAudioMirror('hidden').catch(()=>{});
   });
   window.addEventListener('pagehide', ()=>{
+    if(S.audioMaster) S.hiddenResumeBudget = 3;
     if((S.playDesired || !activePaused()) && !S.audioMaster) activateBackgroundAudioMirror('pagehide').catch(()=>{});
   });
 
@@ -1232,6 +1315,7 @@
     const isVideo = /video\/|\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v/.test(kind);
     let meta = null;
     if(getMetadataLib()) meta = await parseBlobArtwork(file, file.name);
+    if(!meta?.coverUrl && isAudio) meta = { ...(meta||{}), coverUrl: await extractId3ApicArtwork(file) };
     if(token !== S.artworkToken) return;
     if(isAudio){
       S.mediaMeta = {
@@ -1239,7 +1323,7 @@
         artist: meta?.artist || '',
         album: meta?.album || ''
       };
-      setMiniArtwork(meta?.coverUrl ? [meta.coverUrl] : []);
+      setMiniArtwork(meta?.coverUrl ? [meta.coverUrl] : [makeIconDataUrl('audio')]);
       trySetupMediaSession();
       updateMiniMeta();
       return;
@@ -1255,14 +1339,14 @@
       }else{
         const stills = await extractVideoArtworkList(file);
         if(token !== S.artworkToken) return;
-        setMiniArtwork(stills);
+        setMiniArtwork(stills.length ? stills : [makeIconDataUrl('video')]);
       }
       trySetupMediaSession();
       updateMiniMeta();
       return;
     }
     S.mediaMeta = { title:file.name || t('meta_no_media'), artist:'', album:'' };
-    setMiniArtwork([]);
+    setMiniArtwork([makeIconDataUrl('audio')]);
     trySetupMediaSession();
     updateMiniMeta();
   }
@@ -1271,7 +1355,7 @@
     const isAudio = /(\.mp3|\.m4a|\.aac|\.wav|\.flac|\.ogg|\.opus)(\?|$)/.test(label);
     const isVideo = /(\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v)(\?|$)/.test(label);
     S.mediaMeta = { title: currentDisplayTitle(), artist:'', album:'' };
-    setMiniArtwork([]);
+    setMiniArtwork([makeIconDataUrl(isVideo ? 'video' : 'audio')]);
     updateMiniMeta();
     if(isVideo){
       const stills = await extractVideoArtworkList(url);
