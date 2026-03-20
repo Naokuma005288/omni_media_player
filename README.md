@@ -1,0 +1,188 @@
+# OmniMedia
+
+ブラウザ中心で動くメディア再生プロジェクトです。現在の主構成は `Landing / Omni Player / Omni Player mini / Legacy` の 4 本です。
+
+## バージョン
+
+* 全体バージョン: `v3.0.0`
+* Landing: `index.html`
+* 通常版: `omni-player.html`
+* mini: `omni-player-mini.html`
+* legacy: `omni-player-legacy.html`
+
+## ページ構成
+
+## 最新アップデート
+
+### v3.0.0
+
+* 通常版の設定画面を整理し、タブ構成へ再設計
+* 通常版の履歴機能を削除
+* 通常版にステージ比率切替を追加
+
+  * `16:9`
+  * `21:9`
+  * `4:3`
+  * `9:16`
+* `9:16` 時は専用レイアウトへ切替
+* `9:16` 時は `MIX / A-B` を設定画面へ移動
+* `9:16` 切替時に mini 版推奨ポップアップを追加
+* 通常版の設定画面に閉じるボタンを上部と下部の両方へ配置
+* ランディングと README に `Built with ChatGPT-4o + ChatGPT-5.4` 表記を追加
+* README を現行構成に合わせて整理
+
+### 1\. Landing
+
+* ファイル: `index.html`
+* 役割: 全ページへの入口
+* 導線:
+
+  * `Omni Player`
+  * `Omni Player mini`
+  * `Omni Player PC (Legacy)`
+  * `Coming Soon` 系カード
+
+主な実装:
+
+* スクリプト: `scripts/pages/landing.inline-1.js`, `scripts/pages/landing.inline-2.js`
+* スタイル: `styles/pages/landing.inline-1.css`
+
+### 2\. Omni Player
+
+* ファイル: `omni-player.html`
+* 位置付け: 通常版 / 主力版
+* 特徴:
+
+  * ローカル動画 / 音声 / URL / HLS / DASH 再生
+  * YouTube などの埋め込み再生
+  * 字幕、EQ、スペクトラム、アニメーション
+  * プレイリスト
+  * PWA 対応
+
+主な実装:
+
+* 本体スクリプト: `scripts/pages/omni-player.inline-1.js`
+* 補助スクリプト: `scripts/pages/omni-player.inline-2.js`, `scripts/pages/omni-player.inline-4.js`
+* スタイル: `styles/pages/omni-player.inline-1.css`
+
+現在の通常版のポイント:
+
+* ステージ比率を設定画面から切替可能
+* 設定画面はタブ整理済み
+* 映像連動アンビエントライト対応
+
+### 3\. Omni Player mini
+
+* ファイル: `omni-player-mini.html`
+* 位置付け: 軽量版 / 最小構成
+* 特徴:
+
+  * ネイティブ再生優先
+  * シンプルな操作系
+  * 通常版より UI を軽量化
+  * スマホ / タブレットの再生安定性を優先
+
+主な実装:
+
+* スクリプト: `scripts/pages/omni-player-mini.inline-2.js`, `scripts/pages/omni-player-mini.inline-3.js`, `scripts/pages/omni-player-mini.inline-4.js`
+* スタイル: `styles/pages/omni-player-mini.inline-1.css`
+
+補足:
+
+* mini は `safe-native` 寄りの再生経路を使う前提です
+* `audio-hotfix.js` は mini では使っていません
+
+### 4\. Legacy
+
+* ファイル: `omni-player-legacy.html`
+* 位置付け: 旧版互換のための残置
+* 主な実装:
+
+  * スクリプト: `scripts/pages/omni-player-legacy.inline-1.js`
+  * スタイル: `styles/pages/omni-player-legacy.inline-1.css`
+
+## PWA
+
+通常版は PWA 対応です。
+
+* manifest: `assets/pwa/omni-player.webmanifest`
+* service worker: `scripts/app/sw.js`
+
+注意:
+
+* `file://` 直開きでは PWA は使えません
+* PWA 機能は HTTP(S) 配信時に利用してください
+
+## モデル比較
+
+|モデル|ファイル|位置付け|向いている用途|備考|
+|-|-|-|-|-|
+|Omni Player|`omni-player.html`|主力版|ローカル再生、字幕、EQ、スペクトラム、埋め込み再生|機能が最も多い|
+|Omni Player mini|`omni-player-mini.html`|軽量版|シンプルな再生、モバイル寄りの安定動作|ネイティブ再生優先|
+|Omni Player PC|`omni-player-legacy.html`|互換用|旧構成の確認|非推奨|
+
+
+
+## 主要ファイル
+
+### ページ
+
+* `index.html`
+* `omni-player.html`
+* `omni-player-mini.html`
+* `omni-player-legacy.html`
+
+### ページスクリプト
+
+* `scripts/pages/landing.inline-1.js`
+* `scripts/pages/landing.inline-2.js`
+* `scripts/pages/omni-player.inline-1.js`
+* `scripts/pages/omni-player.inline-2.js`
+* `scripts/pages/omni-player.inline-4.js`
+* `scripts/pages/omni-player-mini.inline-2.js`
+* `scripts/pages/omni-player-mini.inline-3.js`
+* `scripts/pages/omni-player-mini.inline-4.js`
+* `scripts/pages/omni-player-legacy.inline-1.js`
+
+### ページスタイル
+
+* `styles/pages/landing.inline-1.css`
+* `styles/pages/omni-player.inline-1.css`
+* `styles/pages/omni-player-mini.inline-1.css`
+* `styles/pages/omni-player-legacy.inline-1.css`
+
+### プラグイン
+
+* `scripts/plugins/spec-boost.plugin.js`
+* `scripts/plugins/anim-plus.plugin.js`
+* `scripts/plugins/video-fx.plugin.js`
+* `scripts/plugins/cast.plugin.js`
+* `scripts/plugins/airplay.plugin.js`
+* `scripts/plugins/bg-audio.policy.plugin.js`
+* その他 `scripts/plugins/` 配下
+
+## Credits
+
+* Built with `ChatGPT-4o + ChatGPT-5.4`
+
+## 現在の方針
+
+* `Omni Player`: 高機能な主力版
+* `Omni Player mini`: 軽量で安定優先
+* `Legacy`: 旧互換の維持
+* `Coming Soon`: 現時点では未公開
+
+## 既知の制限
+
+* 一部ライブラリは CDN 依存です
+* 初回からの完全オフライン動作は保証していません
+* `file://` 直開きでは PWA、manifest、Cast などが制限されます
+* YouTube 埋め込みは IFrame API ベースのため、本物の音声解析スペクトラムは取得できません
+* PiP / Fullscreen / AirPlay / Cast はブラウザと端末実装差の影響を受けます
+* モバイルではブラウザの自動再生制限の影響を受ける場合があります
+* 外部サイト埋め込みは先方の制限で再生できないことがあります
+
+## 補足
+
+* ブラウザ差異は特に `PWA / YouTube / PiP / Cast / AirPlay / モバイル再生` で出やすいです
+* 公開時は CDN 依存とライセンス条件の確認を推奨します

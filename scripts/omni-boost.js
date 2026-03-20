@@ -1,0 +1,9 @@
+import './boost/registry.js';
+import './boost/particles.adapter.js';
+import './boost/anime.adapter.js';
+import './boost/howler.adapter.js';
+import './boost/fs-access.adapter.js';
+import './boost/tf.adapter.js';
+import './boost/compromise.adapter.js';
+import './boost/barba.adapter.js';
+import './boost/localforage.adapter.js';
