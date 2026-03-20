@@ -4,7 +4,7 @@
 
 ## バージョン
 
-* 全体バージョン: `v3.4.2`
+* 全体バージョン: `v3.4.3`
 * Landing: `index.html`
 * 通常版: `omni-player.html`
 * mini: `omni-player-mini.html`
@@ -14,7 +14,7 @@
 
 ## 最新アップデート
 
-### v3.4.2
+### v3.4.3
 
 * mini 版で `mp4` のバックグラウンド再生経路を修正
 * mini 版はバックグラウンド時に動画を音声ミラーへ切り替えて、`MediaSession` 操作と再生位置を維持

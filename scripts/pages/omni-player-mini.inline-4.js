@@ -232,6 +232,36 @@
   function getMetadataLib(){
     return window.musicMetadata || window.musicMetadataBrowser || null;
   }
+  async function parseWithJsMediaTags(file){
+    const lib = window.jsmediatags;
+    if(!lib || !(file instanceof Blob || file instanceof File)) return null;
+    return await new Promise((resolve)=>{
+      let done = false;
+      const finish = (value)=>{ if(done) return; done = true; resolve(value); };
+      try{
+        lib.read(file, {
+          onSuccess: (tag)=>{
+            const tags = tag?.tags || {};
+            let coverUrl = null;
+            if(tags.picture?.data){
+              const bytes = tags.picture.data instanceof Uint8Array ? tags.picture.data : new Uint8Array(tags.picture.data);
+              coverUrl = bytesToDataUrl(bytes, tags.picture.format || sniffImageMime(bytes));
+            }
+            finish({
+              title: tags.title || file.name || '',
+              artist: tags.artist || '',
+              album: tags.album || '',
+              coverUrl
+            });
+          },
+          onError: ()=>finish(null)
+        });
+        setTimeout(()=>finish(null), 2500);
+      }catch{
+        finish(null);
+      }
+    });
+  }
   function sniffImageMime(u8){ if(!u8||!u8.length) return 'image/jpeg'; if(u8[0]===0xFF&&u8[1]===0xD8&&u8[2]===0xFF) return 'image/jpeg'; if(u8[0]===0x89&&u8[1]===0x50&&u8[2]===0x4E&&u8[3]===0x47) return 'image/png'; if(u8[0]===0x47&&u8[1]===0x49&&u8[2]===0x46&&u8[3]===0x38) return 'image/gif'; return 'image/jpeg'; }
   function trackArtworkUrl(url, mime='image/jpeg'){
     if(url && /^blob:/i.test(url)){
@@ -691,6 +721,10 @@
   }
   async function ensureAudioOn(){
     forceUnmute();
+    try{
+      if(navigator.audioSession) navigator.audioSession.type = 'playback';
+      else if(navigator.mediaSession) navigator.mediaSession.playbackState = activePaused() ? 'paused' : 'playing';
+    }catch{}
     if(SAFE_NATIVE_PLAYBACK){
       debugLog('audio', 'native-bypass');
       return;
@@ -832,11 +866,17 @@
       else if(!activePaused()) lockWake();
       return;
     }
-    if(S.audioMaster) S.hiddenResumeBudget = 3;
+    if(S.audioMaster){
+      S.hiddenResumeBudget = 3;
+      if(!activePaused()) requestPlayImmediate('audioMaster:hidden-keepalive').catch(()=>{});
+    }
     if(document.hidden && (S.playDesired || !activePaused()) && !S.audioMaster) activateBackgroundAudioMirror('hidden').catch(()=>{});
   });
   window.addEventListener('pagehide', ()=>{
-    if(S.audioMaster) S.hiddenResumeBudget = 3;
+    if(S.audioMaster){
+      S.hiddenResumeBudget = 3;
+      if(!activePaused()) requestPlayImmediate('audioMaster:pagehide-keepalive').catch(()=>{});
+    }
     if((S.playDesired || !activePaused()) && !S.audioMaster) activateBackgroundAudioMirror('pagehide').catch(()=>{});
   });
 
@@ -1313,8 +1353,8 @@
     const kind = `${file.type||''} ${file.name||''}`.toLowerCase();
     const isAudio = /audio\/|\.mp3|\.m4a|\.aac|\.wav|\.flac|\.ogg|\.opus/.test(kind);
     const isVideo = /video\/|\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v/.test(kind);
-    let meta = null;
-    if(getMetadataLib()) meta = await parseBlobArtwork(file, file.name);
+    let meta = await parseWithJsMediaTags(file);
+    if(!meta && getMetadataLib()) meta = await parseBlobArtwork(file, file.name);
     if(!meta?.coverUrl && isAudio) meta = { ...(meta||{}), coverUrl: await extractId3ApicArtwork(file) };
     if(token !== S.artworkToken) return;
     if(isAudio){
