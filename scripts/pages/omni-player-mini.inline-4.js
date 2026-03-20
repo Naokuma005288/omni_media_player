@@ -116,7 +116,7 @@
     fileList:[], fileIndex:0, wakeLock:null, loopA:null, loopB:null, loopOn:false, loopWholePending:false,
     lastTap:0, lastTapX:0, sleepLeft:0, sleepTimer:null, watchTimers:[], ignorePauseUntil:0,
     triedOnce:false, lastUserGestureAt:0, playDesired:false, playToken:0, playDebounce:null,
-    mediaMeta:null, mediaArtwork:[], artworkObjectUrls:[], artworkMimeMap:{}, artworkToken:0, bgAudio:null, bgMirror:false, bgSwitching:false, bgPrimedSrc:'', audioMaster:false, hiddenResumeBudget:0,
+    mediaMeta:null, mediaArtwork:[], artworkObjectUrls:[], artworkMimeMap:{}, artworkToken:0, artStageVisible:false, bgAudio:null, bgMirror:false, bgSwitching:false, bgPrimedSrc:'', audioMaster:false, hiddenResumeBudget:0, bgWarmTimer:0,
     // 追加: 設定の永続化領域
     sub:{ enable: loadBool('pc.sub.enable', true), plate: loadBool('pc.sub.plate', false), color: loadStr('pc.sub.color','#FFFFFF'), size: loadNum('pc.sub.size',28), outline: loadNum('pc.sub.outline',3), margin: loadNum('pc.sub.margin',30) },
     anim:{ micro: loadBool('pc.anim.micro', true), seek: loadBool('pc.anim.seek', true), play: loadBool('pc.anim.play', true), pip: loadBool('pc.anim.pip', true) },
@@ -452,6 +452,7 @@
     S.artworkObjectUrls = [];
     S.artworkMimeMap = {};
     S.mediaArtwork = [];
+    S.artStageVisible = false;
     S.mediaMeta = null;
     const artWrap = $('#miniArtWrap');
     const art = $('#miniArt');
@@ -459,8 +460,9 @@
     artWrap?.classList.remove('has-art');
     syncMiniArtworkStage();
   }
-  function setMiniArtwork(urls=[]){
+  function setMiniArtwork(urls=[], showOnStage=false){
     S.mediaArtwork = buildArtworkEntries(urls);
+    S.artStageVisible = !!showOnStage;
     const first = S.mediaArtwork[0]?.src || '';
     const artWrap = $('#miniArtWrap');
     const art = $('#miniArt');
@@ -478,7 +480,7 @@
     const img = $('#miniArtImage');
     if(!stage || !img) return;
     const first = S.mediaArtwork[0]?.src || '';
-    const show = !!first;
+    const show = !!first && !!S.artStageVisible;
     if(show){
       img.src = first;
       stage.classList.add('show');
@@ -633,11 +635,18 @@
     if(audio.src !== src){
       try{
         audio.src = src;
-        audio.load?.();
       }catch{}
     }
     syncBgAudioFromVideo();
     return audio;
+  }
+  function scheduleBgWarmup(delay=900){
+    clearTimeout(S.bgWarmTimer);
+    if(!IOS_WEBKIT || !currentBackgroundMirrorSrc() || document.hidden) return;
+    S.bgWarmTimer = setTimeout(()=>{
+      if(document.hidden || activePaused()) return;
+      primeBgAudioForCurrent().catch(()=>{});
+    }, delay);
   }
   async function primeBgAudioForCurrent(){
     const src = currentBackgroundMirrorSrc();
@@ -838,9 +847,6 @@
     debugLog('requestPlayImmediate', `${reason||'-'} ready=${v.readyState}`);
     await ensureAudioOn();
     await playElementWithFallback();
-    if(activeMedia() === v && currentBackgroundMirrorSrc() && hasFreshGesture()){
-      primeBgAudioForCurrent().catch(()=>{});
-    }
     S.ignorePauseUntil = Date.now() + 900;
   }
   function requestPlay(reason){
@@ -985,6 +991,7 @@
   });
 
   v.addEventListener('playing', ()=>{ debugLog('event:playing', `t=${fmt(v.currentTime||0)}`); });
+  v.addEventListener('playing', ()=>{ scheduleBgWarmup(1200); });
   v.addEventListener('progress', ()=>{ debugLog('event:progress', `buffered=${v.buffered?.length||0}`); });
   v.addEventListener('stalled', ()=>{ debugLog('event:stalled', `ready=${v.readyState} net=${v.networkState}`); });
   v.addEventListener('suspend', ()=>{ debugLog('event:suspend', `ready=${v.readyState} net=${v.networkState}`); });
@@ -993,6 +1000,7 @@
   v.addEventListener('ratechange', ()=>{ debugLog('event:ratechange', `rate=${v.playbackRate}`); });
   v.addEventListener('pause', ()=>{
     debugLog('event:pause', `t=${fmt(v.currentTime||0)}`);
+    clearTimeout(S.bgWarmTimer);
     syncBadgeState();
     try{
       if('mediaSession' in navigator) navigator.mediaSession.playbackState = activePaused() ? 'paused' : 'playing';
@@ -1030,6 +1038,7 @@
 
   v.addEventListener('ended', ()=>{
     debugLog('event:ended', `loop=${S.loopOn?'1':'0'}`);
+    clearTimeout(S.bgWarmTimer);
     if (S.loopOn){
       if(S.loopA!=null && S.loopB!=null && S.loopB>S.loopA){ v.currentTime=S.loopA; requestPlay('loop'); }
       else { v.currentTime=0; requestPlay('loop'); }
@@ -1167,6 +1176,7 @@
   function isHls(u){ return /\.m3u8($|\?)/i.test(u) }
   function stopHls(){ if(S._hls){ try{ S._hls.destroy() }catch(e){} S._hls=null } }
   function stopBgMirror(){
+    clearTimeout(S.bgWarmTimer);
     if(S.bgAudio){
       try{ S.bgAudio.pause(); }catch{}
       try{ S.bgAudio.removeAttribute('src'); S.bgAudio.load?.(); }catch{}
@@ -1195,7 +1205,6 @@
     }else{
       v.src=u;
       setAudioMasterMode(false);
-      if(IOS_WEBKIT && /\.(mp4|webm|mov|mkv|avi|m4v|mpg|mpeg)(\?|$)/i.test(String(u||''))) prepareBgAudioSource(currentBackgroundMirrorSrc());
       v.onloadedmetadata=async ()=>{ debugLog('url', 'loadedmetadata-hook'); await ensureAudioOn(); requestPlayImmediate('url:loadedmetadata'); tap.classList.add('hide'); v.onloadedmetadata=null; trySetupMediaSession(); updateMiniMeta(); syncControlAvailability(); learnFrom(currentTitleForLearn()); prepareArtworkForUrl(u, artworkToken).catch(()=>{}); };
     }
   }
@@ -1221,7 +1230,6 @@
     const fileLabel = `${file.type||''} ${file.name||''}`.toLowerCase();
     setAudioMasterMode(false);
     v.src=url;
-    if(IOS_WEBKIT && /video\/|\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v|\.mpg|\.mpeg/.test(fileLabel)) prepareBgAudioSource(url);
     v.load(); requestPlayImmediate('localFile').catch(()=>{}); tap.classList.add('hide');
     updatePrevNextUI(); trySetupMediaSession(file);
     learnFrom(currentTitleForLearn());
@@ -1404,7 +1412,7 @@
         artist: meta?.artist || '',
         album: meta?.album || ''
       };
-      setMiniArtwork([cover]);
+      setMiniArtwork([cover], true);
       trySetupMediaSession();
       updateMiniMeta();
       return;
@@ -1418,7 +1426,7 @@
         album: meta?.album || ''
       };
       if(cover){
-        setMiniArtwork([cover]);
+        setMiniArtwork([cover], false);
       }else{
         const stills = await extractVideoArtworkList(file);
         if(token !== S.artworkToken) return;
@@ -1428,14 +1436,14 @@
           if(validated.length >= 4) break;
         }
         if(token !== S.artworkToken) return;
-        setMiniArtwork(validated.length ? validated : [makeIconDataUrl('video')]);
+        setMiniArtwork(validated.length ? validated : [makeIconDataUrl('video')], false);
       }
       trySetupMediaSession();
       updateMiniMeta();
       return;
     }
     S.mediaMeta = { title:file.name || t('meta_no_media'), artist:'', album:'' };
-    setMiniArtwork([makeIconDataUrl('audio')]);
+    setMiniArtwork([makeIconDataUrl('audio')], true);
     trySetupMediaSession();
     updateMiniMeta();
   }
@@ -1444,7 +1452,7 @@
     const isAudio = /(\.mp3|\.m4a|\.aac|\.wav|\.flac|\.ogg|\.opus)(\?|$)/.test(label);
     const isVideo = /(\.mp4|\.webm|\.mov|\.mkv|\.avi|\.m4v)(\?|$)/.test(label);
     S.mediaMeta = { title: currentDisplayTitle(), artist:'', album:'' };
-    setMiniArtwork([makeIconDataUrl(isVideo ? 'video' : 'audio')]);
+    setMiniArtwork([makeIconDataUrl(isVideo ? 'video' : 'audio')], !isVideo);
     updateMiniMeta();
     if(isVideo){
       const stills = await extractVideoArtworkList(url);
@@ -1456,7 +1464,7 @@
           if(validated.length >= 4) break;
         }
         if(token !== S.artworkToken) return;
-        setMiniArtwork(validated.length ? validated : [makeIconDataUrl('video')]);
+        setMiniArtwork(validated.length ? validated : [makeIconDataUrl('video')], false);
         trySetupMediaSession();
         updateMiniMeta();
       }

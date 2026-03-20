@@ -167,9 +167,14 @@
       c.shadowColor = 'rgba(255,255,255,0.55)';
       c.beginPath();
       const td = frame.timeData || [];
+      const circularAmp = frame.mode === 'circular' ? 0.72 : 1;
+      const centerY = H * 0.5;
       for (let i = 0; i < td.length; i++){
         const nx = (i / Math.max(1, td.length - 1)) * W;
-        const ny = (1 - td[i] / 255) * H;
+        const normalized = (td[i] - 128) / 128;
+        const ny = frame.mode === 'circular'
+          ? centerY - normalized * (H * 0.22 * circularAmp)
+          : (1 - td[i] / 255) * H;
         if (i === 0) c.moveTo(nx, ny);
         else c.lineTo(nx, ny);
       }

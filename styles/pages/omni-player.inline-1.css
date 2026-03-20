@@ -16,7 +16,7 @@
     --cover-tilt: rotateX(0deg) rotateY(0deg);
     --cover-bob: scale(1);
     --spec-beat: 1;
-    --video-ambient-blur:42px;
+    --video-ambient-blur:50px;
   }
 
   /* 背景パーティクル用（任意。body直下に #particles-js を置く場合） */
@@ -360,9 +360,9 @@ html,body{height:100%}
   body.app-bp-phone:not(.app-ratio-portrait) .settings-tabs{overflow:auto;padding-bottom:.38rem}
   body.app-bp-phone:not(.app-ratio-portrait) .settings-tabs .tab{flex:0 0 auto}
   .ambient-light{
-    position:absolute;inset:-18px;z-index:0;pointer-events:none;
-    width:calc(100% + 36px);height:calc(100% + 36px);display:block;
-    filter:blur(var(--video-ambient-blur)) saturate(1.48) brightness(1.14);
+    position:absolute;inset:-22px;z-index:0;pointer-events:none;
+    width:calc(100% + 44px);height:calc(100% + 44px);display:block;
+    filter:blur(var(--video-ambient-blur)) saturate(1.68) brightness(1.28);
     opacity:1
   }
   .player-wrap{position:relative;z-index:1;width:100%;height:100%;background:#000;border-radius:var(--soft);overflow:hidden;
@@ -503,6 +503,14 @@ html,body{height:100%}
     transition:transform .05s linear;
   }
   #spectrum.on-video{height:30%;opacity:.75;pointer-events:none}
+  #spectrum.mode-circular{
+    left:50%;
+    right:auto;
+    top:50%;
+    bottom:auto;
+    transform:translate(-50%,-50%) scale(var(--spec-beat,1));
+    transform-origin:center center;
+  }
 
   .audio-info{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:.7rem;z-index:7;pointer-events:none;text-align:center;padding:1rem}
   .audio-info .artwrap{width:min(42vh,42vw);aspect-ratio:1/1;border-radius:18px;overflow:hidden;box-shadow:0 14px 60px var(--shadow);background:#0b0f14;display:flex;align-items:center;justify-content:center;transform-style:preserve-3d;transition:transform .12s ease;

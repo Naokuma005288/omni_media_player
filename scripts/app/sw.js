@@ -1,5 +1,5 @@
 /* OmniMedia SW v2.7 */
-const VERSION = 'v3.4.3';
+const VERSION = 'v3.5.0';
 const CORE = [
   './',
   './index.html',

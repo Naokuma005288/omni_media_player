@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v3.4.3</title>
+<title>OmniMedia – Landing v3.5.0</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 
 <script src="./scripts/pages/landing.inline-1.js"></script>
@@ -20,7 +20,7 @@
 <!-- Splash -->
 <div id="splash" aria-hidden="true">
   <div class="s-logo"><div class="mark"></div><div>OmniMedia</div></div>
-  <div class="s-sub">Landing v3.4.3</div>
+  <div class="s-sub">Landing v3.5.0</div>
   <div class="s-orbit"></div><div class="s-ring"></div>
   <div id="sProgress" class="s-progress" aria-hidden="true"><span class="bar"></span></div>
 </div>
@@ -37,23 +37,34 @@
   <header>
     <div class="brand">
       <div class="logo" aria-hidden="true"></div>
-      <h1 id="title" class="shimmer">OmniMedia – ランディング</h1>
-      <span class="version">v3.4.3</span>
+      <h1 id="title" class="shimmer" data-i18n="landingTitle">OmniMedia – Landing</h1>
+      <span class="version">v3.5.0</span>
       <span id="netBadge" class="badge">Online</span>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
-      <button id="helpBtn" class="btn" title="ショートカット">？</button>
-      <button id="installBtn" class="btn" title="アプリとしてインストール" style="display:none">⬇︎ インストール</button>
-      <button id="shareBtn" class="btn" title="共有">共有</button>
-      <button id="settingsBtn" class="btn" title="設定">⚙️</button>
-      <button id="langBtn" class="btn" aria-label="言語切替">🌐 JP</button>
-      <button id="themeBtn" class="btn" aria-label="テーマ切替">🌙</button>
+      <button id="helpBtn" class="btn" title="ショートカット" data-i18n-title="helpBtnTitle">？</button>
+      <button id="installBtn" class="btn" title="アプリとしてインストール" data-i18n-title="installBtnTitle" style="display:none">⬇︎ <span data-i18n="installBtn">Install</span></button>
+      <button id="shareBtn" class="btn" title="共有" data-i18n-title="shareBtnTitle" data-i18n="shareBtn">Share</button>
+      <button id="settingsBtn" class="btn" title="設定" data-i18n-title="settingsBtnTitle">⚙️</button>
+      <button id="langBtn" class="btn" aria-label="言語切替" data-i18n-aria-label="langBtnAria">🌐 JP</button>
+      <button id="themeBtn" class="btn" aria-label="テーマ切替" data-i18n-aria-label="themeBtnAria">🌙</button>
     </div>
   </header>
 
   <div class="toolbar">
-    <input id="filter" type="search" placeholder="検索: Omni Player / mini / PC …" aria-label="検索">
+    <input id="filter" type="search" placeholder="検索: Omni Player / mini / PC …" aria-label="検索" data-i18n-placeholder="searchPH" data-i18n-aria-label="searchAria">
   </div>
+
+  <section class="landing-hero" aria-labelledby="heroTitle">
+    <p class="eyebrow" id="heroEyebrow" data-i18n="heroEyebrow">Choose your playback mode</p>
+    <h2 id="heroTitle" data-i18n="heroTitle">One landing page, three playback styles.</h2>
+    <p class="hero-copy" id="heroCopy" data-i18n="heroCopy">Omni Player is the full build, mini is the fast path, and legacy stays for compatibility.</p>
+    <div class="hero-pills" id="heroPills">
+      <span class="hero-pill" id="heroPillAlpha" data-i18n="heroPillAlpha">Omni Player: full feature set</span>
+      <span class="hero-pill" id="heroPillMini" data-i18n="heroPillMini">mini: lightweight and quick</span>
+      <span class="hero-pill" id="heroPillLegacy" data-i18n="heroPillLegacy">legacy: compatibility only</span>
+    </div>
+  </section>
 
   <main>
     <!-- Section: Omni Player Series -->
@@ -70,7 +81,7 @@
           <h2 id="titleAlpha" data-orig>Omni Player</h2>
           <p id="descAlpha" data-orig>安定版。完全機能・低負荷で推奨バージョン。</p>
           <div class="compare" id="cmpAlpha"></div>
-          <a class="btn" href="./omni-player.html" id="btnAlpha">開く</a>
+          <a class="btn" href="./omni-player.html" id="btnAlpha" data-i18n="openBtn">Open</a>
         </article>
 
         <article class="card" tabindex="0" draggable="true" data-tags="beta test 実験 mini local hls" data-slug="beta" data-href="./omni-player-mini.html">
@@ -79,7 +90,7 @@
           <h2 id="titleBeta" data-orig>Omni Player mini</h2>
           <p id="descBeta" data-orig>軽量でシンプルな操作に絞ったミニモデル。</p>
           <div class="compare" id="cmpBeta"></div>
-          <a class="btn" href="./omni-player-mini.html" id="btnBeta">開く</a>
+          <a class="btn" href="./omni-player-mini.html" id="btnBeta" data-i18n="openBtn">Open</a>
         </article>
 
         <article class="card legacy" tabindex="0" draggable="true" data-tags="pc old 旧版 legacy compat" data-slug="pc" data-href="./omni-player-legacy.html">
@@ -88,7 +99,7 @@
           <h2 id="titlePc" data-orig>Omni Player PC</h2>
           <p id="descPc" data-orig>旧版。過去構成用として残存。</p>
           <div class="compare" id="cmpPc"></div>
-          <a class="btn" href="./omni-player-legacy.html" id="btnPc">開く</a>
+          <a class="btn" href="./omni-player-legacy.html" id="btnPc" data-i18n="openBtn">Open</a>
         </article>
 
       </div>
@@ -115,10 +126,10 @@
 
         <!-- Keep Omni Live as Coming Soon -->
         <article class="card soon" tabindex="0" role="button" data-soon-key="live" data-tags="coming soon live" aria-disabled="true">
-          <span class="mark soon">Coming Soon</span>
-          <h2>Omni Live</h2>
-          <p>低遅延・マルチストリームライブ。</p>
-          <a class="btn">準備中</a>
+          <span class="mark soon" data-i18n="comingSoon">Coming Soon</span>
+          <h2 data-i18n="liveTitle">Omni Live</h2>
+          <p data-i18n="liveDesc">Low-latency and multi-stream live playback.</p>
+          <a class="btn" data-i18n="soonBtn">Coming Soon</a>
         </article>
 
         <article class="card soon" tabindex="0" role="button" data-soon-key="editor" data-tags="editor coming soon 新" aria-disabled="true">
@@ -129,6 +140,12 @@
         </article>
       </div>
     </section>
+
+    <div id="searchEmpty" class="search-empty" hidden>
+      <h3 data-i18n="searchEmptyTitle">No matching cards</h3>
+      <p data-i18n="searchEmptyText">Try another keyword or clear the search to see the full lineup.</p>
+      <button class="btn" id="clearSearchBtn" data-i18n="clearSearchBtn">Clear search</button>
+    </div>
   </main>
 
   <footer id="footerText">© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4</footer>
@@ -137,21 +154,22 @@
 <!-- Settings -->
 <div class="modal" id="settingsModal" aria-hidden="true">
   <div class="card-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <h3 id="settingsTitle">設定</h3>
+    <h3 id="settingsTitle" data-i18n="settingsTitle">Settings</h3>
+    <p class="modal-lead" data-i18n="settingsLead">Keep the landing page focused by using quick presets first, then open detailed visual controls only if needed.</p>
 
     <div class="tabs" role="tablist">
-      <button class="tab" type="button" data-tab="display" aria-selected="true">表示</button>
-      <button class="tab" type="button" data-tab="effects" aria-selected="false">エフェクト</button>
-      <button class="tab" type="button" data-tab="interaction" aria-selected="false">操作</button>
-      <button class="tab" type="button" data-tab="data" aria-selected="false">データ</button>
+      <button class="tab" type="button" data-tab="display" aria-selected="true" data-i18n="tabDisplay">Display</button>
+      <button class="tab" type="button" data-tab="effects" aria-selected="false" data-i18n="tabEffects">Effects</button>
+      <button class="tab" type="button" data-tab="interaction" aria-selected="false" data-i18n="tabInteraction">Interaction</button>
+      <button class="tab" type="button" data-tab="data" aria-selected="false" data-i18n="tabData">Data</button>
     </div>
 
     <div class="sbar">
-      <input id="settingsSearch" type="search" placeholder="設定を検索…" aria-label="設定を検索">
+      <input id="settingsSearch" type="search" placeholder="設定を検索…" aria-label="設定を検索" data-i18n-placeholder="settingsSearchPH" data-i18n-aria-label="settingsSearchAria">
       <div class="presets">
-        <button class="btn" id="presetBalanced" title="バランス">バランス</button>
-        <button class="btn" id="presetPerformance" title="省エネ重視">省エネ重視</button>
-        <button class="btn" id="presetAesthetic" title="演出重視">演出重視</button>
+        <button class="btn" id="presetBalanced" title="バランス" data-i18n-title="presetBalanced" data-i18n="presetBalanced">Balanced</button>
+        <button class="btn" id="presetPerformance" title="省エネ重視" data-i18n-title="presetPerformance" data-i18n="presetPerformance">Performance</button>
+        <button class="btn" id="presetAesthetic" title="演出重視" data-i18n-title="presetAesthetic" data-i18n="presetAesthetic">Aesthetic</button>
       </div>
     </div>
 
@@ -160,84 +178,87 @@
       <section class="panel active" data-panel="display">
         <div class="sgrid">
           <div class="opt">
-            <div>テーマ<small>ライト/ダーク/OS連動/時間（auto-time）</small></div>
+            <div data-i18n-html="optThemeHtml">テーマ<small>ライト/ダーク/OS連動/時間（auto-time）</small></div>
             <div class="right">
               <select id="optTheme">
-                <option value="dark">ダーク</option>
-                <option value="light">ライト</option>
-                <option value="auto">自動（OS連動）</option>
-                <option value="auto-time">時間（朝/夜で自動）</option>
+                <option value="dark" data-i18n="themeDark">ダーク</option>
+                <option value="light" data-i18n="themeLight">ライト</option>
+                <option value="auto" data-i18n="themeAuto">自動（OS連動）</option>
+                <option value="auto-time" data-i18n="themeAutoTime">時間（朝/夜で自動）</option>
               </select>
             </div>
           </div>
           <div class="opt">
-            <div>アクセントカラー<small>配色の基準色</small></div>
+            <div data-i18n-html="optAccentHtml">アクセントカラー<small>配色の基準色</small></div>
             <div class="right">
               <input type="color" id="optAccent" value="#74b3ff" title="アクセント色">
-              <button class="btn" id="optAccentRand">ランダム</button>
-              <label><input type="checkbox" id="optAccentCycle"> 自動シフト</label>
+              <button class="btn" id="optAccentRand" data-i18n="randomBtn">ランダム</button>
+              <label><input type="checkbox" id="optAccentCycle"> <span data-i18n="autoShift">自動シフト</span></label>
             </div>
           </div>
           <div class="opt">
-            <div>コンパクト表示<small>カードの余白を小さく</small></div>
-            <div class="right"><label><input type="checkbox" id="optCompact"> 有効</label></div>
+            <div data-i18n-html="optCompactHtml">コンパクト表示<small>カードの余白を小さく</small></div>
+            <div class="right"><label><input type="checkbox" id="optCompact"> <span data-i18n="enabled">有効</span></label></div>
           </div>
           <div class="opt">
-            <div>リスト表示<small>上段（Omni Player）を1列に</small></div>
-            <div class="right"><label><input type="checkbox" id="optListView"> 有効</label></div>
+            <div data-i18n-html="optListViewHtml">リスト表示<small>上段（Omni Player）を1列に</small></div>
+            <div class="right"><label><input type="checkbox" id="optListView"> <span data-i18n="enabled">有効</span></label></div>
           </div>
           <div class="opt">
-            <div>タイトル・シマー<small>見出しのハイライト</small></div>
-            <div class="right"><label><input type="checkbox" id="optTitleShimmer" checked> 有効</label></div>
+            <div data-i18n-html="optTitleShimmerHtml">タイトル・シマー<small>見出しのハイライト</small></div>
+            <div class="right"><label><input type="checkbox" id="optTitleShimmer" checked> <span data-i18n="enabled">有効</span></label></div>
           </div>
           <div class="opt">
-            <div>時計HUD<small>現在時刻・曜日・年月日を上部中央に表示</small></div>
-            <div class="right"><label><input type="checkbox" id="optClock" checked> 表示</label></div>
+            <div data-i18n-html="optClockHtml">時計HUD<small>現在時刻・曜日・年月日を上部中央に表示</small></div>
+            <div class="right"><label><input type="checkbox" id="optClock" checked> <span data-i18n="showLabel">表示</span></label></div>
           </div>
           <div class="opt">
-            <div>省エネ・低スペック<small>アニメ減/視差・重い演出を抑制</small></div>
-            <div class="right"><label><input type="checkbox" id="optReduce"> 有効</label></div>
+            <div data-i18n-html="optReduceHtml">省エネ・低スペック<small>アニメ減/視差・重い演出を抑制</small></div>
+            <div class="right"><label><input type="checkbox" id="optReduce"> <span data-i18n="enabled">有効</span></label></div>
           </div>
           <div class="opt">
-            <div>自動節電（FPS<30）<small>一時的にFXをミュート</small></div>
-            <div class="right"><label><input type="checkbox" id="optAutoReduce"> 有効</label></div>
+            <div data-i18n-html="optAutoReduceHtml">自動節電（FPS&lt;30）<small>一時的にFXをミュート</small></div>
+            <div class="right"><label><input type="checkbox" id="optAutoReduce"> <span data-i18n="enabled">有効</span></label></div>
           </div>
           <div class="opt">
-            <div>FPSメーター<small>パフォーマンス確認用</small></div>
-            <div class="right"><label><input type="checkbox" id="optFps"> 表示</label></div>
+            <div data-i18n-html="optFpsHtml">FPSメーター<small>パフォーマンス確認用</small></div>
+            <div class="right"><label><input type="checkbox" id="optFps"> <span data-i18n="showLabel">表示</span></label></div>
           </div>
           <div class="opt">
-            <div>お気に入りを先頭<small>カード一覧を並べ替え</small></div>
-            <div class="right"><label><input type="checkbox" id="optFavFirst" checked> 有効</label></div>
+            <div data-i18n-html="optFavFirstHtml">お気に入りを先頭<small>カード一覧を並べ替え</small></div>
+            <div class="right"><label><input type="checkbox" id="optFavFirst" checked> <span data-i18n="enabled">有効</span></label></div>
           </div>
         </div>
       </section>
 
       <!-- エフェクト -->
       <section class="panel" data-panel="effects">
+        <details class="advanced-group">
+          <summary data-i18n="advancedEffects">Advanced effects</summary>
         <div class="sgrid">
-          <div class="opt"><div>背景ビーム<small>柔らかな光柱の揺れ</small></div><div class="right"><label><input type="checkbox" id="optBeams" checked> 有効</label></div></div>
-          <div class="opt"><div>星空チラつき<small>小さな輝点の瞬き</small></div><div class="right"><label><input type="checkbox" id="optStars" checked> 有効</label></div></div>
-          <div class="opt"><div>ワープライン<small>格子の流れ</small></div><div class="right"><label><input type="checkbox" id="optWarp"> 有効</label></div></div>
-          <div class="opt"><div>スキャンライン<small>CRT風の走査線</small></div><div class="right"><label><input type="checkbox" id="optScan"> 有効</label></div></div>
-          <div class="opt"><div>カーソル・トレイル<small>ポインタの残光</small></div><div class="right"><label><input type="checkbox" id="optTrail" checked> 有効</label></div></div>
-          <div class="opt"><div>カード・シーン（光筋）<small>カード横断のハイライト</small></div><div class="right"><label><input type="checkbox" id="optSheen" checked> 有効</label></div></div>
-          <div class="opt"><div>ボタン・マグネット<small>ボタンがマウスに追従</small></div><div class="right"><label><input type="checkbox" id="optMagnet" checked> 有効</label></div></div>
-          <div class="opt"><div>アイドル時オート巡回<small>何も操作しないと選択カードを順に表示</small></div><div class="right"><label><input type="checkbox" id="optAutoCycle"> 有効</label></div></div>
+          <div class="opt"><div data-i18n-html="optBeamsHtml">背景ビーム<small>柔らかな光柱の揺れ</small></div><div class="right"><label><input type="checkbox" id="optBeams" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optStarsHtml">星空チラつき<small>小さな輝点の瞬き</small></div><div class="right"><label><input type="checkbox" id="optStars" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optWarpHtml">ワープライン<small>格子の流れ</small></div><div class="right"><label><input type="checkbox" id="optWarp"> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optScanHtml">スキャンライン<small>CRT風の走査線</small></div><div class="right"><label><input type="checkbox" id="optScan"> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optTrailHtml">カーソル・トレイル<small>ポインタの残光</small></div><div class="right"><label><input type="checkbox" id="optTrail" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optSheenHtml">カード・シーン（光筋）<small>カード横断のハイライト</small></div><div class="right"><label><input type="checkbox" id="optSheen" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optMagnetHtml">ボタン・マグネット<small>ボタンがマウスに追従</small></div><div class="right"><label><input type="checkbox" id="optMagnet" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optAutoCycleHtml">アイドル時オート巡回<small>何も操作しないと選択カードを順に表示</small></div><div class="right"><label><input type="checkbox" id="optAutoCycle"> <span data-i18n="enabled">有効</span></label></div></div>
           <div class="opt">
-            <div>背景パーティクル量<small>落下粒子の密度</small></div>
+            <div data-i18n-html="optParticlesHtml">背景パーティクル量<small>落下粒子の密度</small></div>
             <div class="right"><input type="range" id="optParticles" min="0" max="120" step="6" value="48"></div>
           </div>
         </div>
+        </details>
       </section>
 
       <!-- 操作 -->
       <section class="panel" data-panel="interaction">
         <div class="sgrid">
-          <div class="opt"><div>3Dチルト<small>カードがマウスで傾く</small></div><div class="right"><label><input type="checkbox" id="optTilt"> 有効</label></div></div>
-          <div class="opt"><div>フォーカスモード<small>選択カードを強調表示</small></div><div class="right"><label><input type="checkbox" id="optFocus" checked> 有効</label></div></div>
-          <div class="opt"><div>コンフェッティ<small>フォーカスやお気に入り時の紙吹雪</small></div><div class="right"><label><input type="checkbox" id="optConfetti" checked> 有効</label></div></div>
-          <div class="opt"><div>ドラッグで並べ替え<small>カードの順序をドラッグ＆ドロップ</small></div><div class="right"><label><input type="checkbox" id="optDragOrder" checked> 有効</label></div></div>
+          <div class="opt"><div data-i18n-html="optTiltHtml">3Dチルト<small>カードがマウスで傾く</small></div><div class="right"><label><input type="checkbox" id="optTilt"> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optFocusHtml">フォーカスモード<small>選択カードを強調表示</small></div><div class="right"><label><input type="checkbox" id="optFocus" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optConfettiHtml">コンフェッティ<small>フォーカスやお気に入り時の紙吹雪</small></div><div class="right"><label><input type="checkbox" id="optConfetti" checked> <span data-i18n="enabled">有効</span></label></div></div>
+          <div class="opt"><div data-i18n-html="optDragOrderHtml">ドラッグで並べ替え<small>カードの順序をドラッグ＆ドロップ</small></div><div class="right"><label><input type="checkbox" id="optDragOrder" checked> <span data-i18n="enabled">有効</span></label></div></div>
         </div>
       </section>
 
@@ -245,14 +266,14 @@
       <section class="panel" data-panel="data">
         <div class="sgrid">
           <div class="opt">
-            <div>設定ファイル<small>バックアップ/共有に便利</small></div>
+            <div data-i18n-html="optDataHtml">設定ファイル<small>バックアップ/共有に便利</small></div>
             <div class="right" style="flex-wrap:wrap">
-              <button class="btn" id="optExport">エクスポート</button>
-              <label class="btn" style="cursor:pointer">インポート
+              <button class="btn" id="optExport" data-i18n="exportBtn">エクスポート</button>
+              <label class="btn" style="cursor:pointer"><span data-i18n="importBtn">インポート</span>
                 <input type="file" id="optImport" accept="application/json" style="display:none">
               </label>
-              <button class="btn" id="optReset" title="初期化">初期化</button>
-              <button class="btn" id="optResetOrder" title="順序リセット">順序リセット</button>
+              <button class="btn" id="optReset" title="初期化" data-i18n-title="resetBtn" data-i18n="resetBtn">初期化</button>
+              <button class="btn" id="optResetOrder" title="順序リセット" data-i18n-title="resetOrderBtn" data-i18n="resetOrderBtn">順序リセット</button>
             </div>
           </div>
         </div>
@@ -260,7 +281,7 @@
     </div>
 
     <div style="text-align:right;margin-top:10px">
-      <button class="btn" id="optClose">閉じる</button>
+      <button class="btn" id="optClose" data-i18n="close">Close</button>
     </div>
   </div>
 </div>
@@ -268,34 +289,34 @@
 <!-- Help -->
 <div class="modal" id="helpModal" aria-hidden="true">
   <div class="card-modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-    <h3 id="helpTitle">ショートカット</h3>
+    <h3 id="helpTitle" data-i18n="helpTitle">Shortcuts</h3>
     <ul style="margin:.4rem 0 0 1rem;line-height:1.8">
-      <li><b>Ctrl/Cmd + K</b> または <b>/</b>… 検索へフォーカス</li>
-      <li><b>← / →</b>… カード移動　<b>Enter</b>… フォーカス/開く</li>
-      <li><b>1–9</b>… 対応カードへジャンプ　<b>O</b>… 開く</li>
-      <li><b>X</b>… FXミュート切替　<b>L</b>… リスト表示　<b>C</b>… コンパクト表示</li>
-      <li><b>Esc</b>… フォーカス解除　<b>?</b>… このヘルプ</li>
-      <li><b>ドラッグ</b>… 並べ替え（有効時）</li>
+      <li data-i18n-html="helpLine1"><b>Ctrl/Cmd + K</b> or <b>/</b> focuses search.</li>
+      <li data-i18n-html="helpLine2"><b>← / →</b> moves cards and <b>Enter</b> focuses or opens.</li>
+      <li data-i18n-html="helpLine3"><b>1-9</b> jumps to cards and <b>O</b> opens.</li>
+      <li data-i18n-html="helpLine4"><b>X</b> mutes FX, <b>L</b> toggles list, <b>C</b> toggles compact.</li>
+      <li data-i18n-html="helpLine5"><b>Esc</b> clears focus and <b>?</b> opens this help.</li>
+      <li data-i18n-html="helpLine6"><b>Drag</b> reorders cards when enabled.</li>
     </ul>
-    <div style="text-align:right;margin-top:8px"><button class="btn" id="helpClose">閉じる</button></div>
+    <div style="text-align:right;margin-top:8px"><button class="btn" id="helpClose" data-i18n="close">Close</button></div>
   </div>
 </div>
 
 <div class="modal" id="soonModal" aria-hidden="true">
   <div class="card-modal soon-modal" role="dialog" aria-modal="true" aria-labelledby="soonTitle">
     <h3 id="soonTitle">Coming Soon</h3>
-    <p id="soonText">開発中の内容を準備しています。</p>
+    <p id="soonText">Preparing the next module.</p>
     <div class="soon-points" id="soonPoints"></div>
-    <div style="text-align:right;margin-top:8px"><button class="btn" id="soonClose">閉じる</button></div>
+    <div style="text-align:right;margin-top:8px"><button class="btn" id="soonClose" data-i18n="close">Close</button></div>
   </div>
 </div>
 
 <!-- Ctx menu / HUD -->
 <div id="ctx" role="menu" aria-hidden="true">
-  <div class="row" data-cmd="open">開く</div>
-  <div class="row" data-cmd="newtab">新しいタブで開く</div>
-  <div class="row" data-cmd="copy">リンクをコピー</div>
-  <div class="row" data-cmd="fav">お気に入りに追加/解除</div>
+  <div class="row" data-cmd="open" data-i18n="ctxOpen">Open</div>
+  <div class="row" data-cmd="newtab" data-i18n="ctxNewTab">Open in new tab</div>
+  <div class="row" data-cmd="copy" data-i18n="ctxCopy">Copy link</div>
+  <div class="row" data-cmd="fav" data-i18n="ctxFav">Toggle favorite</div>
 </div>
 <div id="fps">fps: --</div>
 <div id="toasts" aria-live="polite"></div>

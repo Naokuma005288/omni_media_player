@@ -6,6 +6,8 @@ const langBtn  = document.getElementById('langBtn');
 /* Sections/grids */
 const grid   = document.getElementById('grid');      // Omni Player セクションのグリッド
 const gridSoon = document.getElementById('gridSoon'); // 新シリーズ（下段）
+const seriesOmni = document.getElementById('series-omni');
+const seriesNew = document.getElementById('series-new');
 
 const cursor = document.getElementById('cursor');
 const settingsBtn = document.getElementById('settingsBtn');
@@ -43,6 +45,8 @@ const ctxMenu = document.getElementById('ctx');
 const fpsBox = document.getElementById('fps');
 const netBadge = document.getElementById('netBadge');
 const nebulaEl = document.getElementById('nebula');
+const searchEmpty = document.getElementById('searchEmpty');
+const clearSearchBtn = document.getElementById('clearSearchBtn');
 
 const beams = document.getElementById('beams');
 const stars = document.getElementById('stars2');
@@ -182,22 +186,44 @@ optTheme?.addEventListener('change',()=>{ store.set(themeKey, optTheme.value); t
 
 /* ===== Language ===== */
 const dict={
-  ja:{lang:"JP",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"推奨",beta:"mini",old:"非推奨",
+  ja:{lang:"JP",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",landingTitle:"OmniMedia – ランディング",alpha:"推奨",beta:"mini",old:"非推奨",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"安定版。完全機能・低負荷で推奨バージョン。",betaDesc:"軽量でシンプルな操作に絞ったミニモデル。",oldDesc:"旧版。過去構成用として残存。",
       alphaPoints:["全部入りUI","YouTube / 埋め込み対応","プレイリスト・字幕向け"],betaPoints:["最短操作","ローカル / HLS に最適化","詳細設定は任意"],oldPoints:["旧版UI","互換維持のみ","新規利用は非推奨"],
       searchPH:"検索: Omni Player / mini / PC …", secOmni:"Omni Player シリーズ", secOmniHint:"主要ラインアップ",
       secNew:"新シリーズ", secNewHint:"Coming Soon", cueNew:"新シリーズ（Coming Soon）へ",
+      searchAria:"検索", heroEyebrow:"再生モードを選ぶ", heroTitle:"1つのランディングで、3つの再生スタイル。", heroCopy:"Omni Player は全部入り、mini は最短操作、legacy は互換維持用です。", heroPillAlpha:"Omni Player: 全機能", heroPillMini:"mini: 軽量で高速", heroPillLegacy:"legacy: 互換専用",
+      helpBtnTitle:"ショートカット", installBtnTitle:"アプリとしてインストール", installBtn:"インストール", shareBtnTitle:"共有", shareBtn:"共有", settingsBtnTitle:"設定", langBtnAria:"言語切替", themeBtnAria:"テーマ切替",
+      settingsTitle:"設定", settingsLead:"まずはプリセットで方向性を決め、必要なときだけ詳細演出を調整する構成にしています。", tabDisplay:"表示", tabEffects:"エフェクト", tabInteraction:"操作", tabData:"データ", settingsSearchPH:"設定を検索…", settingsSearchAria:"設定を検索", presetBalanced:"バランス", presetPerformance:"省エネ重視", presetAesthetic:"演出重視", advancedEffects:"詳細エフェクト",
+      themeDark:"ダーク", themeLight:"ライト", themeAuto:"自動（OS連動）", themeAutoTime:"時間（朝/夜で自動）", randomBtn:"ランダム", autoShift:"自動シフト", enabled:"有効", showLabel:"表示", exportBtn:"エクスポート", importBtn:"インポート", resetBtn:"初期化", resetOrderBtn:"順序リセット",
+      optThemeHtml:"テーマ<small>ライト/ダーク/OS連動/時間（auto-time）</small>", optAccentHtml:"アクセントカラー<small>配色の基準色</small>", optCompactHtml:"コンパクト表示<small>カードの余白を小さく</small>", optListViewHtml:"リスト表示<small>上段（Omni Player）を1列に</small>", optTitleShimmerHtml:"タイトル・シマー<small>見出しのハイライト</small>", optClockHtml:"時計HUD<small>現在時刻・曜日・年月日を上部中央に表示</small>", optReduceHtml:"省エネ・低スペック<small>アニメ減/視差・重い演出を抑制</small>", optAutoReduceHtml:"自動節電（FPS&lt;30）<small>一時的にFXをミュート</small>", optFpsHtml:"FPSメーター<small>パフォーマンス確認用</small>", optFavFirstHtml:"お気に入りを先頭<small>カード一覧を並べ替え</small>",
+      optBeamsHtml:"背景ビーム<small>柔らかな光柱の揺れ</small>", optStarsHtml:"星空チラつき<small>小さな輝点の瞬き</small>", optWarpHtml:"ワープライン<small>格子の流れ</small>", optScanHtml:"スキャンライン<small>CRT風の走査線</small>", optTrailHtml:"カーソル・トレイル<small>ポインタの残光</small>", optSheenHtml:"カード・シーン（光筋）<small>カード横断のハイライト</small>", optMagnetHtml:"ボタン・マグネット<small>ボタンがマウスに追従</small>", optAutoCycleHtml:"アイドル時オート巡回<small>何も操作しないと選択カードを順に表示</small>", optParticlesHtml:"背景パーティクル量<small>落下粒子の密度</small>",
+      optTiltHtml:"3Dチルト<small>カードがマウスで傾く</small>", optFocusHtml:"フォーカスモード<small>選択カードを強調表示</small>", optConfettiHtml:"コンフェッティ<small>フォーカスやお気に入り時の紙吹雪</small>", optDragOrderHtml:"ドラッグで並べ替え<small>カードの順序をドラッグ＆ドロップ</small>", optDataHtml:"設定ファイル<small>バックアップ/共有に便利</small>",
+      helpTitle:"ショートカット", helpLine1:"<b>Ctrl/Cmd + K</b> または <b>/</b> で検索にフォーカス", helpLine2:"<b>← / →</b> でカード移動、<b>Enter</b> で強調または開く", helpLine3:"<b>1-9</b> でカードへジャンプ、<b>O</b> で開く", helpLine4:"<b>X</b> でFX、<b>L</b> でリスト、<b>C</b> でコンパクト切替", helpLine5:"<b>Esc</b> で解除、<b>?</b> でこのヘルプ", helpLine6:"<b>ドラッグ</b> で並べ替え（有効時）",
+      ctxOpen:"開く", ctxNewTab:"新しいタブで開く", ctxCopy:"リンクをコピー", ctxFav:"お気に入り切替", searchEmptyTitle:"一致するカードがありません", searchEmptyText:"別のキーワードを試すか、検索をクリアして全ラインアップを表示してください。", clearSearchBtn:"検索をクリア", close:"閉じる",
+      netOnline:"Online", netOffline:"Offline", shareLabelCopied:"コピー済み", copied:"コピー済み", toastFavRemoved:"お気に入りを解除", toastFavAdded:"お気に入りに追加", toastFxMuted:"FXをミュート", toastFxResumed:"FXを再開", toastListOn:"リスト表示", toastListOff:"グリッド表示", toastCompactOn:"コンパクト表示", toastCompactOff:"標準表示", toastExported:"設定をエクスポートしました", toastImported:"設定を読み込みました。再読み込みで反映が安定します", toastReload:"再読み込み", toastImportFailed:"読み込みに失敗しました", toastReset:"設定を初期化しました", toastResetOrder:"順序を初期化しました", toastLaunchFxOff:"FXをミュートして起動中", toastUpdateReady:"更新があります", toastUpdateAvailable:"更新が適用可能です", toastAutoLow:"自動節電：FXを一時ミュート中", toastAutoResume:"FXを再開しました", toastOnline:"オンラインになりました", toastOffline:"オフラインです", toastLowSpec:"低スペック環境を検出。省エネモードを推奨します", toastEnable:"有効化", toastSecret:"🎉 Secret!", toastSearchCleared:"検索をクリアしました",
       betaBadge:"β版", openBtn:"開く", soonBtn:"準備中", comingSoon:"Coming Soon",
+      liveTitle:"Omni Live", liveDesc:"低遅延・マルチストリームライブ。",
       convertTitle:"Omni Convert", convertDesc:"現在開発中です。",
-      editorTitle:"Omni Editor",  editorDesc:"現在開発中です。", close:"閉じる"},
-  en:{lang:"EN",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"Rec",beta:"mini",old:"Old",
+      editorTitle:"Omni Editor",  editorDesc:"現在開発中です。"},
+  en:{lang:"EN",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",landingTitle:"OmniMedia – Landing",alpha:"Rec",beta:"mini",old:"Old",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"A lighter, simpler mini model focused on core playback.",oldDesc:"Legacy version kept for compatibility.",
       alphaPoints:["Full feature set","YouTube / embed ready","Built for playlists and subtitles"],betaPoints:["Fast core controls","Optimized for local / HLS","Advanced panels are optional"],oldPoints:["Old UI stack","Compatibility only","Not recommended for new use"],
       searchPH:"Search: Omni Player / mini / PC …", secOmni:"Omni Player Series", secOmniHint:"Main lineup",
       secNew:"New Series", secNewHint:"Coming Soon", cueNew:"Go to New Series (Coming Soon)",
+      searchAria:"Search", heroEyebrow:"Choose your playback mode", heroTitle:"One landing page, three playback styles.", heroCopy:"Omni Player is the full build, mini is the fast path, and legacy stays for compatibility.", heroPillAlpha:"Omni Player: full feature set", heroPillMini:"mini: lightweight and quick", heroPillLegacy:"legacy: compatibility only",
+      helpBtnTitle:"Shortcuts", installBtnTitle:"Install as app", installBtn:"Install", shareBtnTitle:"Share", shareBtn:"Share", settingsBtnTitle:"Settings", langBtnAria:"Switch language", themeBtnAria:"Switch theme",
+      settingsTitle:"Settings", settingsLead:"Start with a quick preset, then open detailed visual controls only when you need them.", tabDisplay:"Display", tabEffects:"Effects", tabInteraction:"Interaction", tabData:"Data", settingsSearchPH:"Search settings…", settingsSearchAria:"Search settings", presetBalanced:"Balanced", presetPerformance:"Performance", presetAesthetic:"Aesthetic", advancedEffects:"Advanced effects",
+      themeDark:"Dark", themeLight:"Light", themeAuto:"Auto (system)", themeAutoTime:"Auto time (day/night)", randomBtn:"Random", autoShift:"Auto shift", enabled:"Enabled", showLabel:"Show", exportBtn:"Export", importBtn:"Import", resetBtn:"Reset", resetOrderBtn:"Reset order",
+      optThemeHtml:"Theme<small>Light, dark, system, or time-based.</small>", optAccentHtml:"Accent color<small>The main color used across the landing page.</small>", optCompactHtml:"Compact layout<small>Reduce card spacing and padding.</small>", optListViewHtml:"List layout<small>Show the main lineup in a single column.</small>", optTitleShimmerHtml:"Title shimmer<small>Animated highlight on the heading.</small>", optClockHtml:"Clock HUD<small>Show time and date at the top center.</small>", optReduceHtml:"Performance mode<small>Reduce motion, parallax, and heavy effects.</small>", optAutoReduceHtml:"Auto power save (FPS&lt;30)<small>Temporarily mutes visual effects.</small>", optFpsHtml:"FPS meter<small>Useful for performance checks.</small>", optFavFirstHtml:"Favorites first<small>Sort favorite cards to the front.</small>",
+      optBeamsHtml:"Background beams<small>Soft moving light columns.</small>", optStarsHtml:"Star twinkle<small>Small flickering highlights.</small>", optWarpHtml:"Warp lines<small>Flowing grid-style motion.</small>", optScanHtml:"Scan lines<small>Subtle CRT-like overlay.</small>", optTrailHtml:"Cursor trail<small>Glow left behind the pointer.</small>", optSheenHtml:"Card sheen<small>Highlight sweep across cards.</small>", optMagnetHtml:"Button magnet<small>Buttons react to cursor movement.</small>", optAutoCycleHtml:"Idle auto-cycle<small>Cycles focused cards when left untouched.</small>", optParticlesHtml:"Particle amount<small>Density of the floating particles.</small>",
+      optTiltHtml:"3D tilt<small>Cards tilt with pointer movement.</small>", optFocusHtml:"Focus mode<small>Emphasize the selected card.</small>", optConfettiHtml:"Confetti<small>Celebrate focus and favorite actions.</small>", optDragOrderHtml:"Drag to reorder<small>Rearrange cards with drag and drop.</small>", optDataHtml:"Settings file<small>Useful for backup and sharing.</small>",
+      helpTitle:"Shortcuts", helpLine1:"<b>Ctrl/Cmd + K</b> or <b>/</b> focuses search.", helpLine2:"<b>← / →</b> moves cards and <b>Enter</b> focuses or opens.", helpLine3:"<b>1-9</b> jumps to cards and <b>O</b> opens.", helpLine4:"<b>X</b> mutes FX, <b>L</b> toggles list, <b>C</b> toggles compact.", helpLine5:"<b>Esc</b> clears focus and <b>?</b> opens this help.", helpLine6:"<b>Drag</b> reorders cards when enabled.", 
+      ctxOpen:"Open", ctxNewTab:"Open in new tab", ctxCopy:"Copy link", ctxFav:"Toggle favorite", searchEmptyTitle:"No matching cards", searchEmptyText:"Try another keyword or clear the search to see the full lineup.", clearSearchBtn:"Clear search", close:"Close",
+      netOnline:"Online", netOffline:"Offline", shareLabelCopied:"Copied", copied:"Copied", toastFavRemoved:"Removed from favorites", toastFavAdded:"Added to favorites", toastFxMuted:"FX muted", toastFxResumed:"FX resumed", toastListOn:"List view", toastListOff:"Grid view", toastCompactOn:"Compact view", toastCompactOff:"Standard view", toastExported:"Settings exported", toastImported:"Settings imported. Reloading will make the result more stable.", toastReload:"Reload", toastImportFailed:"Import failed", toastReset:"Settings reset", toastResetOrder:"Order reset", toastLaunchFxOff:"Launched with FX muted", toastUpdateReady:"Update available", toastUpdateAvailable:"Update ready to apply", toastAutoLow:"Auto power save: FX temporarily muted", toastAutoResume:"FX resumed", toastOnline:"Back online", toastOffline:"You are offline", toastLowSpec:"Low-spec environment detected. Performance mode is recommended.", toastEnable:"Enable", toastSecret:"🎉 Secret!",
       betaBadge:"Beta", openBtn:"Open", soonBtn:"Coming Soon", comingSoon:"Coming Soon",
+      liveTitle:"Omni Live", liveDesc:"Low-latency and multi-stream live playback.",
       convertTitle:"Omni Convert", convertDesc:"Currently under development.",
       editorTitle:"Omni Editor",  editorDesc:"Currently under development.", close:"Close"},
   ko:{lang:"KR",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"추천",beta:"mini",old:"비추천",
@@ -259,6 +285,10 @@ if(!lang){
   store.set(langKey, lang);
 }
 applyLang(lang);
+function t(key){
+  const current = Object.assign({}, dict.en, dict[lang] || dict.ja);
+  return current[key] ?? dict.en[key] ?? dict.ja[key] ?? key;
+}
 langBtn.addEventListener('click',()=>{
   const keys=Object.keys(dict);
   lang=keys[(keys.indexOf(lang)+1)%keys.length];
@@ -270,7 +300,7 @@ function fillCompare(id, items){
   node.innerHTML=(items||[]).map(v=>`<span class="pill">${v}</span>`).join('');
 }
 function applyLang(l){
-  const d=dict[l]||dict.ja;
+  const d=Object.assign({}, dict.en, dict[l]||dict.ja);
   const setText=(id,val)=>{ const node=el(id); if(node) node.textContent=val; };
   setText('markAlpha',d.alpha); setText('markBeta',d.beta); setText('markPc',d.old);
   setText('titleAlpha',d.alphaTitle); setText('titleBeta',d.betaTitle); setText('titlePc',d.oldTitle);
@@ -283,9 +313,30 @@ function applyLang(l){
   fillCompare('cmpAlpha', d.alphaPoints);
   fillCompare('cmpBeta', d.betaPoints);
   fillCompare('cmpPc', d.oldPoints);
+  document.querySelectorAll('[data-i18n]').forEach(node=>{
+    const value=d[node.dataset.i18n];
+    if(value != null) node.textContent=value;
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(node=>{
+    const value=d[node.dataset.i18nHtml];
+    if(value != null) node.innerHTML=value;
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(node=>{
+    const value=d[node.dataset.i18nPlaceholder];
+    if(value != null) node.setAttribute('placeholder', value);
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(node=>{
+    const value=d[node.dataset.i18nTitle];
+    if(value != null) node.setAttribute('title', value);
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(node=>{
+    const value=d[node.dataset.i18nAriaLabel];
+    if(value != null) node.setAttribute('aria-label', value);
+  });
   /* 下段(新シリーズ)のi18n要素に一括反映 */
   document.querySelectorAll('#gridSoon [data-i18n]').forEach(el => { el.textContent = d[el.dataset.i18n] || el.textContent; });
   document.querySelectorAll('#gridSoon [data-i18n-mark]').forEach(el => { el.textContent = d[el.dataset.i18nMark] || el.textContent; });
+  updateNetBadge();
 }
 function openSoonCard(key){
   const info=(soonInfo[key] && (soonInfo[key][lang] || soonInfo[key].en || soonInfo[key].ja)) || null;
@@ -359,31 +410,42 @@ function applySettings(){
   if(fpsBox) fpsBox.classList.toggle('show', !!settings.fps);
 
   if(settings.accentCycle) startAccentShift(); else stopAccentShift();
+  renderParticles();
   applyFX();
 }
-applySettings();
 
 /* ===== Particles ===== */
-(function spawnParticles(){
+let particleNodes = [];
+function renderParticles(){
+  particleNodes.forEach(node=>node.remove());
+  particleNodes = [];
   const prefersReduced = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const N = (settings.reduce||prefersReduced) ? 0 : ( +settings.particles || (innerWidth > 1200 ? 90 : 48) );
+  const N = (settings.reduce||prefersReduced) ? 0 : (+settings.particles || (innerWidth > 1200 ? 90 : 48));
   for(let i=0;i<N;i++){
-    const p=document.createElement('div'); p.className='particle';
-    p.style.setProperty('--x',Math.random()*100+'vw'); p.style.setProperty('--spd',(6+Math.random()*8)+'s'); p.style.setProperty('--z',(Math.random()*200-100)+'px');
-    p.style.animationDelay=(Math.random()*10)+'s'; document.body.appendChild(p);
+    const p=document.createElement('div');
+    p.className='particle';
+    p.style.setProperty('--x',Math.random()*100+'vw');
+    p.style.setProperty('--spd',(6+Math.random()*8)+'s');
+    p.style.setProperty('--z',(Math.random()*200-100)+'px');
+    p.style.animationDelay=(Math.random()*10)+'s';
+    document.body.appendChild(p);
+    particleNodes.push(p);
   }
-})();
+}
+renderParticles();
+applySettings();
 
 /* ===== Cards (上段のみ) & favorites ===== */
 const cards = Array.from(document.querySelectorAll('#grid .card')); // 下段（gridSoon）は除外
+const soonCards = Array.from(document.querySelectorAll('#gridSoon .card'));
 let favs = new Set(store.get(favKey, []));
 document.querySelectorAll('#grid .card .fav').forEach(btn=>{
   const card = btn.closest('.card'); const slug=card.dataset.slug;
   if(favs.has(slug)) btn.classList.add('on');
   btn.addEventListener('click',(e)=>{
     e.stopPropagation();
-    if(favs.has(slug)){ favs.delete(slug); btn.classList.remove('on'); toast('お気に入りを解除'); }
-    else{ favs.add(slug); btn.classList.add('on'); confetti(btn); toast('お気に入りに追加'); }
+    if(favs.has(slug)){ favs.delete(slug); btn.classList.remove('on'); toast(t('toastFavRemoved')); }
+    else{ favs.add(slug); btn.classList.add('on'); confetti(btn); toast(t('toastFavAdded')); }
     store.set(favKey, Array.from(favs));
     if(settings.favFirst) reorderFavs();
   });
@@ -408,10 +470,9 @@ function applyStoredOrder(){
 function enableDrag(){
   grid.querySelectorAll('.card').forEach(c=>{
     c.setAttribute('draggable','true');
-    c.addEventListener('dragstart',()=>{ c.style.opacity='.5'; });
-    c.addEventListener('dragend',()=>{ c.style.opacity=''; saveOrder(); });
+    c.addEventListener('dragstart',()=>{ dragged=c; c.style.opacity='.5'; });
+    c.addEventListener('dragend',()=>{ dragged=null; c.style.opacity=''; saveOrder(); });
     c.addEventListener('dragover',e=>{ e.preventDefault(); if(!dragged||dragged===c) return; const rect=c.getBoundingClientRect(); const before=(e.clientY-rect.top)<rect.height/2; grid.insertBefore(dragged, before? c : c.nextSibling); });
-    c.addEventListener('dragenter',()=>{ dragged=c; });
   });
 }
 function disableDrag(){ grid.querySelectorAll('.card').forEach(c=>c.removeAttribute('draggable')); }
@@ -469,7 +530,13 @@ function focusCard(card){
   store.set('om.last', card.dataset.slug||''); history.replaceState(null,'', '#'+(card.dataset.slug||''));
 }
 cards.forEach((card)=>{
-  card.addEventListener('click',()=>{ if(!settings.focus){ openCard(card); return } const was=card.classList.contains('focused'); if(!was) focusCard(card); else grid.classList.remove('focus-mode'); });
+  card.addEventListener('click',(e)=>{
+    const directOpen = e.target.closest('a.btn');
+    if(directOpen || !settings.focus){ openCard(card); return; }
+    const was=card.classList.contains('focused');
+    if(!was) focusCard(card);
+    else openCard(card);
+  });
   let touchTimer=null; card.addEventListener('touchstart',()=>{ touchTimer=setTimeout(()=>focusCard(card),400) },{passive:true});
   card.addEventListener('touchend',()=>{ clearTimeout(touchTimer) });
 });
@@ -482,29 +549,61 @@ document.querySelectorAll('#gridSoon .card.soon').forEach(card=>{
   card.addEventListener('keydown',(e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); open(); } });
 });
 
+function getVisibleMainCards(){
+  return cards.filter(card=>card.style.display !== 'none');
+}
+
 /* ===== Keys ===== */
 document.addEventListener('keydown',(e)=>{
   const isTyping = /^(input|textarea)$/i.test(e.target.tagName) || e.target.isContentEditable;
-  const idx = document.activeElement && document.activeElement.classList.contains('card') ? cards.indexOf(document.activeElement) : -1;
+  const visibleCards = getVisibleMainCards();
+  const idx = document.activeElement && document.activeElement.classList.contains('card') ? visibleCards.indexOf(document.activeElement) : -1;
   if((e.key==='k' && (e.ctrlKey||e.metaKey)) || e.key==='/'){ e.preventDefault(); filterInput?.focus(); filterInput?.select(); return }
   if(e.key==='?'){ e.preventDefault(); helpModal?.classList.add('show'); return }
-  if(e.key==='ArrowRight'){ e.preventDefault(); cards[(idx+1+cards.length)%cards.length]?.focus() }
-  if(e.key==='ArrowLeft'){ e.preventDefault(); cards[(idx-1+cards.length)%cards.length]?.focus() }
-  if(e.key==='Enter'){ if(idx>=0){ const card=cards[idx]; if(card.classList.contains('focused')) openCard(card); else focusCard(card) } }
-  if(e.key==='o'){ if(idx>=0){ const card=cards[idx]; openCard(card) } }
+  if(e.key==='ArrowRight' && visibleCards.length){ e.preventDefault(); visibleCards[(idx+1+visibleCards.length)%visibleCards.length]?.focus() }
+  if(e.key==='ArrowLeft' && visibleCards.length){ e.preventDefault(); visibleCards[(idx-1+visibleCards.length)%visibleCards.length]?.focus() }
+  if(e.key==='Enter'){ if(idx>=0){ const card=visibleCards[idx]; if(card.classList.contains('focused')) openCard(card); else focusCard(card) } }
+  if(e.key==='o'){ if(idx>=0){ const card=visibleCards[idx]; openCard(card) } }
   if(e.key==='Escape'){ grid.classList.remove('focus-mode'); cards.forEach(c=>c.classList.remove('focused')); settingsModal?.classList.remove('show'); helpModal?.classList.remove('show'); soonModal?.classList.remove('show') }
-  if(/^[1-9]$/.test(e.key)){ const n=+e.key-1; if(n<cards.length){ cards[n]?.focus(); if(!settings.focus) openCard(cards[n]); } }
+  if(/^[1-9]$/.test(e.key)){ const n=+e.key-1; if(n<visibleCards.length){ visibleCards[n]?.focus(); if(!settings.focus) openCard(visibleCards[n]); } }
   /* 追加ショートカット */
-  if(!isTyping && e.key.toLowerCase()==='x'){ fxMuted=!fxMuted; applyFX(); toast(fxMuted?'FXをミュート':'FXを再開'); }
-  if(!isTyping && e.key.toLowerCase()==='l'){ settings.listView=!settings.listView; store.set(settingsKey,settings); applySettings(); toast(settings.listView?'リスト表示':'グリッド表示'); }
-  if(!isTyping && e.key.toLowerCase()==='c'){ settings.compact=!settings.compact; store.set(settingsKey,settings); applySettings(); toast(settings.compact?'コンパクト表示':'標準表示'); }
+  if(!isTyping && e.key.toLowerCase()==='x'){ fxMuted=!fxMuted; applyFX(); toast(fxMuted?t('toastFxMuted'):t('toastFxResumed')); }
+  if(!isTyping && e.key.toLowerCase()==='l'){ settings.listView=!settings.listView; store.set(settingsKey,settings); applySettings(); toast(settings.listView?t('toastListOn'):t('toastListOff')); }
+  if(!isTyping && e.key.toLowerCase()==='c'){ settings.compact=!settings.compact; store.set(settingsKey,settings); applySettings(); toast(settings.compact?t('toastCompactOn'):t('toastCompactOff')); }
 });
 
-/* ===== Filter + highlight（上段のみ） ===== */
+/* ===== Filter + highlight ===== */
 function clearMarks(el){ el.querySelectorAll('mark').forEach(m=>{const t=document.createTextNode(m.textContent); m.replaceWith(t)}) }
 function highlight(el, q){ if(!q){ clearMarks(el); return } clearMarks(el); const walk=(node)=>{ if(node.nodeType===3){ const i=node.nodeValue.toLowerCase().indexOf(q); if(i>-1){ const span=document.createElement('mark'); const r=node.splitText(i); r.splitText(q.length); span.textContent=r.nodeValue; r.replaceWith(span) } } else if(node.nodeType===1){ node.childNodes.forEach(walk) } }; ['h2','p'].forEach(sel=>{ el.querySelectorAll(sel).forEach(walk) }); }
-function applyFilter(){ const q=(filterInput.value||'').trim().toLowerCase(); cards.forEach(card=>{ const text = card.innerText.toLowerCase() + ' ' + (card.dataset.tags||'').toLowerCase() + (favs.has(card.dataset.slug)?' fav favorite':''); card.style.display = text.includes(q) ? '' : 'none'; highlight(card, q); }); }
+function applyFilter(){
+  const q=(filterInput.value||'').trim().toLowerCase();
+  const filterList = (list, includeFav=false)=>list.filter(card=>{
+    const text = card.innerText.toLowerCase() + ' ' + (card.dataset.tags||'').toLowerCase() + (includeFav && favs.has(card.dataset.slug)?' fav favorite':'');
+    const match = !q || text.includes(q);
+    card.style.display = match ? '' : 'none';
+    highlight(card, q);
+    return match;
+  });
+  const mainMatches = filterList(cards, true);
+  const soonMatches = filterList(soonCards, false);
+  cards.forEach(card=>{
+    if(card.style.display === 'none' && card.classList.contains('focused')){
+      card.classList.remove('focused');
+      grid.classList.remove('focus-mode');
+    }
+  });
+  if(seriesOmni) seriesOmni.hidden = !!q && mainMatches.length===0;
+  if(seriesNew) seriesNew.hidden = !!q && soonMatches.length===0;
+  if(searchEmpty) searchEmpty.hidden = (mainMatches.length + soonMatches.length) > 0;
+}
 filterInput?.addEventListener('input', applyFilter);
+clearSearchBtn?.addEventListener('click',()=>{
+  if(filterInput) filterInput.value = '';
+  applyFilter();
+  filterInput?.focus();
+  toast(t('toastSearchCleared'));
+});
+applyFilter();
 
 /* ===== Section scroll cue ===== */
 scrollToNew?.addEventListener('click',()=>{ document.getElementById('series-new')?.scrollIntoView({behavior:'smooth', block:'start'}) });
@@ -520,7 +619,7 @@ optAutoReduce?.addEventListener('change',()=>{ settings.autoReduce=optAutoReduce
 optTilt?.addEventListener('change',()=>{ settings.tilt=optTilt.checked; store.set(settingsKey,settings) });
 optFocus?.addEventListener('change',()=>{ settings.focus=optFocus.checked; store.set(settingsKey,settings) });
 optConfetti?.addEventListener('change',()=>{ settings.confetti=optConfetti.checked; store.set(settingsKey,settings) });
-optParticles?.addEventListener('input',()=>{ settings.particles=+optParticles.value; store.set(settingsKey,settings) });
+optParticles?.addEventListener('input',()=>{ settings.particles=+optParticles.value; store.set(settingsKey,settings); renderParticles(); });
 optFps?.addEventListener('change',()=>{ settings.fps=optFps.checked; store.set(settingsKey,settings); fpsBox?.classList.toggle('show', !!settings.fps) });
 optFavFirst?.addEventListener('change',()=>{ settings.favFirst=optFavFirst.checked; store.set(settingsKey,settings); if(settings.favFirst) reorderFavs(); else applyStoredOrder(); });
 optDragOrder?.addEventListener('change',()=>{ settings.dragOrder=optDragOrder.checked; store.set(settingsKey,settings); settings.dragOrder? enableDrag(): disableDrag() });
@@ -555,7 +654,7 @@ optAccentCycle?.addEventListener('change',()=>{ settings.accentCycle=optAccentCy
 optExport?.addEventListener('click',()=>{
   const blob = new Blob([JSON.stringify({settings:settings, accent:accent, theme:store.get(themeKey), order:store.get(orderKey)}, null, 2)], {type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='omni_settings.json'; a.click(); URL.revokeObjectURL(a.href);
-  toast('設定をエクスポートしました');
+  toast(t('toastExported'));
 });
 optImport?.addEventListener('change',(e)=>{
   const f=e.target.files?.[0]; if(!f) return;
@@ -567,13 +666,13 @@ optImport?.addEventListener('change',(e)=>{
       if(data.settings){ Object.assign(settings, data.settings); store.set(settingsKey, settings) }
       if(data.order) store.set(orderKey, data.order);
       applyAccent(accent); applyTheme(store.get(themeKey,'dark')); applySettings(); applyStoredOrder(); if(settings.favFirst) reorderFavs();
-      toast('設定を読み込みました。再読み込みで反映が安定します', {action:'再読み込み', onAction:()=>location.reload()});
-    }catch{ toast('読み込みに失敗しました', {type:'error'}) }
+      toast(t('toastImported'), {action:t('toastReload'), onAction:()=>location.reload()});
+    }catch{ toast(t('toastImportFailed'), {type:'error'}) }
   };
   fr.readAsText(f);
 });
-optReset?.addEventListener('click',()=>{ localStorage.removeItem(settingsKey); localStorage.removeItem(accentKey); localStorage.removeItem(themeKey); localStorage.removeItem(orderKey); toast('設定を初期化しました', {action:'再読み込み', onAction:()=>location.reload()}); });
-optResetOrder?.addEventListener('click',()=>{ localStorage.removeItem(orderKey); toast('順序を初期化しました', {action:'再読み込み', onAction:()=>location.reload()}); });
+optReset?.addEventListener('click',()=>{ localStorage.removeItem(settingsKey); localStorage.removeItem(accentKey); localStorage.removeItem(themeKey); localStorage.removeItem(orderKey); toast(t('toastReset'), {action:t('toastReload'), onAction:()=>location.reload()}); });
+optResetOrder?.addEventListener('click',()=>{ localStorage.removeItem(orderKey); toast(t('toastResetOrder'), {action:t('toastReload'), onAction:()=>location.reload()}); });
 
 /* ===== Splash boot with progress ===== */
 (function(){
@@ -608,8 +707,8 @@ ctxMenu.addEventListener('click',(e)=>{
   const href=ctxTarget.getAttribute('data-href')||ctxTarget.querySelector('a.btn')?.href;
   if(cmd==='open') openCard(ctxTarget);
   if(cmd==='newtab') openCard(ctxTarget,true);
-  if(cmd==='copy' && href){ navigator.clipboard?.writeText(href).then(()=>{ e.target.textContent='コピー済み'; setTimeout(()=>e.target.textContent='リンクをコピー',900) }) }
-  if(cmd==='fav'){ const slug=ctxTarget.dataset.slug; const btn=ctxTarget.querySelector('.fav'); btn?.click(); toast(favs.has(slug)?'お気に入りに追加':'お気に入りを解除') }
+  if(cmd==='copy' && href){ navigator.clipboard?.writeText(href).then(()=>{ e.target.textContent=t('copied'); setTimeout(()=>e.target.textContent=t('ctxCopy'),900) }) }
+  if(cmd==='fav'){ const slug=ctxTarget.dataset.slug; const btn=ctxTarget.querySelector('.fav'); btn?.click(); toast(favs.has(slug)?t('toastFavAdded'):t('toastFavRemoved')) }
   ctxMenu.style.display='none';
 });
 
@@ -625,7 +724,7 @@ shareBtn?.addEventListener('click', async ()=>{
   const shareUrl = slug ? (base + '#' + slug) : base;
   const data={ title:document.title, text:'OmniMedia – ランディング', url:shareUrl };
   if(navigator.share){ try{ await navigator.share(data) }catch{} }
-  else if(navigator.clipboard){ try{ await navigator.clipboard.writeText(shareUrl); shareBtn.textContent='コピー済み'; setTimeout(()=>shareBtn.textContent='共有',1200) }catch{} }
+  else if(navigator.clipboard){ try{ await navigator.clipboard.writeText(shareUrl); shareBtn.textContent=t('shareLabelCopied'); setTimeout(()=>shareBtn.textContent=t('shareBtn'),1200) }catch{} }
 });
 
 /* ===== Deep link（上段のみ） ===== */
@@ -634,7 +733,7 @@ function bootRoute(){
   const url=new URL(location.href);
   const open=url.searchParams.get('open');
   const hash=(location.hash||'').replace(/^#/,'');
-  const fx=url.searchParams.get('fx'); if(fx==='off'){ fxMuted=true; applyFX(); toast('FXをミュートして起動中'); }
+  const fx=url.searchParams.get('fx'); if(fx==='off'){ fxMuted=true; applyFX(); toast(t('toastLaunchFxOff')); }
   if(open){ const c=cardBySlug(open); if(c) { openCard(c); return } }
   if(hash){ const c=cardBySlug(hash); if(c){ focusCard(c); c.focus(); return } }
   const last=store.get('om.last',''); if(last){ const c=cardBySlug(last); if(c){ c.focus() } }
@@ -644,9 +743,9 @@ bootRoute();
 /* ===== SW update notice ===== */
 if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
   navigator.serviceWorker.register('./sw.js').then(reg=>{
-    if(reg.waiting){ toast('更新があります',{action:'再読み込み', onAction:()=>location.reload()}) }
+    if(reg.waiting){ toast(t('toastUpdateReady'),{action:t('toastReload'), onAction:()=>location.reload()}) }
     reg.addEventListener('updatefound',()=>{
-      const sw=reg.installing; if(sw){ sw.addEventListener('statechange',()=>{ if(sw.state==='installed' && navigator.serviceWorker.controller){ toast('更新が適用可能です',{action:'再読み込み', onAction:()=>location.reload()}) } }) }
+      const sw=reg.installing; if(sw){ sw.addEventListener('statechange',()=>{ if(sw.state==='installed' && navigator.serviceWorker.controller){ toast(t('toastUpdateAvailable'),{action:t('toastReload'), onAction:()=>location.reload()}) } }) }
     });
   }).catch(()=>{});
 }
@@ -687,8 +786,8 @@ applyFX();
     if(acc>=500){ const fps=Math.round(frames/(acc/1000)); if(settings.fps && fpsBox){ fpsBox.textContent='fps: '+fps+(fxMuted?' (auto-low)':'') } frames=0; acc=0 }
     if(settings.autoReduce){
       if(lowAcc>=1000){ const fpsEst = Math.round(frames/(lowAcc/1000));
-        if(fpsEst<30){ if(!fxMuted){ fxMuted=true; applyFX(); netBadge.textContent='AutoLow'; netBadge.classList.add('off'); toast('自動節電：FXを一時ミュート中') } }
-        else if(fpsEst>45){ if(fxMuted){ fxMuted=false; applyFX(); updateNetBadge(); toast('FXを再開しました') } }
+        if(fpsEst<30){ if(!fxMuted){ fxMuted=true; applyFX(); netBadge.textContent='AutoLow'; netBadge.classList.add('off'); toast(t('toastAutoLow')) } }
+        else if(fpsEst>45){ if(fxMuted){ fxMuted=false; applyFX(); updateNetBadge(); toast(t('toastAutoResume')) } }
         lowAcc=0; frames=0;
       }
     }
@@ -698,9 +797,9 @@ applyFX();
 })();
 
 /* ===== Network badge ===== */
-function updateNetBadge(){ const on = navigator.onLine; netBadge.textContent = on?'Online':'Offline'; netBadge.classList.toggle('off', !on); }
-window.addEventListener('online', ()=>{ updateNetBadge(); toast('オンラインになりました') });
-window.addEventListener('offline',()=>{ updateNetBadge(); toast('オフラインです', {type:'error'}) });
+function updateNetBadge(){ const on = navigator.onLine; netBadge.textContent = on ? t('netOnline') : t('netOffline'); netBadge.classList.toggle('off', !on); }
+window.addEventListener('online', ()=>{ updateNetBadge(); toast(t('toastOnline')) });
+window.addEventListener('offline',()=>{ updateNetBadge(); toast(t('toastOffline'), {type:'error'}) });
 updateNetBadge();
 
 /* ===== Help ===== */
@@ -712,10 +811,10 @@ document.getElementById('helpClose')?.addEventListener('click',()=>helpModal?.cl
 function toast(msg, opt={}){ const box=document.getElementById('toasts'); if(!box) return; const t=document.createElement('div'); t.className='toast'; if(opt.type==='error') t.style.borderLeftColor='var(--err)'; t.textContent=msg; if(opt.action){ const a=document.createElement('span'); a.className='act'; a.textContent=' '+opt.action; a.addEventListener('click',()=>{ opt.onAction?.(); t.remove() }); t.appendChild(a) } box.appendChild(t); setTimeout(()=>t.remove(), 4000); }
 
 /* ===== Low spec propose (first run) ===== */
-(function(){ const flagKey='om.lowspec.prompted'; if(store.get(flagKey,false)) return; const hc=navigator.hardwareConcurrency||8, mem=navigator.deviceMemory||8; if(hc<=4 || mem<=4){ toast('低スペック環境を検出。省エネモードを推奨します',{action:'有効化', onAction:()=>{ settings.reduce=true; store.set(settingsKey,settings); applySettings(); location.reload() }}); } store.set(flagKey,true); })();
+(function(){ const flagKey='om.lowspec.prompted'; if(store.get(flagKey,false)) return; const hc=navigator.hardwareConcurrency||8, mem=navigator.deviceMemory||8; if(hc<=4 || mem<=4){ toast(t('toastLowSpec'),{action:t('toastEnable'), onAction:()=>{ settings.reduce=true; store.set(settingsKey,settings); applySettings(); location.reload() }}); } store.set(flagKey,true); })();
 
 /* ===== Konami ===== */
-(function(){ const seq=['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a']; let i=0; window.addEventListener('keydown',(e)=>{ i = (e.key===seq[i]) ? i+1 : (e.key===seq[0]?1:0); if(i===seq.length){ i=0; for(let k=0;k<8;k++) setTimeout(()=>confetti(document.querySelector('.brand')), k*120); toast('🎉 Secret!') } }); })();
+(function(){ const seq=['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a']; let i=0; window.addEventListener('keydown',(e)=>{ i = (e.key===seq[i]) ? i+1 : (e.key===seq[0]?1:0); if(i===seq.length){ i=0; for(let k=0;k<8;k++) setTimeout(()=>confetti(document.querySelector('.brand')), k*120); toast(t('toastSecret')) } }); })();
 
 /* ===== Settings UI (tabs / search / presets) ===== */
 (function initSettingsUI(){
@@ -729,7 +828,25 @@ function toast(msg, opt={}){ const box=document.getElementById('toasts'); if(!bo
 
   document.getElementById('settingsBtn')?.addEventListener('click', ()=>{ setTimeout(()=> document.getElementById('settingsSearch')?.focus(), 50); });
 
-  const q = document.getElementById('settingsSearch'); const filter=()=>{ const s=(q.value||'').trim().toLowerCase(); panels.forEach(panel=>{ panel.querySelectorAll('.opt').forEach(opt=>{ const text=opt.innerText.toLowerCase(); opt.style.display = s ? (text.includes(s)?'':'none') : ''; }); }); };
+  const q = document.getElementById('settingsSearch');
+  const filter=()=>{
+    const s=(q.value||'').trim().toLowerCase();
+    let firstMatchPanel = null;
+    modal.querySelectorAll('details.advanced-group').forEach(group=>{
+      if(s) group.open = true;
+    });
+    panels.forEach(panel=>{
+      let hits = 0;
+      panel.querySelectorAll('.opt').forEach(opt=>{
+        const text=opt.innerText.toLowerCase();
+        const show = !s || text.includes(s);
+        opt.style.display = show ? '' : 'none';
+        if(show) hits++;
+      });
+      if(hits && !firstMatchPanel) firstMatchPanel = panel.dataset.panel;
+    });
+    if(s && firstMatchPanel) activate(firstMatchPanel);
+  };
   q?.addEventListener('input', filter);
 
   const apply=()=>{ try{ localStorage.setItem(settingsKey, JSON.stringify(settings)) }catch{}; applySettings(); if(settings.favFirst) reorderFavs(); else applyStoredOrder(); applyFX?.(); bindMagnet?.(); };

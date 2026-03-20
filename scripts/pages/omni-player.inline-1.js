@@ -716,7 +716,10 @@ async function ensureAudioOn(){ try{ if(!state.audioCtx) state.audioCtx=new (win
 async function performPlayAttempt(){
   debugLog('performPlayAttempt', `ready=${$.v.readyState} src=${$.v.currentSrc ? '1' : '0'}`);
   await ensureAudioOn(); forceUnmute(); safeVolumeBump();
-  try{ ensureAudioGraph(); rampTo(0,0.01); }catch(e){ forceUnmute(); }
+  const mobileVideoNative = shouldUseMobileVideoNativePlayback();
+  if(!mobileVideoNative){
+    try{ ensureAudioGraph(); rampTo(0,0.01); }catch(e){ forceUnmute(); }
+  }
   try{
     const p=$.v.play();
     if(p&&typeof p.then==='function'){ await p.catch(err=>{ if(err?.name!=='AbortError') throw err }) }
@@ -730,7 +733,8 @@ async function performPlayAttempt(){
     debugLog('play()', 'fallback-muted-ok');
     setTimeout(()=>{ try{ $.v.muted=prevMuted; if(!prevMuted && prevVol>0) $.v.volume=prevVol; forceUnmute(); }catch(e){} },120);
   }
-  rampTo(+($.master?.value||1),0.12); setPlayingUI(true);
+  if(!mobileVideoNative) rampTo(+($.master?.value||1),0.12);
+  setPlayingUI(true);
   if(state.extAudio && !$.v.paused && state.extAudio.paused){ try{ await state.extAudio.play() }catch(e){} }
   enforceBackdropPolicy();
 }
@@ -752,7 +756,7 @@ async function requestPlayImmediate(reason){
   clearTimeout(state.playDebounce);
   try{ await performPlayAttempt() }catch(err){ if(err?.name==='AbortError')return; toast('再生に失敗: '+(err?.name||'Error')+' '+(err?.message||''),'warn',5000) }
 }
-function safePause(){ state.playDesired=false; state.playToken++; if(state.usingYouTube){ try{state.yt?.pauseVideo?.()}catch(e){} setPlayingUI(false); enforceBackdropPolicy(); return } try{ ensureAudioGraph(); rampTo(0,0.12); setTimeout(()=>{ try{$.v.pause()}catch(e){}; setPlayingUI(false); enforceBackdropPolicy() },130) }catch(e){ try{$.v.pause()}catch(e2){}; setPlayingUI(false); enforceBackdropPolicy() } }
+function safePause(){ state.playDesired=false; state.playToken++; if(state.usingYouTube){ try{state.yt?.pauseVideo?.()}catch(e){} setPlayingUI(false); enforceBackdropPolicy(); return } if(shouldUseMobileVideoNativePlayback()){ try{$.v.pause()}catch(e){} setPlayingUI(false); enforceBackdropPolicy(); return } try{ ensureAudioGraph(); rampTo(0,0.12); setTimeout(()=>{ try{$.v.pause()}catch(e){}; setPlayingUI(false); enforceBackdropPolicy() },130) }catch(e){ try{$.v.pause()}catch(e2){}; setPlayingUI(false); enforceBackdropPolicy() } }
 
 /* ========= First gesture ========= */
 ;(() => {
@@ -848,6 +852,13 @@ function setMediaArtwork(urls=[]){
 }
 function isMobileLike(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+}
+function shouldUseMobileVideoNativePlayback(){
+  return !!(
+    state.mediaKind === 'html5' &&
+    isMobileLike() &&
+    !currentHtml5IsAudio()
+  );
 }
 function shouldKeepBackgroundPlayback(){
   return !!(
@@ -1166,7 +1177,7 @@ function syncVideoEdgeGlow(){
     return;
   }
   const { ctx, width:aw, height:ah, pad } = ambient;
-  const band = Math.max(28, Math.round(Math.min(aw, ah) * 0.16));
+  const band = Math.max(32, Math.round(Math.min(aw, ah) * 0.18));
   const coreW = aw - pad*2;
   const coreH = ah - pad*2;
   const src = frame.canvas;
@@ -1178,7 +1189,7 @@ function syncVideoEdgeGlow(){
     const steps = horizontal ? band : Math.round(band * 0.82);
     for(let i=0;i<steps;i++){
       const p = i / Math.max(1, steps-1);
-      const alpha = Math.pow(1-p, 1.28) * 0.82;
+      const alpha = Math.pow(1-p, 1.18) * 0.96;
       if(alpha <= 0.002) continue;
       ctx.globalAlpha = alpha;
       if(horizontal){
@@ -1250,6 +1261,7 @@ function stopSpectrum(){
   if($.spectrum){
     $.spectrum.style.display='none';
     $.spectrum.style.setProperty('--spec-beat','1');
+    $.spectrum.classList.remove('mode-circular');
   }
 }
 function drawBarSpectrum(c,W,H,dtSec,rms){
@@ -1316,8 +1328,8 @@ function drawCircularSpectrum(c,W,H,rms){
   const minDb=an.minDecibels, maxDb=an.maxDecibels, range=maxDb-minDb, alpha=state.spec.smoothAlpha;
   const peaks=state.spec.peaks, bins=state.spec.bins, data=state.spec.data;
   const cx=W/2, cy=H/2;
-  const maxRadius=Math.min(W,H)*0.4;
-  const minRadius=Math.max(10, maxRadius*0.3);
+  const maxRadius=Math.min(W,H)*0.36;
+  const minRadius=Math.max(10, maxRadius*0.42);
   const barWidth=(2*Math.PI*minRadius)/bins*0.8;
 
   const hueLow=+state.spec.hueLow, hueHigh=+state.spec.hueHigh, sat=+state.spec.sat, baseL=+state.spec.light;
@@ -1355,7 +1367,7 @@ function drawCircularSpectrum(c,W,H,rms){
     val=Math.max(0,Math.min(1,val*state.spec.sens));
     const ease=val*val;
 
-    const len=minRadius+(maxRadius-minRadius)*ease*state.spec.pausedFade;
+    const len=minRadius+(maxRadius-minRadius)*(ease*0.78)*state.spec.pausedFade;
 
     const angle=(i/bins)*(2*Math.PI)-Math.PI/2;
     const x1=cx+minRadius*Math.cos(angle), y1=cy+minRadius*Math.sin(angle);
@@ -1438,6 +1450,7 @@ function drawCircularSpectrum(c,W,H,rms){
     const rms = computeRMS(state.spec.timeData);
 
     const W=canvas.width, H=canvas.height;
+    canvas.classList.toggle('mode-circular', state.spec.mode==='circular');
     if(state.anim.specTrails){
       c.globalAlpha=0.18; c.fillStyle='#000'; c.fillRect(0,0,W,H); c.globalAlpha=1;
     }else{
@@ -1789,6 +1802,7 @@ async function selectIndex(i){
   const it=state.list[i]; if(!it) return;
   debugLog('selectIndex', `${i} ${it.file?.name || it.url || '-'}`);
   rampTo(0,0.15);
+  const mobileVideoImmediate = !!(it?.file && fileLooksLikeVideo(it.file) && isMobileLike());
   setTimeout(async()=>{
     safePause(); if(state.extAudio){ try{state.extAudio.pause()}catch(e){} }
     markUserGesture();
@@ -1810,10 +1824,11 @@ async function selectIndex(i){
         updateAudioMetaVisibility();
       }
       buildThumbsDebounced();
-      requestPlayImmediate('selectIndex'); setTimeout(()=>rampTo(+($.master?.value||1),0.18),60);
+      requestPlayImmediate('selectIndex');
+      if(!mobileVideoImmediate) setTimeout(()=>rampTo(+($.master?.value||1),0.18),60);
       hideLoader();
     }
-  },160);
+  }, mobileVideoImmediate ? 0 : 160);
 }
 const savePlaylistAuto=()=>{ store.set('pc.playlist', state.list.map(x=>({ url:(x.url||null), title:(x.title||null) }))) };
 function savePlaylistManual(){ savePlaylistAuto(); toast('Playlist saved') }
