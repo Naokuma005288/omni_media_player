@@ -4,9 +4,23 @@
   const tap=$('#tap'), tapBtn=$('#tapBtn'), dropHint=$('#dropHint');
   const MOBILE_NATIVE_MODE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const SAFE_NATIVE_PLAYBACK = true;
+  const orientationMql = window.matchMedia ? window.matchMedia('(orientation: portrait)') : null;
   v.playsInline = true;
   v.setAttribute('playsinline','');
   v.setAttribute('webkit-playsinline','');
+  function applyOrientationUi(){
+    const portrait = orientationMql ? orientationMql.matches : window.innerHeight >= window.innerWidth;
+    document.body.classList.toggle('mini-portrait', portrait);
+    document.body.classList.toggle('mini-landscape', !portrait);
+    document.body.dataset.orientation = portrait ? 'portrait' : 'landscape';
+  }
+  applyOrientationUi();
+  if(orientationMql){
+    const onOrientationChange = ()=>applyOrientationUi();
+    if(typeof orientationMql.addEventListener === 'function') orientationMql.addEventListener('change', onOrientationChange);
+    else if(typeof orientationMql.addListener === 'function') orientationMql.addListener(onOrientationChange);
+  }
+  window.addEventListener('resize', applyOrientationUi, { passive:true });
 
   // i18n
   const I={ ja:{ btn_play:'再生/一時停止', btn_back:'-10秒', btn_fwd:'+10秒', btn_prev:'前へ', btn_next:'次へ', btn_mute:'ミュート',

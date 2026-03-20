@@ -71,6 +71,7 @@ const clockDate = document.getElementById('clockDate');
 const clockRing = document.getElementById('clockRing');
 const clockBatt = document.getElementById('clockBatt');
 const clockHud  = document.getElementById('clockHud');
+const orientationMql = window.matchMedia ? window.matchMedia('(orientation: portrait)') : null;
 
 /* Section scroll cue */
 const scrollToNew = document.getElementById('scrollToNew');
@@ -78,6 +79,19 @@ const scrollToNew = document.getElementById('scrollToNew');
 /* ===== Store & keys ===== */
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{ return d }},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order';
+function applyLandingOrientation(){
+  const portrait = orientationMql ? orientationMql.matches : window.innerHeight >= window.innerWidth;
+  document.body.classList.toggle('landing-portrait', portrait);
+  document.body.classList.toggle('landing-landscape', !portrait);
+  document.body.dataset.orientation = portrait ? 'portrait' : 'landscape';
+}
+applyLandingOrientation();
+if(orientationMql){
+  const onOrientationChange = ()=>applyLandingOrientation();
+  if(typeof orientationMql.addEventListener === 'function') orientationMql.addEventListener('change', onOrientationChange);
+  else if(typeof orientationMql.addListener === 'function') orientationMql.addListener(onOrientationChange);
+}
+window.addEventListener('resize', applyLandingOrientation, { passive:true });
 
 /* ===== Settings with defaults ===== */
 const settings = Object.assign(
