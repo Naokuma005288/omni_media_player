@@ -188,6 +188,9 @@
     const uniq = [...new Set((urls||[]).filter(Boolean))].slice(0, 6);
     return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
   }
+  function getMetadataLib(){
+    return window.musicMetadata || window.musicMetadataBrowser || null;
+  }
   function sniffImageMime(u8){ if(!u8||!u8.length) return 'image/jpeg'; if(u8[0]===0xFF&&u8[1]===0xD8&&u8[2]===0xFF) return 'image/jpeg'; if(u8[0]===0x89&&u8[1]===0x50&&u8[2]===0x4E&&u8[3]===0x47) return 'image/png'; if(u8[0]===0x47&&u8[1]===0x49&&u8[2]===0x46&&u8[3]===0x38) return 'image/gif'; return 'image/jpeg'; }
   function bytesToDataUrl(bytes, mime='image/jpeg'){
     try{
@@ -199,8 +202,15 @@
   }
   async function parseBlobArtwork(blob, name){
     try{
-      if(!window.musicMetadata?.parseBlob) return null;
-      const mm = await window.musicMetadata.parseBlob(blob);
+      const lib = getMetadataLib();
+      if(!lib) return null;
+      let mm = null;
+      if(typeof lib.parseBlob === 'function') mm = await lib.parseBlob(blob);
+      else if(typeof lib.parseBuffer === 'function'){
+        const buf = await blob.arrayBuffer();
+        mm = await lib.parseBuffer(buf, { mimeType: blob.type || undefined, size: blob.size || undefined });
+      }
+      if(!mm) return null;
       const pic = mm.common?.picture?.[0];
       let coverUrl = null;
       if(pic?.data){
@@ -300,12 +310,10 @@
     const source = $('#sourceKind');
     const media = $('#mediaKind');
     const queue = $('#queueState');
-    const metaBox = $('#miniMeta');
     if(title) title.textContent = S.mediaMeta?.title || currentDisplayTitle();
     if(source) source.textContent = currentSourceKind();
     if(media) media.textContent = currentDisplaySubline() || currentMediaKind();
     if(queue) queue.textContent = currentQueueState();
-    if(metaBox) metaBox.hidden = !(S.mediaMeta?.title || S.mediaArtwork.length || S.lastUrl || S.fileList.length);
   }
   function updateMiniReadouts(){
     $('#volReadout').textContent = `${Math.round((v.volume || 0) * 100)}%`;
@@ -658,16 +666,16 @@
       }
     }catch(e){ setBadge('PiP NG') } }
   async function toggleFS(){
-    try{
-      if(document.fullscreenElement || document.webkitFullscreenElement){
+    if(document.fullscreenElement || document.webkitFullscreenElement){
+      try{
         if(document.exitFullscreen) await document.exitFullscreen();
         else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
-        return;
-      }
-      if(wrap.requestFullscreen) { await wrap.requestFullscreen(); return; }
-      if(wrap.webkitRequestFullscreen) { wrap.webkitRequestFullscreen(); return; }
-      if(v.webkitEnterFullscreen) { v.webkitEnterFullscreen(); return; }
-    }catch{}
+      }catch{}
+      return;
+    }
+    try{ if(wrap.requestFullscreen){ await wrap.requestFullscreen(); return; } }catch{}
+    try{ if(wrap.webkitRequestFullscreen){ wrap.webkitRequestFullscreen(); return; } }catch{}
+    try{ if(v.webkitEnterFullscreen){ v.webkitEnterFullscreen(); return; } }catch{}
   }
   $('#btnPip').addEventListener('click', ()=>{ togglePiP(); bumpAutoHide(); });
   $('#btnFs') .addEventListener('click', ()=>{ toggleFS();  bumpAutoHide(); });
