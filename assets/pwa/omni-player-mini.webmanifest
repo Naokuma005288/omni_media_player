@@ -1,15 +1,17 @@
 {
-  "id": "../../omni-player.html",
-  "name": "Omni Player",
-  "short_name": "Omni Player",
-  "description": "Omni Player v4.1.0 - installable media player with playlist, subtitles, embeds, background playback, and aspect-aware layouts.",
-  "start_url": "../../omni-player.html?source=pwa",
+  "id": "../../omni-player-mini.html",
+  "name": "Omni Player mini",
+  "short_name": "Omni mini",
+  "description": "Omni Player mini v4.1.0 - mobile-first media player for phones and tablets with background playback and lock screen controls.",
+  "start_url": "../../omni-player-mini.html?source=pwa",
   "scope": "../../",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#0b0e12",
   "theme_color": "#0b0e12",
   "orientation": "any",
+  "categories": ["multimedia", "music", "video"],
+  "prefer_related_applications": false,
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
@@ -17,20 +19,20 @@
   ],
   "shortcuts": [
     {
-      "name": "Omni Player",
-      "short_name": "Player",
-      "url": "../../omni-player.html",
-      "icons": [{ "src": "./thumb-pc.svg", "sizes": "512x512", "type": "image/svg+xml" }]
-    },
-    {
-      "name": "Omni Player mini",
+      "name": "Open mini",
       "short_name": "mini",
       "url": "../../omni-player-mini.html",
       "icons": [{ "src": "./thumb-touch.svg", "sizes": "512x512", "type": "image/svg+xml" }]
     },
     {
-      "name": "OmniMedia Home",
-      "short_name": "Home",
+      "name": "Open player",
+      "short_name": "player",
+      "url": "../../omni-player.html",
+      "icons": [{ "src": "./thumb-pc.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Open home",
+      "short_name": "home",
       "url": "../../index.html",
       "icons": [{ "src": "./icon.svg", "sizes": "512x512", "type": "image/svg+xml" }]
     }

@@ -1,7 +1,7 @@
 (function(){
   const $=sel=>document.querySelector(sel);
   const v=$('#v'), wrap=$('#wrap'), ctrl=$('#ctrl'), seekWrap=$('#seekWrap'), seekEl=$('#seek'), seekTip=$('#seekTip');
-  const tap=$('#tap'), tapBtn=$('#tapBtn'), dropHint=$('#dropHint');
+  const tap=$('#tap'), tapBtn=$('#tapBtn'), tapInstallBtn=$('#tapInstallBtn'), tapNote=$('#tap .tap-note'), dropHint=$('#dropHint');
   const OPPlayback = window.OmniPlaybackCore || {};
   const OPPlatform = OPPlayback.detectPlatform ? OPPlayback.detectPlatform() : {
     isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''),
@@ -11,9 +11,48 @@
   const IOS_WEBKIT = !!OPPlatform.isIOS;
   const SAFE_NATIVE_PLAYBACK = true;
   const orientationMql = window.matchMedia ? window.matchMedia('(orientation: portrait)') : null;
+  let deferredInstallPrompt = null;
   v.playsInline = true;
   v.setAttribute('playsinline','');
   v.setAttribute('webkit-playsinline','');
+  function canAttachManifest(){
+    return /^https?:$/i.test(location.protocol) || /^(localhost|127\.0\.0\.1)$/i.test(location.hostname || '');
+  }
+  function ensureMiniManifest(){
+    if(!canAttachManifest()) return;
+    if(document.querySelector('link[data-mini-manifest]')) return;
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = './assets/pwa/omni-player-mini.webmanifest';
+    link.setAttribute('data-mini-manifest', '1');
+    document.head.appendChild(link);
+  }
+  function showInstallButton(show){
+    if(!tapInstallBtn) return;
+    tapInstallBtn.hidden = !show;
+  }
+  function updateInstallHint(){
+    if(!tapNote) return;
+    if(window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true){
+      tapNote.textContent = LANG==='ja' ? '（アプリとして起動中）' : '(Running as installed app)';
+      showInstallButton(false);
+      return;
+    }
+    if(deferredInstallPrompt){
+      tapNote.textContent = LANG==='ja' ? '（アプリとして追加すると全画面・ロック画面操作が安定します）' : '(Install the app for better fullscreen and lock screen behavior)';
+      showInstallButton(true);
+      return;
+    }
+    if(OPPlatform.isIOS && canAttachManifest()){
+      tapNote.textContent = LANG==='ja' ? '（Safari / Chrome の共有メニューから「ホーム画面に追加」でアプリ化できます）' : '(Use Share → Add to Home Screen to install on iPhone/iPad)';
+      showInstallButton(true);
+      return;
+    }
+    tapNote.textContent = LANG==='ja'
+      ? '（モバイルのオーディオ制限を解除します）'
+      : '(Unlocks mobile audio playback restrictions)';
+    showInstallButton(false);
+  }
   function updatePortraitButtonGlyphs(){
     const portrait = document.body.classList.contains('mini-portrait');
     const tipsBtn = $('#btnTips');
@@ -95,6 +134,7 @@
   }};
   function getLang(){ try{ const pref=localStorage.getItem('pc.lang'); if(pref) return pref; return (navigator.language||'ja').toLowerCase().startsWith('ja')?'ja':'en'; }catch{return 'ja'} }
   let LANG=getLang(); const t=(k)=> (I[LANG]&&I[LANG][k]) || (I.ja[k]||k);
+  ensureMiniManifest();
   applyOrientationUi();
   if(orientationMql){
     const onOrientationChange = ()=>applyOrientationUi();
@@ -117,6 +157,7 @@
     maybeShowResumeButton();
     syncBadgeState();
     updatePortraitButtonGlyphs();
+    updateInstallHint();
   }
   function renderTips(){
     const tips = (I[LANG] || I.ja).tips, body=$('#tipsBody'); body.innerHTML='';
@@ -129,6 +170,31 @@
     }
   }
   $('#btnLang').addEventListener('click',()=>{ LANG=(LANG==='ja'?'en':'ja'); try{ localStorage.setItem('pc.lang',LANG);}catch{} applyLang(); });
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    updateInstallHint();
+  });
+  window.addEventListener('appinstalled', ()=>{
+    deferredInstallPrompt = null;
+    updateInstallHint();
+  });
+  tapInstallBtn?.addEventListener('click', async ()=>{
+    if(deferredInstallPrompt){
+      try{
+        await deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice?.catch(()=>{});
+      }catch{}
+      deferredInstallPrompt = null;
+      updateInstallHint();
+      return;
+    }
+    if(OPPlatform.isIOS && canAttachManifest()){
+      tapNote.textContent = LANG==='ja'
+        ? '（共有メニュー →「ホーム画面に追加」でアプリとして追加できます）'
+        : '(Use Share → Add to Home Screen to install the app)';
+    }
+  });
 
   const setBadge=(txt)=> $('#badgeState').textContent=txt;
   let playProbeTimer = 0;

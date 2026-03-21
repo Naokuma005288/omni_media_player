@@ -47,7 +47,7 @@
     box-shadow:0 20px 80px var(--shadow);
     -webkit-backdrop-filter: blur(16px) saturate(1.2);
     backdrop-filter: blur(16px) saturate(1.2);
-    display:flex; align-items:center; gap:.7rem;
+    display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
   }
   .tap-overlay.hide{opacity:0; visibility:hidden}
   .tap-btn{
@@ -57,6 +57,16 @@
     border:1px solid var(--chip-bd);
     color:#fff; box-shadow:0 12px 40px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.06);
     transition:transform .08s ease, filter .15s ease, box-shadow .25s ease;
+  }
+  .tap-install{
+    cursor:pointer; user-select:none; display:inline-flex; align-items:center; justify-content:center;
+    min-height:40px; padding:.5rem .85rem; border-radius:12px;
+    background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.14);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+  }
+  .tap-btn, .tap-install, .btn{
+    touch-action:manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Control Bar */
@@ -126,7 +136,7 @@ body.mini-portrait .right-group{
   }
 body.mini-portrait .left-group{
     display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
+    grid-template-columns:repeat(4,minmax(0,1fr));
     gap:.32rem
   }
 body.mini-portrait .left-group #btnPlay{
@@ -134,13 +144,13 @@ body.mini-portrait .left-group #btnPlay{
     min-height:42px;
     font-size:13px
   }
-body.mini-portrait .left-group #btnBack{grid-column:1}
-body.mini-portrait .left-group #btnFwd{grid-column:2}
-body.mini-portrait .left-group #btnMute{grid-column:3}
 body.mini-portrait .left-group #btnPrev{grid-column:1}
-body.mini-portrait .left-group #btnNext{grid-column:2}
+body.mini-portrait .left-group #btnBack{grid-column:2}
+body.mini-portrait .left-group #btnFwd{grid-column:3}
+body.mini-portrait .left-group #btnNext{grid-column:4}
+body.mini-portrait .left-group #btnMute{display:none}
 body.mini-portrait .left-group #btnResume{
-    grid-column:3;
+    grid-column:1 / -1;
     min-width:0
   }
 body.mini-portrait .right-group{
@@ -149,12 +159,12 @@ body.mini-portrait .right-group{
     gap:.24rem
   }
 body.mini-portrait .left-group #badgeState{
-    grid-column:1 / span 2;
+    grid-column:1 / span 3;
     justify-self:stretch;
     text-align:center
   }
 body.mini-portrait .left-group .badge[title="version"]{
-    grid-column:3;
+    grid-column:4;
     justify-self:stretch;
     text-align:center
   }
@@ -174,6 +184,7 @@ body.mini-portrait .ctrl-bottom{
     flex-direction:column;
     align-items:stretch
   }
+body.mini-portrait #sleepStat{display:none}
   body.mini-portrait .mini-meta{
     grid-template-columns:44px minmax(0,1fr)
   }

@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Omni Player mini v4.0.2 – Stable Audio + Minimal FS</title>
+<meta name="theme-color" content="#0b0e12" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Omni Player mini" />
+<title>Omni Player mini v4.1.0 – Stable Audio + Minimal FS</title>
+<link rel="icon" href="./assets/pwa/icon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="./assets/pwa/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./assets/pwa/apple-touch-icon.png">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/music-metadata-browser/dist/music-metadata-browser.min.js"></script>
@@ -23,8 +31,9 @@
 
       <div class="tap-overlay" id="tap">
         <div class="tap-card">
-          <div class="badge" style="margin-bottom:.6rem">Omni Player mini v4.0.2</div>
+          <div class="badge" style="margin-bottom:.6rem">Omni Player mini v4.1.0</div>
           <button class="tap-btn" id="tapBtn" type="button">▶︎ Omni Player mini を開始 / Start mini</button>
+          <button class="tap-install" id="tapInstallBtn" type="button" hidden>＋ アプリとして追加 / Install app</button>
           <div class="tap-note">（モバイルのオーディオ制限を解除します）</div>
         </div>
       </div>
@@ -41,7 +50,7 @@
             <button class="btn ghost" id="btnMute" type="button" data-i18n="btn_mute">ミュート</button>
             <button class="btn ghost" id="btnResume" type="button" style="display:none" title="Resume">⏱ RESUME</button>
             <span class="badge" id="badgeState">IDLE</span>
-            <span class="badge" title="version">v4.0.2</span>
+            <span class="badge" title="version">v4.1.0</span>
           </div>
           <div class="right-group">
             <button class="btn ghost" id="btnTips" type="button" data-i18n="btn_tips">Tips</button>
@@ -79,7 +88,7 @@
               </select>
               <span class="readout" id="rateReadout">1.00x</span>
             </div>
-            <div class="slider-stat">
+            <div class="slider-stat" id="sleepStat">
               <span class="lab" data-i18n="label_sleep">タイマー</span>
               <select id="sleepSel" aria-label="Sleep timer">
                 <option value="0">Off</option>

@@ -1,5 +1,5 @@
 /* OmniMedia SW v2.7 */
-const VERSION = 'v4.0.2';
+const VERSION = 'v4.1.0';
 const CORE = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const CORE = [
   './omni-player-mini.html',
   './assets/pwa/manifest.webmanifest',
   './assets/pwa/omni-player.webmanifest',
+  './assets/pwa/omni-player-mini.webmanifest',
   './version.json',
   './assets/pwa/icon-192.png',
   './assets/pwa/icon-512.png',
