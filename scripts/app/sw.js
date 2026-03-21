@@ -1,5 +1,5 @@
 /* OmniMedia SW v2.7 */
-const VERSION = 'v3.5.0';
+const VERSION = 'v4.0.0';
 const CORE = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const CORE = [
   './assets/pwa/icon.svg',
   './assets/pwa/thumb-pc.svg',
   './assets/pwa/thumb-touch.svg',
+  './scripts/app/omni-playback-core.js',
   './styles/pages/omni-player.inline-1.css',
   './scripts/pages/omni-player.inline-1.js',
   './styles/plugins/op-anim-pack.css',

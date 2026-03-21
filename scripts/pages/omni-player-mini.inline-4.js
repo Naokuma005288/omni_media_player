@@ -2,8 +2,13 @@
   const $=sel=>document.querySelector(sel);
   const v=$('#v'), wrap=$('#wrap'), ctrl=$('#ctrl'), seekWrap=$('#seekWrap'), seekEl=$('#seek'), seekTip=$('#seekTip');
   const tap=$('#tap'), tapBtn=$('#tapBtn'), dropHint=$('#dropHint');
-  const MOBILE_NATIVE_MODE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const IOS_WEBKIT = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const OPPlayback = window.OmniPlaybackCore || {};
+  const OPPlatform = OPPlayback.detectPlatform ? OPPlayback.detectPlatform() : {
+    isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''),
+    isIOS: /iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+  };
+  const MOBILE_NATIVE_MODE = !!OPPlatform.isMobile;
+  const IOS_WEBKIT = !!OPPlatform.isIOS;
   const SAFE_NATIVE_PLAYBACK = true;
   const orientationMql = window.matchMedia ? window.matchMedia('(orientation: portrait)') : null;
   v.playsInline = true;
@@ -187,6 +192,7 @@
     return 'image/jpeg';
   }
   function buildArtworkEntries(urls=[]){
+    if(OPPlayback.buildArtworkEntries) return OPPlayback.buildArtworkEntries(urls, artworkTypeFromUrl);
     const uniq = [...new Set((urls||[]).filter(Boolean))].slice(0, 6);
     return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
   }
@@ -196,34 +202,111 @@
       canvas.width = 512;
       canvas.height = 512;
       const ctx = canvas.getContext('2d', { alpha:false });
-      const grad = ctx.createLinearGradient(0, 0, 512, 512);
-      grad.addColorStop(0, kind === 'video' ? '#6e7dff' : '#8e5dff');
-      grad.addColorStop(1, '#111827');
-      ctx.fillStyle = grad;
+      const drawRoundRect = (x, y, w, h, r)=>{
+        if(ctx.roundRect){
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, r);
+          ctx.fill();
+          return;
+        }
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        ctx.fill();
+      };
+      const primary = kind === 'video' ? '#5d7cff' : '#8d5bff';
+      const secondary = kind === 'video' ? '#22d3ee' : '#ff6ad5';
+      const bg = ctx.createLinearGradient(0, 0, 512, 512);
+      bg.addColorStop(0, '#070b12');
+      bg.addColorStop(0.45, '#111827');
+      bg.addColorStop(1, '#05070b');
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, 512, 512);
-      ctx.fillStyle = 'rgba(255,255,255,.08)';
-      ctx.beginPath(); ctx.arc(398, 112, 56, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(118, 404, 84, 0, Math.PI * 2); ctx.fill();
+
+      const glowA = ctx.createRadialGradient(140, 120, 10, 140, 120, 220);
+      glowA.addColorStop(0, `${primary}cc`);
+      glowA.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glowA;
+      ctx.fillRect(0, 0, 512, 512);
+
+      const glowB = ctx.createRadialGradient(388, 392, 16, 388, 392, 210);
+      glowB.addColorStop(0, `${secondary}b8`);
+      glowB.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glowB;
+      ctx.fillRect(0, 0, 512, 512);
+
+      ctx.fillStyle = 'rgba(255,255,255,.05)';
+      for(let i=0;i<18;i++){
+        const x = 38 + (i * 27) % 460;
+        const y = 28 + (i * 43) % 430;
+        const size = 2 + (i % 3);
+        ctx.fillRect(x, y, size, size);
+      }
+
+      ctx.fillStyle = 'rgba(9,12,20,.86)';
+      drawRoundRect(78, 72, 356, 368, 34);
+
+      const panelGrad = ctx.createLinearGradient(78, 72, 434, 440);
+      panelGrad.addColorStop(0, 'rgba(255,255,255,.11)');
+      panelGrad.addColorStop(1, 'rgba(255,255,255,.02)');
+      ctx.fillStyle = panelGrad;
+      drawRoundRect(92, 86, 328, 340, 28);
+
+      ctx.strokeStyle = 'rgba(255,255,255,.12)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if(ctx.roundRect){ ctx.roundRect(92, 86, 328, 340, 28); ctx.stroke(); }
+      else { ctx.strokeRect(92, 86, 328, 340); }
+
+      const accent = ctx.createLinearGradient(110, 110, 402, 160);
+      accent.addColorStop(0, primary);
+      accent.addColorStop(1, secondary);
+      ctx.fillStyle = accent;
+      drawRoundRect(116, 112, 280, 20, 10);
+
       ctx.fillStyle = 'rgba(255,255,255,.92)';
       if(kind === 'video'){
-        ctx.beginPath();
-        ctx.roundRect?.(182, 170, 148, 172, 22);
-        if(ctx.roundRect) ctx.fill();
-        else ctx.fillRect(182, 170, 148, 172);
+        ctx.fillStyle = 'rgba(255,255,255,.96)';
+        drawRoundRect(160, 160, 192, 140, 26);
         ctx.fillStyle = '#111827';
         ctx.beginPath();
-        ctx.moveTo(224, 214); ctx.lineTo(320, 256); ctx.lineTo(224, 298);
+        ctx.moveTo(224, 194); ctx.lineTo(310, 230); ctx.lineTo(224, 266);
         ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.16)';
+        for(let i=0;i<9;i++) ctx.fillRect(132 + i*28, 334, 16, 48);
+        ctx.fillStyle = accent;
+        ctx.fillRect(132, 394, 248, 10);
       }else{
-        ctx.beginPath(); ctx.arc(196, 310, 34, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(322, 286, 34, 0, Math.PI * 2); ctx.fill();
-        ctx.fillRect(218, 170, 24, 138);
+        ctx.beginPath(); ctx.arc(188, 284, 38, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(318, 246, 38, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(214, 158, 24, 130);
         ctx.save();
-        ctx.translate(242, 176);
+        ctx.translate(238, 166);
         ctx.rotate(-0.22);
-        ctx.fillRect(0, 0, 118, 24);
+        ctx.fillRect(0, 0, 126, 24);
         ctx.restore();
+        for(let i=0;i<24;i++){
+          const h = 12 + (Math.sin(i * 0.58) * 18 + 18);
+          ctx.fillStyle = i % 2 ? primary : secondary;
+          ctx.globalAlpha = 0.85;
+          ctx.fillRect(120 + i*11, 344 - h, 7, h);
+        }
+        ctx.globalAlpha = 1;
       }
+
+      ctx.fillStyle = 'rgba(255,255,255,.08)';
+      drawRoundRect(132, 358, 248, 42, 16);
+      ctx.fillStyle = 'rgba(255,255,255,.72)';
+      ctx.font = '600 18px sans-serif';
+      ctx.fillText(kind === 'video' ? 'VIDEO MODE' : 'AUDIO MODE', 164, 385);
       return canvas.toDataURL('image/png');
     }catch{
       return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s4N2VQAAAAASUVORK5CYII=';
@@ -765,7 +848,7 @@
     debugLog('gesture', `paused=${v.paused?'1':'0'} ready=${v.readyState}`);
   }
   function hasFreshGesture(){
-    return !!S.lastUserGestureAt && (Date.now() - S.lastUserGestureAt) < 4000;
+    return OPPlayback.hasFreshGesture ? OPPlayback.hasFreshGesture(S.lastUserGestureAt, 4000) : (!!S.lastUserGestureAt && (Date.now() - S.lastUserGestureAt) < 4000);
   }
   async function ensureAudioOn(){
     forceUnmute();
@@ -790,10 +873,11 @@
     forceUnmute();
     const media = activeMedia();
     if(media !== v) syncBgAudioFromVideo();
-    if(SAFE_NATIVE_PLAYBACK){
-      try{
-        const p = media.play();
-        if(p && typeof p.then === 'function') await p;
+    const result = await OPPlayback.performPlayAttempt({
+      media,
+      ignoreAbortError: true,
+      allowMutedFallback: true,
+      afterPlay: async()=>{
         if(S.audioMaster){
           try{
             v.muted = true;
@@ -801,44 +885,11 @@
             if(pv && typeof pv.catch === 'function') pv.catch(()=>{});
           }catch{}
         }
-        debugLog('play()', 'native-ok');
-        return;
-      }catch(err){
-        debugLog('play()', `native-fail ${err?.name||'Error'}`);
-      }
-    }
-    try{
-      const p = media.play();
-      if(p && typeof p.then === 'function') await p;
-      if(S.audioMaster){
-        try{
-          v.muted = true;
-          const pv = v.play();
-          if(pv && typeof pv.catch === 'function') pv.catch(()=>{});
-        }catch{}
-      }
-      debugLog('play()', 'primary-ok');
-      return;
-    }catch(err){
-      debugLog('play()', `primary-fail ${err?.name||'Error'}`);
-      const prevMuted = media.muted;
-      const prevVol = media.volume;
-      try{
-        media.muted = true;
-        const p2 = media.play();
-        if(p2 && typeof p2.then === 'function') await p2;
-        debugLog('play()', 'fallback-muted-ok');
-        setTimeout(()=>{
-          try{
-            media.muted = prevMuted;
-            if(!prevMuted && prevVol > 0) media.volume = prevVol;
-            forceUnmute();
-          }catch{}
-        }, 120);
-        return;
-      }catch{}
-      throw err;
-    }
+      },
+      afterRestore: ()=>{ forceUnmute(); },
+      onPrimaryError: (err)=>{ debugLog('play()', `${SAFE_NATIVE_PLAYBACK ? 'native' : 'primary'}-fail ${err?.name||'Error'}`); }
+    });
+    debugLog('play()', result?.mode === 'muted-fallback' ? 'fallback-muted-ok' : (SAFE_NATIVE_PLAYBACK ? 'native-ok' : 'primary-ok'));
   }
   async function requestPlayImmediate(reason){
     S.playDesired = true;
@@ -1476,26 +1527,32 @@
   // Media Session API
   function trySetupMediaSession(file){
     try{
-      if(!('mediaSession' in navigator)) return;
-      const title = S.mediaMeta?.title || file?.name || (S.lastUrl||'').replace(/^.*\//,'') || 'Omni Player mini';
-      const media = activeMedia();
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title,
+      if(!S.mediaSessionBridge && OPPlayback.createMediaSessionBridge){
+        S.mediaSessionBridge = OPPlayback.createMediaSessionBridge({
+          getMedia: ()=>activeMedia(),
+          isPaused: ()=>activePaused(),
+          getMetadata: ()=>({
+            title: S.mediaMeta?.title || file?.name || (S.lastUrl||'').replace(/^.*\//,'') || 'Omni Player mini',
+            artist: S.mediaMeta?.artist || '',
+            album: S.mediaMeta?.album || '',
+            artwork: S.mediaArtwork || []
+          }),
+          onPlay: ()=>requestPlayImmediate('mediaSession').catch(()=>{}),
+          onPause: ()=>activeMedia().pause(),
+          onSeekBackward: ()=>setActiveCurrentTime(activeCurrentTime()-10),
+          onSeekForward: ()=>setActiveCurrentTime(activeCurrentTime()+10),
+          onPreviousTrack: ()=>$('#btnPrev').click(),
+          onNextTrack: ()=>$('#btnNext').click(),
+          onSeekTo: (d)=>{ if(typeof d.seekTime==='number'){ setActiveCurrentTime(d.seekTime); } }
+        });
+      }
+      if(!S.mediaSessionBridge) return;
+      S.mediaSessionBridge.update({
+        title: S.mediaMeta?.title || file?.name || (S.lastUrl||'').replace(/^.*\//,'') || 'Omni Player mini',
         artist: S.mediaMeta?.artist || '',
         album: S.mediaMeta?.album || '',
         artwork: S.mediaArtwork || []
       });
-      navigator.mediaSession.playbackState = activePaused() ? 'paused' : 'playing';
-      if(typeof navigator.mediaSession.setPositionState === 'function' && Number.isFinite(media.duration)){
-        navigator.mediaSession.setPositionState({ duration:media.duration||0, position:media.currentTime||0, playbackRate:media.playbackRate||1 });
-      }
-      navigator.mediaSession.setActionHandler('play', ()=> requestPlayImmediate('mediaSession').catch(()=>{}));
-      navigator.mediaSession.setActionHandler('pause', ()=> activeMedia().pause());
-      navigator.mediaSession.setActionHandler('seekbackward', ()=> setActiveCurrentTime(activeCurrentTime()-10));
-      navigator.mediaSession.setActionHandler('seekforward',  ()=> setActiveCurrentTime(activeCurrentTime()+10));
-      navigator.mediaSession.setActionHandler('previoustrack', ()=> $('#btnPrev').click());
-      navigator.mediaSession.setActionHandler('nexttrack',     ()=> $('#btnNext').click());
-      navigator.mediaSession.setActionHandler('seekto', (d)=>{ if(typeof d.seekTime==='number'){ setActiveCurrentTime(d.seekTime); } });
     }catch{}
   }
 

@@ -57,10 +57,13 @@ function toast(msg,type='ok',timeout=3400){const d=document.createElement('div')
 function debugLog(stage, detail=''){}
 const fmt=s=>{if(s==null||isNaN(s))return '-';const sec=Math.floor(s%60).toString().padStart(2,'0');const m=Math.floor(s/60);return `${m}:${sec}`};
 function pct(v){ return `${Math.round((+v||0)*100)}%` }
+const OPPlayback = window.OmniPlaybackCore || {};
+const OPPlatform = OPPlayback.detectPlatform ? OPPlayback.detectPlatform() : {
+  isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''),
+  isStandalonePwa: window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone === true || document.referrer.startsWith?.('android-app://')
+};
 function isStandalonePwa(){
-  return window.matchMedia?.('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true ||
-    document.referrer.startsWith?.('android-app://');
+  return !!OPPlatform.isStandalonePwa;
 }
 function fileLooksLikeVideo(file){
   const name = String(file?.name || '');
@@ -715,24 +718,24 @@ function rampTo(value,t=0.12){ try{ ensureAudioGraph(); const g=state.outGain; c
 async function ensureAudioOn(){ try{ if(!state.audioCtx) state.audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(state.audioCtx.state==='suspended' && state.triedOnce) await state.audioCtx.resume().catch(()=>{}); if (state.triedOnce) forceUnmute(); debugLog('audio','ensure-ok'); }catch(e){ debugLog('audio', `ensure-fail ${e?.name||'Error'}`) } }
 async function performPlayAttempt(){
   debugLog('performPlayAttempt', `ready=${$.v.readyState} src=${$.v.currentSrc ? '1' : '0'}`);
-  await ensureAudioOn(); forceUnmute(); safeVolumeBump();
   const mobileVideoNative = shouldUseMobileVideoNativePlayback();
-  if(!mobileVideoNative){
-    try{ ensureAudioGraph(); rampTo(0,0.01); }catch(e){ forceUnmute(); }
-  }
-  try{
-    const p=$.v.play();
-    if(p&&typeof p.then==='function'){ await p.catch(err=>{ if(err?.name!=='AbortError') throw err }) }
-    debugLog('play()', 'primary-ok');
-  }catch(err){
-    debugLog('play()', `primary-fail ${err?.name||'Error'}`);
-    const prevMuted=$.v.muted, prevVol=$.v.volume;
-    $.v.muted=true;
-    const p2=$.v.play();
-    if(p2&&typeof p2.then==='function'){ await p2.catch(e=>{ if(e?.name!=='AbortError') throw e }) }
-    debugLog('play()', 'fallback-muted-ok');
-    setTimeout(()=>{ try{ $.v.muted=prevMuted; if(!prevMuted && prevVol>0) $.v.volume=prevVol; forceUnmute(); }catch(e){} },120);
-  }
+  const result = await OPPlayback.performPlayAttempt({
+    media: $.v,
+    ignoreAbortError: true,
+    allowMutedFallback: true,
+    ensureReady: async()=>{
+      await ensureAudioOn();
+      forceUnmute();
+      safeVolumeBump();
+    },
+    beforePlay: ()=>{
+      if(mobileVideoNative) return;
+      try{ ensureAudioGraph(); rampTo(0,0.01); }catch(e){ forceUnmute(); }
+    },
+    afterRestore: ()=>{ forceUnmute(); },
+    onPrimaryError: (err)=>{ debugLog('play()', `primary-fail ${err?.name||'Error'}`); }
+  });
+  debugLog('play()', result?.mode === 'muted-fallback' ? 'fallback-muted-ok' : 'primary-ok');
   if(!mobileVideoNative) rampTo(+($.master?.value||1),0.12);
   setPlayingUI(true);
   if(state.extAudio && !$.v.paused && state.extAudio.paused){ try{ await state.extAudio.play() }catch(e){} }
@@ -741,7 +744,7 @@ async function performPlayAttempt(){
 async function requestPlay(reason){
   debugLog('requestPlay', `${reason||'-'} kind=${state.mediaKind}`);
   if(state.mediaKind!=='html5'){ if(state.usingYouTube) try{state.yt?.playVideo?.()}catch(e){}; setPlayingUI(true); enforceBackdropPolicy(); return }
-  if(state.lastUserGestureAt && (Date.now()-state.lastUserGestureAt)<4000){ return requestPlayImmediate(reason) }
+  if(OPPlayback.hasFreshGesture ? OPPlayback.hasFreshGesture(state.lastUserGestureAt, 4000) : (state.lastUserGestureAt && (Date.now()-state.lastUserGestureAt)<4000)){ return requestPlayImmediate(reason) }
   state.playDesired=true; const my=++state.playToken; clearTimeout(state.playDebounce);
   state.playDebounce=setTimeout(async()=>{
     if(my!==state.playToken||!state.playDesired) return;
@@ -843,6 +846,7 @@ function artworkTypeFromUrl(url=''){
   return 'image/jpeg';
 }
 function buildArtworkEntries(urls=[]){
+  if(OPPlayback.buildArtworkEntries) return OPPlayback.buildArtworkEntries(urls, artworkTypeFromUrl);
   const uniq = [...new Set((urls||[]).filter(Boolean))].slice(0, 6);
   return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
 }
@@ -851,7 +855,7 @@ function setMediaArtwork(urls=[]){
   state._updateMediaSession?.();
 }
 function isMobileLike(){
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || '');
+  return !!OPPlatform.isMobile;
 }
 function shouldUseMobileVideoNativePlayback(){
   return !!(
@@ -2216,8 +2220,20 @@ if(state.eq.values){ restoreEqValues() } else { applyEqPreset(state.eq.preset||'
 
 /* ========= Media Session ========= */
 ;(() => {
-  if(!('mediaSession' in navigator)) return;
   const v=$.v;
+  const bridge = OPPlayback.createMediaSessionBridge ? OPPlayback.createMediaSessionBridge({
+    getMedia: ()=>v,
+    isPaused: ()=>mediaPaused(),
+    getMetadata: ()=>currentMetaFromUI(),
+    onPlay: ()=>{ requestPlayImmediate('mediaSession').catch(()=>{}); },
+    onPause: ()=>{ try{ v.pause() }catch(e){} },
+    onSeekBackward: (d)=>{ try{ v.currentTime=Math.max(0, v.currentTime-(d?.seekOffset||10)) }catch(e){} },
+    onSeekForward: (d)=>{ try{ v.currentTime=Math.min(v.duration||v.currentTime+10, v.currentTime+(d?.seekOffset||10)) }catch(e){} },
+    onSeekTo: (d)=>{ try{ if(typeof d.seekTime==='number') v.currentTime=d.seekTime }catch(e){} },
+    onPreviousTrack: ()=>{ if(state.list.length){ const prev=(state.cur-1+state.list.length)%state.list.length; selectIndex(prev) }},
+    onNextTrack: ()=>{ if(state.list.length){ const next=(state.cur+1)%state.list.length; selectIndex(next) }}
+  }) : null;
+  if(!bridge) return;
   function baseTitleFromSrc(src){ try{ const u=new URL(src, location.href); const name=decodeURIComponent(u.pathname.split('/').pop()||''); return (name||'').replace(/\.[^/.]+$/, '') || 'Unknown' }catch(e){ return 'Unknown' } }
   function currentMetaFromUI(){
     const titleTxt=(($.audioTitle?.textContent)||'').trim();
@@ -2227,20 +2243,17 @@ if(state.eq.values){ restoreEqValues() } else { applyEqPreset(state.eq.preset||'
     const title=titleTxt || baseTitleFromSrc(v.currentSrc||'');
     return {title,artist,album,artwork};
   }
-  function pushPosition(){ try{ if(typeof navigator.mediaSession.setPositionState==='function' && isFinite(v.duration)){ navigator.mediaSession.setPositionState({ duration:v.duration||0, position:v.currentTime||0, playbackRate:v.playbackRate||1 }) } }catch(e){} }
-  function syncPlaybackState(){ try{ navigator.mediaSession.playbackState = mediaPaused() ? 'paused' : 'playing' }catch(e){} }
-  function updateMediaSession(meta){ meta=meta||currentMetaFromUI(); try{ navigator.mediaSession.metadata=new MediaMetadata({ title:meta.title||baseTitleFromSrc(v.currentSrc||''), artist:meta.artist||'', album:meta.album||'', artwork:meta.artwork||[] }); pushPosition(); syncPlaybackState() }catch(e){} }
-  try{
-    navigator.mediaSession.setActionHandler('play',()=>{ requestPlayImmediate('mediaSession').catch(()=>{}) });
-    navigator.mediaSession.setActionHandler('pause',()=>{ try{ v.pause() }catch(e){} });
-    navigator.mediaSession.setActionHandler('seekbackward',(d)=>{ try{ v.currentTime=Math.max(0, v.currentTime-(d?.seekOffset||10)) }catch(e){} });
-    navigator.mediaSession.setActionHandler('seekforward',(d)=>{ try{ v.currentTime=Math.min(v.duration||v.currentTime+10, v.currentTime+(d?.seekOffset||10)) }catch(e){} });
-    navigator.mediaSession.setActionHandler('seekto',(d)=>{ try{ if(typeof d.seekTime==='number') v.currentTime=d.seekTime }catch(e){} });
-    navigator.mediaSession.setActionHandler('previoustrack',()=>{ if(state.list.length){ const prev=(state.cur-1+state.list.length)%state.list.length; selectIndex(prev) }});
-    navigator.mediaSession.setActionHandler('nexttrack',()=>{ if(state.list.length){ const next=(state.cur+1)%state.list.length; selectIndex(next) }});
-  }catch(e){}
+  function updateMediaSession(meta){
+    const payload = meta || currentMetaFromUI();
+    bridge.update({
+      title: payload.title || baseTitleFromSrc(v.currentSrc||''),
+      artist: payload.artist || '',
+      album: payload.album || '',
+      artwork: payload.artwork || []
+    });
+  }
   ['loadedmetadata','play','pause','ratechange','ended'].forEach(ev=>{ v.addEventListener(ev,()=>{ updateMediaSession() }) });
-  v.addEventListener('timeupdate', pushPosition);
+  v.addEventListener('timeupdate', bridge.pushPosition);
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden && shouldKeepBackgroundPlayback()) updateMediaSession();
   });
