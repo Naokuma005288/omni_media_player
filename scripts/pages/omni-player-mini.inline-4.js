@@ -14,11 +14,33 @@
   v.playsInline = true;
   v.setAttribute('playsinline','');
   v.setAttribute('webkit-playsinline','');
+  function updatePortraitButtonGlyphs(){
+    const portrait = document.body.classList.contains('mini-portrait');
+    const tipsBtn = $('#btnTips');
+    const fsBtn = $('#btnFs');
+    const langBtn = $('#btnLang');
+    if(tipsBtn){
+      tipsBtn.textContent = portrait ? '💡' : t('btn_tips');
+      tipsBtn.setAttribute('aria-label', t('btn_tips'));
+      tipsBtn.title = t('btn_tips');
+    }
+    if(fsBtn){
+      fsBtn.textContent = portrait ? '⛶' : t('btn_fs');
+      fsBtn.setAttribute('aria-label', t('btn_fs'));
+      fsBtn.title = t('btn_fs');
+    }
+    if(langBtn){
+      langBtn.textContent = '🌐';
+      langBtn.setAttribute('aria-label', 'Language');
+      langBtn.title = 'Language';
+    }
+  }
   function applyOrientationUi(){
     const portrait = orientationMql ? orientationMql.matches : window.innerHeight >= window.innerWidth;
     document.body.classList.toggle('mini-portrait', portrait);
     document.body.classList.toggle('mini-landscape', !portrait);
     document.body.dataset.orientation = portrait ? 'portrait' : 'landscape';
+    updatePortraitButtonGlyphs();
   }
   applyOrientationUi();
   if(orientationMql){
@@ -76,6 +98,7 @@
     updateMiniReadouts();
     maybeShowResumeButton();
     syncBadgeState();
+    updatePortraitButtonGlyphs();
   }
   function renderTips(){
     const tips = (I[LANG] || I.ja).tips, body=$('#tipsBody'); body.innerHTML='';
@@ -197,11 +220,62 @@
     return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
   }
   function makeIconDataUrl(kind='audio'){
+    const makeFallbackSvg = ()=>{
+      const primary = kind === 'video' ? '#5d7cff' : '#8d5bff';
+      const secondary = kind === 'video' ? '#22d3ee' : '#ff6ad5';
+      const centerMarkup = kind === 'video'
+        ? `
+          <rect x="160" y="164" width="192" height="136" rx="26" fill="rgba(255,255,255,.96)"/>
+          <path d="M228 195 L310 232 L228 269 Z" fill="#111827"/>
+          <rect x="132" y="392" width="248" height="10" rx="5" fill="url(#accent)"/>
+        `
+        : `
+          <circle cx="188" cy="288" r="36" fill="rgba(255,255,255,.95)"/>
+          <circle cx="316" cy="248" r="36" fill="rgba(255,255,255,.95)"/>
+          <rect x="214" y="160" width="24" height="126" rx="8" fill="rgba(255,255,255,.95)"/>
+          <g transform="translate(238 168) rotate(-13)">
+            <rect x="0" y="0" width="126" height="24" rx="10" fill="rgba(255,255,255,.95)"/>
+          </g>
+          <rect x="132" y="392" width="248" height="10" rx="5" fill="url(#accent)"/>
+        `;
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+          <defs>
+            <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#070b12"/>
+              <stop offset="48%" stop-color="#111827"/>
+              <stop offset="100%" stop-color="#05070b"/>
+            </linearGradient>
+            <radialGradient id="glowA" cx="28%" cy="24%" r="44%">
+              <stop offset="0%" stop-color="${primary}" stop-opacity=".9"/>
+              <stop offset="100%" stop-color="${primary}" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="glowB" cx="76%" cy="78%" r="42%">
+              <stop offset="0%" stop-color="${secondary}" stop-opacity=".72"/>
+              <stop offset="100%" stop-color="${secondary}" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="${primary}"/>
+              <stop offset="100%" stop-color="${secondary}"/>
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" fill="url(#bg)"/>
+          <rect width="512" height="512" fill="url(#glowA)"/>
+          <rect width="512" height="512" fill="url(#glowB)"/>
+          <rect x="78" y="72" width="356" height="368" rx="34" fill="rgba(9,12,20,.88)"/>
+          <rect x="92" y="86" width="328" height="340" rx="28" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.12)" stroke-width="2"/>
+          <rect x="116" y="112" width="280" height="20" rx="10" fill="url(#accent)"/>
+          ${centerMarkup}
+        </svg>
+      `;
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    };
     try{
       const canvas = document.createElement('canvas');
       canvas.width = 512;
       canvas.height = 512;
       const ctx = canvas.getContext('2d', { alpha:false });
+      if(!ctx) return makeFallbackSvg();
       const drawRoundRect = (x, y, w, h, r)=>{
         if(ctx.roundRect){
           ctx.beginPath();
@@ -285,9 +359,9 @@
         ctx.fillStyle = accent;
         ctx.fillRect(132, 394, 248, 10);
       }else{
-        ctx.beginPath(); ctx.arc(188, 284, 38, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(318, 246, 38, 0, Math.PI * 2); ctx.fill();
-        ctx.fillRect(214, 158, 24, 130);
+        ctx.beginPath(); ctx.arc(188, 288, 36, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(316, 248, 36, 0, Math.PI * 2); ctx.fill();
+        ctx.fillRect(214, 160, 24, 126);
         ctx.save();
         ctx.translate(238, 166);
         ctx.rotate(-0.22);
@@ -302,14 +376,9 @@
         ctx.globalAlpha = 1;
       }
 
-      ctx.fillStyle = 'rgba(255,255,255,.08)';
-      drawRoundRect(132, 358, 248, 42, 16);
-      ctx.fillStyle = 'rgba(255,255,255,.72)';
-      ctx.font = '600 18px sans-serif';
-      ctx.fillText(kind === 'video' ? 'VIDEO MODE' : 'AUDIO MODE', 164, 385);
       return canvas.toDataURL('image/png');
     }catch{
-      return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s4N2VQAAAAASUVORK5CYII=';
+      return makeFallbackSvg();
     }
   }
   function getMetadataLib(){

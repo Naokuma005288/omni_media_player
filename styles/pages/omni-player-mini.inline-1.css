@@ -111,32 +111,67 @@
     padding:.42rem .56rem calc(.72rem + env(safe-area-inset-bottom, 0px));
     gap:.42rem
   }
-  body.mini-portrait .ctrl-top{
+body.mini-portrait .ctrl-top{
     flex-direction:column;
     align-items:stretch;
-    gap:.34rem
+    gap:.42rem
   }
-  body.mini-portrait .left-group,
-  body.mini-portrait .right-group{
-    width:100%
+body.mini-portrait .left-group,
+body.mini-portrait .right-group{
+    width:100%;
+    padding:.36rem;
+    border-radius:16px;
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.10)
   }
-  body.mini-portrait .left-group{
-    display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
-    gap:.3rem
-  }
-  body.mini-portrait .left-group #btnPlay{grid-column:span 2}
-  body.mini-portrait .right-group{
+body.mini-portrait .left-group{
     display:grid;
     grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:.3rem
+    gap:.32rem
   }
-  body.mini-portrait .left-group .badge{
-    grid-column:span 2;
+body.mini-portrait .left-group #btnPlay{
+    grid-column:1 / -1;
+    min-height:42px;
+    font-size:13px
+  }
+body.mini-portrait .left-group #btnBack{grid-column:1}
+body.mini-portrait .left-group #btnFwd{grid-column:2}
+body.mini-portrait .left-group #btnMute{grid-column:3}
+body.mini-portrait .left-group #btnPrev{grid-column:1}
+body.mini-portrait .left-group #btnNext{grid-column:2}
+body.mini-portrait .left-group #btnResume{
+    grid-column:3;
+    min-width:0
+  }
+body.mini-portrait .right-group{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:.32rem
+  }
+body.mini-portrait .right-group #btnSettings{grid-column:1 / -1}
+body.mini-portrait .right-group #btnTips{grid-column:1 / -1}
+body.mini-portrait .right-group #btnLoop{grid-column:1}
+body.mini-portrait .right-group #btnPip{grid-column:2}
+body.mini-portrait .right-group #btnFs{grid-column:1}
+body.mini-portrait .right-group #btnLang{grid-column:2}
+body.mini-portrait .left-group #badgeState{
+    grid-column:1 / span 2;
     justify-self:stretch;
     text-align:center
   }
-  body.mini-portrait .ctrl-bottom{
+body.mini-portrait .left-group .badge[title="version"]{
+    grid-column:3;
+    justify-self:stretch;
+    text-align:center
+  }
+body.mini-portrait .left-group .btn,
+body.mini-portrait .right-group .btn{
+    min-width:0;
+    height:34px;
+    padding:.28rem .46rem;
+    font-size:12px
+  }
+body.mini-portrait .ctrl-bottom{
     flex-direction:column;
     align-items:stretch
   }
