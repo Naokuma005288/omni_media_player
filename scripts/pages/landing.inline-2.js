@@ -13,6 +13,7 @@ const cursor = document.getElementById('cursor');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsModal = document.getElementById('settingsModal');
 const soonModal = document.getElementById('soonModal');
+const releaseModal = document.getElementById('releaseModal');
 const soonTitle = document.getElementById('soonTitle');
 const soonText = document.getElementById('soonText');
 const soonPoints = document.getElementById('soonPoints');
@@ -88,7 +89,7 @@ const scrollToNew = document.getElementById('scrollToNew');
 
 /* ===== Store & keys ===== */
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{ return d }},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order';
+const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order', releaseDismissKey='om.release.dismiss.v4.2.0';
 function applyLandingOrientation(){
   const portrait = orientationMql ? orientationMql.matches : window.innerHeight >= window.innerWidth;
   document.body.classList.toggle('landing-portrait', portrait);
@@ -205,7 +206,14 @@ const dict={
       betaBadge:"β版", openBtn:"開く", soonBtn:"準備中", comingSoon:"Coming Soon",
       liveTitle:"Omni Live", liveDesc:"低遅延・マルチストリームライブ。",
       convertTitle:"Omni Convert", convertDesc:"現在開発中です。",
-      editorTitle:"Omni Editor",  editorDesc:"現在開発中です。"},
+      editorTitle:"Omni Editor",  editorDesc:"現在開発中です。",
+      releaseTitle:"v4.2.0 の強化ポイント",
+      releaseLead:"通常版に BPM / Key 推定と Auto DJ を追加し、曲間のつながりを強化しました。",
+      releasePoint1:"BPM 推定はセグメント投票ベースになり、途中の揺れに強くなりました。",
+      releasePoint2:"Key 推定を追加し、現在の曲調を BPM と並べて確認できます。",
+      releasePoint3:"Auto DJ は次の曲を少し重ねながら、終盤から自然に handoff します。",
+      releasePoint4:"スペクトラムも Auto DJ の重なりに追従し、次曲の成分が徐々に入ります。",
+      releaseHideForever:"次回から表示しない"},
   en:{lang:"EN",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",landingTitle:"OmniMedia – Landing",alpha:"Rec",beta:"mini",old:"Old",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"A lighter, simpler mini model focused on core playback.",oldDesc:"Legacy version kept for compatibility.",
@@ -225,7 +233,14 @@ const dict={
       betaBadge:"Beta", openBtn:"Open", soonBtn:"Coming Soon", comingSoon:"Coming Soon",
       liveTitle:"Omni Live", liveDesc:"Low-latency and multi-stream live playback.",
       convertTitle:"Omni Convert", convertDesc:"Currently under development.",
-      editorTitle:"Omni Editor",  editorDesc:"Currently under development.", close:"Close"},
+      editorTitle:"Omni Editor",  editorDesc:"Currently under development.", close:"Close",
+      releaseTitle:"What is new in v4.2.0",
+      releaseLead:"The normal player now focuses on BPM/Key analysis and smoother DJ-style transitions.",
+      releasePoint1:"BPM estimation is more stable thanks to segment-based voting.",
+      releasePoint2:"Key estimation was added and surfaced alongside BPM.",
+      releasePoint3:"Auto DJ now overlaps the next track and hands off from the live mix position.",
+      releasePoint4:"Spectrum rendering also reacts to the overlapping deck during Auto DJ.",
+      releaseHideForever:"Do not show again"},
   ko:{lang:"KR",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"추천",beta:"mini",old:"비추천",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"안정 버전, 완전한 기능과 최적화 성능.",betaDesc:"핵심 재생에 집중한 가벼운 미니 모델.",oldDesc:"이전 버전(비추천).",
@@ -234,7 +249,14 @@ const dict={
       secNew:"신규 시리즈", secNewHint:"Coming Soon", cueNew:"신규 시리즈(출시 예정)로",
       betaBadge:"베타", openBtn:"열기", soonBtn:"준비 중", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"현재 개발 중입니다.",
-      editorTitle:"Omni Editor",  editorDesc:"현재 개발 중입니다.", close:"닫기"},
+      editorTitle:"Omni Editor",  editorDesc:"현재 개발 중입니다.", close:"닫기",
+      releaseTitle:"v4.2.0 업데이트",
+      releaseLead:"일반 버전에 BPM / Key 추정과 Auto DJ가 추가되었습니다.",
+      releasePoint1:"세그먼트 투표 기반 BPM 추정으로 안정성이 높아졌습니다.",
+      releasePoint2:"Key 추정이 추가되어 BPM과 함께 표시됩니다.",
+      releasePoint3:"Auto DJ가 다음 곡을 겹치며 자연스럽게 넘깁니다.",
+      releasePoint4:"스펙트럼도 겹치는 다음 deck에 맞춰 변합니다.",
+      releaseHideForever:"다음부터 표시 안 함"},
   zh:{lang:"中文",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"推荐",beta:"mini",old:"旧版",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"稳定版，完整功能与最佳性能。",betaDesc:"聚焦核心播放体验的轻量 mini 型号。",oldDesc:"旧版本，仅保留兼容。",
@@ -243,7 +265,14 @@ const dict={
       secNew:"新系列", secNewHint:"Coming Soon", cueNew:"前往新系列（敬请期待）",
       betaBadge:"测试版", openBtn:"打开", soonBtn:"开发中", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"目前仍在开发中。",
-      editorTitle:"Omni Editor",  editorDesc:"目前仍在开发中。", close:"关闭"},
+      editorTitle:"Omni Editor",  editorDesc:"目前仍在开发中。", close:"关闭",
+      releaseTitle:"v4.2.0 更新内容",
+      releaseLead:"普通版现已强化 BPM / Key 分析与 Auto DJ 过渡。",
+      releasePoint1:"基于分段投票的 BPM 估计更稳定。",
+      releasePoint2:"新增 Key 估计，并与 BPM 一起显示。",
+      releasePoint3:"Auto DJ 会让下一首提前叠入，并从混音位置继续交接。",
+      releasePoint4:"频谱也会跟随 Auto DJ 的叠加过程逐步变化。",
+      releaseHideForever:"下次不再显示"},
   ru:{lang:"RU",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"Реком.",beta:"mini",old:"Стар.",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"Стабильная версия с полной функциональностью.",betaDesc:"Облегчённая mini-версия с упором на базовое воспроизведение.",oldDesc:"Старая версия (не рекомендуется).",
@@ -252,7 +281,14 @@ const dict={
       secNew:"Новая серия", secNewHint:"Coming Soon", cueNew:"К новой серии (скоро)",
       betaBadge:"Бета", openBtn:"Открыть", soonBtn:"Скоро", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"Сейчас в разработке.",
-      editorTitle:"Omni Editor",  editorDesc:"Сейчас в разработке.", close:"Закрыть"},
+      editorTitle:"Omni Editor",  editorDesc:"Сейчас в разработке.", close:"Закрыть",
+      releaseTitle:"Что нового в v4.2.0",
+      releaseLead:"В обычной версии усилены BPM / Key анализ и DJ-переходы.",
+      releasePoint1:"Оценка BPM стала стабильнее за счёт голосования по сегментам.",
+      releasePoint2:"Добавлена оценка Key рядом с BPM.",
+      releasePoint3:"Auto DJ теперь накладывает следующий трек и передаёт управление с текущей точки микса.",
+      releasePoint4:"Спектр тоже реагирует на перекрытие следующей деки.",
+      releaseHideForever:"Больше не показывать"},
   fr:{lang:"FR",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",alpha:"Recom.",beta:"mini",old:"Anc.",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
       alphaDesc:"Version stable, complète et optimisée.",betaDesc:"Un modèle mini, léger et centré sur l’essentiel.",oldDesc:"Ancienne version (non recommandée).",
@@ -261,7 +297,14 @@ const dict={
       secNew:"Nouvelle série", secNewHint:"Coming Soon", cueNew:"Aller à la nouvelle série (bientôt)",
       betaBadge:"Bêta", openBtn:"Ouvrir", soonBtn:"Bientôt", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"Actuellement en cours de développement.",
-      editorTitle:"Omni Editor",  editorDesc:"Actuellement en cours de développement.", close:"Fermer"},
+      editorTitle:"Omni Editor",  editorDesc:"Actuellement en cours de développement.", close:"Fermer",
+      releaseTitle:"Nouveautés de v4.2.0",
+      releaseLead:"La version standard améliore maintenant l'analyse BPM / tonalité et les transitions façon DJ.",
+      releasePoint1:"L'estimation BPM est plus stable grâce à un vote par segments.",
+      releasePoint2:"L'estimation de tonalité a été ajoutée à côté du BPM.",
+      releasePoint3:"Auto DJ superpose désormais le morceau suivant avant le handoff final.",
+      releasePoint4:"Le spectre réagit aussi au deck superposé pendant Auto DJ.",
+      releaseHideForever:"Ne plus afficher"},
 };
 const soonInfo={
   convert:{
@@ -345,6 +388,13 @@ function openSoonCard(key){
   soonText.textContent=info.text;
   soonPoints.innerHTML=(info.points||[]).map(v=>`<div class="point">${v}</div>`).join('');
   soonModal.classList.add('show');
+}
+function closeReleaseModal(){
+  releaseModal?.classList.remove('show');
+}
+function maybeShowReleaseModal(){
+  if(!releaseModal || store.get(releaseDismissKey,false)) return;
+  releaseModal.classList.add('show');
 }
 
 /* ===== Clock HUD + Battery ===== */
@@ -564,7 +614,7 @@ document.addEventListener('keydown',(e)=>{
   if(e.key==='ArrowLeft' && visibleCards.length){ e.preventDefault(); visibleCards[(idx-1+visibleCards.length)%visibleCards.length]?.focus() }
   if(e.key==='Enter'){ if(idx>=0){ const card=visibleCards[idx]; if(card.classList.contains('focused')) openCard(card); else focusCard(card) } }
   if(e.key==='o'){ if(idx>=0){ const card=visibleCards[idx]; openCard(card) } }
-  if(e.key==='Escape'){ grid.classList.remove('focus-mode'); cards.forEach(c=>c.classList.remove('focused')); settingsModal?.classList.remove('show'); helpModal?.classList.remove('show'); soonModal?.classList.remove('show') }
+  if(e.key==='Escape'){ grid.classList.remove('focus-mode'); cards.forEach(c=>c.classList.remove('focused')); settingsModal?.classList.remove('show'); helpModal?.classList.remove('show'); soonModal?.classList.remove('show'); closeReleaseModal() }
   if(/^[1-9]$/.test(e.key)){ const n=+e.key-1; if(n<visibleCards.length){ visibleCards[n]?.focus(); if(!settings.focus) openCard(visibleCards[n]); } }
   /* 追加ショートカット */
   if(!isTyping && e.key.toLowerCase()==='x'){ fxMuted=!fxMuted; applyFX(); toast(fxMuted?t('toastFxMuted'):t('toastFxResumed')); }
@@ -614,6 +664,12 @@ settingsModal?.addEventListener('click',(e)=>{ if(e.target===settingsModal) sett
 document.getElementById('optClose')?.addEventListener('click',()=>settingsModal?.classList.remove('show'));
 soonModal?.addEventListener('click',(e)=>{ if(e.target===soonModal) soonModal.classList.remove('show') });
 document.getElementById('soonClose')?.addEventListener('click',()=>soonModal?.classList.remove('show'));
+releaseModal?.addEventListener('click',(e)=>{ if(e.target===releaseModal) closeReleaseModal() });
+document.getElementById('releaseClose')?.addEventListener('click',closeReleaseModal);
+document.getElementById('releaseHideForever')?.addEventListener('click',()=>{
+  store.set(releaseDismissKey,true);
+  closeReleaseModal();
+});
 optReduce?.addEventListener('change',()=>{ settings.reduce=optReduce.checked; store.set(settingsKey,settings); applySettings(); location.reload() });
 optAutoReduce?.addEventListener('change',()=>{ settings.autoReduce=optAutoReduce.checked; store.set(settingsKey,settings) });
 optTilt?.addEventListener('change',()=>{ settings.tilt=optTilt.checked; store.set(settingsKey,settings) });
@@ -684,7 +740,13 @@ optResetOrder?.addEventListener('click',()=>{ localStorage.removeItem(orderKey);
   const idle = new Promise(r => (window.requestIdleCallback ? requestIdleCallback(()=>r(), {timeout:900}) : setTimeout(r, 500))).then(()=>step(30));
   window.addEventListener('load', ()=> step(25), { once:true });
   function closeSplash(){ const elapsed = performance.now() - t0; const wait = Math.max(0, MIN_SHOW - elapsed);
-    setTimeout(()=>{ document.body.classList.add('loaded'); splash.classList.add('hide'); setTimeout(()=> splash.remove(), 800); }, wait); }
+    setTimeout(()=>{
+      document.body.classList.add('loaded');
+      splash.classList.add('hide');
+      setTimeout(()=> splash.remove(), 800);
+      setTimeout(()=>maybeShowReleaseModal(), 520);
+    }, wait);
+  }
   Promise.race([ Promise.allSettled([fReady, idle]).then(()=>true), new Promise(r=>setTimeout(()=>r(true), MAX_WAIT)) ]).then(closeSplash);
   const reduced = document.documentElement.classList.contains('reduce') || (matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   if (reduced) { setTimeout(()=>{ setP(100) }, 200); }

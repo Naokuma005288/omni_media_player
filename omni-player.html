@@ -148,7 +148,7 @@
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" id="pwaBadge" hidden>PWA</span>
-    <span class="badge" title="version">v4.1.0</span>
+    <span class="badge" title="version">v4.2.0</span>
   </header>
 
   <aside>
@@ -207,7 +207,7 @@
       </div>
       <div class="row switch">
         <input id="contPlay" type="checkbox" checked>
-        <label for="contPlay">連続再生（自動で次へ & クロスフェード）</label>
+        <label for="contPlay">連続再生（自動で次へ & Auto DJ）</label>
       </div>
       <div class="playlist" id="playlist" aria-label="Playlist"></div>
     </div>
@@ -270,6 +270,7 @@
           <section class="control-module transport-module" aria-label="再生コントロール">
             <div class="module-head">
               <div class="module-kicker">PLAY</div>
+              <span class="badge readout bpm-dock-readout" id="bpmDock">--</span>
               <span class="module-chip" aria-hidden="true">▶</span>
             </div>
             <div class="transport-layout">
@@ -435,6 +436,35 @@
         <div class="row switch">
           <input id="specOverlay" type="checkbox" />
           <label for="specOverlay">動画再生時にも表示する</label>
+        </div>
+        <div class="row split">
+          <div class="col">
+            <label>推定 BPM</label>
+            <span class="badge readout" id="bpmRead">--</span>
+          </div>
+          <div class="col">
+            <label>推定 Key</label>
+            <span class="badge readout" id="keyRead">--</span>
+          </div>
+          <div class="col">
+            <label>Auto DJ</label>
+            <span class="badge readout" id="djStatus">OFF</span>
+          </div>
+        </div>
+        <div class="row switch">
+          <input id="beatSync" type="checkbox" checked />
+          <label for="beatSync">低域揺れに Beat 同期を追加</label>
+        </div>
+        <div class="row switch">
+          <input id="autoDj" type="checkbox" checked />
+          <label for="autoDj">Auto DJ（終盤 BPM 合わせ）</label>
+        </div>
+        <div class="row">
+          <label>遷移長さ</label>
+          <input id="djTransition" type="range" min="6" max="20" step="1" value="12" />
+        </div>
+        <div class="row">
+          <span class="subtitle" id="djTransitionRead">12秒かけて次の曲の BPM に寄せます。</span>
         </div>
         <div class="row split">
           <div class="col">

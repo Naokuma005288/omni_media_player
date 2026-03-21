@@ -4,7 +4,7 @@
 
 ## バージョン
 
-* 全体バージョン: `v4.1.0`
+* 全体バージョン: `v4.2.0`
 * Landing: `index.html`
 * 通常版: `omni-player.html`
 * mini: `omni-player-mini.html`
@@ -13,6 +13,11 @@
 ## ページ構成
 
 ## 最新アップデート
+
+### v4.2.0
+- 通常版に BPM 推定と Key 推定を追加し、解析は複数セグメント投票で以前より安定寄りにしました。
+- 通常版のスペクトラムは Beat 同期と Auto DJ overlap に対応し、次曲が入ってくると視覚側も追従するようにしました。
+- Auto DJ は終盤の BPM モーフだけでなく、次曲の overlap 再生と handoff に対応し、次曲の続き位置から本体へ引き継ぐよう改善しました。
 
 ### v4.1.0
 - mini をスマホ/タブレット優先で見直し、PWA 用の mini 専用 manifest と install 導線を追加しました。

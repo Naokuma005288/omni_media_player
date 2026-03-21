@@ -187,6 +187,9 @@ body.list .grid#grid .compare{margin:0}
 .soon-modal{width:min(620px,92vw)}
 .soon-points{display:grid;gap:10px;margin-top:10px}
 .soon-points .point{padding:10px 12px;border-radius:12px;border:1px solid var(--ring);background:var(--panel2);color:var(--text)}
+.release-modal{position:relative}
+.release-chip{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;border:1px solid color-mix(in oklab,var(--accent) 46%, var(--ring));background:color-mix(in oklab,var(--accent) 14%, var(--panel2));color:color-mix(in oklab,var(--accent) 72%, #fff);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.release-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap}
 .opt{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--ring);padding:10px;border-radius:10px;background:var(--panel2);margin:8px 0}
 .opt > div:first-child{margin-right:8px}
 
@@ -334,6 +337,7 @@ body.landing-portrait #settingsModal .tabs{margin:-12px -12px 10px;padding:10px 
 body.landing-portrait #settingsModal .sbar{flex-direction:column;align-items:stretch}
 body.landing-portrait #settingsSearch{width:100%;max-width:none}
 body.landing-portrait #settingsModal .sgrid{grid-template-columns:1fr}
+body.landing-portrait .release-actions{flex-direction:column}
 body.landing-portrait #clockHud{top:8px;padding:7px 10px}
 body.landing-portrait #clockHud .t{font-size:15px}
 body.landing-portrait #clockHud .d{font-size:11px}

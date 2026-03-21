@@ -16,9 +16,13 @@
   function initSettingsTabs(){
     const card = qs('#settings .settings-card');
     if (!card || card.dataset.tabbified) return;
+    if (card.querySelector('[data-settings-panel]')) {
+      card.dataset.tabbified = '1';
+      return;
+    }
 
     const rootGrid = card.querySelector('.settings-grid');
-    if (!rootGrid) return;
+    if (!rootGrid || rootGrid.parentElement !== card) return;
 
     // タブとパネルの骨組みを作る
     const tabsData = [

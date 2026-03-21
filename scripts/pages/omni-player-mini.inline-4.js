@@ -101,7 +101,7 @@
   }
 
   // i18n
-  const I={ ja:{ btn_play:'再生/一時停止', btn_back:'-10秒', btn_fwd:'+10秒', btn_prev:'前へ', btn_next:'次へ', btn_mute:'ミュート',
+  const I={ ja:{ btn_play:'再生/一時停止', btn_play_state:'再生', btn_pause_state:'一時停止', btn_back:'-10秒', btn_fwd:'+10秒', btn_prev:'前へ', btn_next:'次へ', btn_mute:'ミュート',
     btn_tips:'Tips', btn_settings:'設定', btn_loop:'ループ', btn_pip:'PiP', btn_fs:'全画面', close_btn:'閉じる (Esc)',
     btn_more:'詳細設定を表示', btn_less:'詳細設定を閉じる', mini_note:'mini は最小構成で表示中。詳細設定は必要時のみ開けます。',
     label_volume:'音量', label_rate:'速度', label_sleep:'タイマー',
@@ -116,7 +116,7 @@
            ['S','スクショPNG保存','A/B/L','ABループ 設定/設定/切替'], [', / .','前 / 次（Altで前後フレーム）','',''] ],
     badge_idle:'IDLE', badge_ready:'READY', badge_play:'再生', badge_pause:'一時停止', badge_muted:'ミュート',
     badge_play_loop:'再生・ループ', badge_pause_loop:'一時停止・ループ', badge_resume:'レジューム', badge_shot:'保存', badge_safe:'SAFE', badge_end:'終了'
-  }, en:{ btn_play:'Play/Pause', btn_back:'-10s', btn_fwd:'+10s', btn_prev:'Prev', btn_next:'Next', btn_mute:'Mute',
+  }, en:{ btn_play:'Play/Pause', btn_play_state:'Play', btn_pause_state:'Pause', btn_back:'-10s', btn_fwd:'+10s', btn_prev:'Prev', btn_next:'Next', btn_mute:'Mute',
     btn_tips:'Tips', btn_settings:'Settings', btn_loop:'Loop', btn_pip:'PiP', btn_fs:'Fullscreen', close_btn:'Close (Esc)',
     btn_more:'Show advanced', btn_less:'Hide advanced', mini_note:'mini starts in core mode. Open advanced settings only when needed.',
     label_volume:'Vol', label_rate:'Speed', label_sleep:'Sleep',
@@ -156,6 +156,7 @@
     updateMiniReadouts();
     maybeShowResumeButton();
     syncBadgeState();
+    updatePlayButtonLabel();
     updatePortraitButtonGlyphs();
     updateInstallHint();
   }
@@ -197,6 +198,13 @@
   });
 
   const setBadge=(txt)=> $('#badgeState').textContent=txt;
+  function updatePlayButtonLabel(){
+    const btn = $('#btnPlay');
+    if(!btn) return;
+    btn.textContent = activePaused() ? t('btn_play_state') : t('btn_pause_state');
+    btn.setAttribute('aria-label', activePaused() ? t('btn_play_state') : t('btn_pause_state'));
+    btn.title = activePaused() ? t('btn_play_state') : t('btn_pause_state');
+  }
   let playProbeTimer = 0;
   function debugLog(stage, detail=''){}
   function debugStack(stage){}
@@ -253,7 +261,7 @@
     if(activeMedia().muted) return t('badge_muted');
     return activePaused() ? (S.loopOn? t('badge_pause_loop'): t('badge_pause')) : (S.loopOn? t('badge_play_loop'): t('badge_play'));
   }
-  function syncBadgeState(){ setBadge(S.sleepLeft>0 ? `${currentBaseBadge()} • ${fmtRemain(S.sleepLeft)}` : currentBaseBadge()); }
+  function syncBadgeState(){ setBadge(S.sleepLeft>0 ? `${currentBaseBadge()} • ${fmtRemain(S.sleepLeft)}` : currentBaseBadge()); updatePlayButtonLabel(); }
   function currentDisplayTitle(){
     if(S.fileList.length && S.fileIndex>=0 && S.fileList[S.fileIndex]) return S.fileList[S.fileIndex].name || t('meta_no_media');
     const u = S.lastUrl || '';
@@ -757,6 +765,24 @@
   }
   function activePlaybackRate(){
     return activeMedia().playbackRate || v.playbackRate || 1;
+  }
+  function setActiveMuted(nextMuted){
+    const muted = !!nextMuted;
+    try{ v.muted = muted; }catch{}
+    if(S.bgAudio){
+      try{ S.bgAudio.muted = muted; }catch{}
+    }
+    syncBadgeState();
+  }
+  function setActiveVolume(nextVolume){
+    const volume = clamp(Number(nextVolume), 0, 1);
+    try{ v.volume = volume; }catch{}
+    if(S.bgAudio){
+      try{ S.bgAudio.volume = volume; }catch{}
+    }
+    $('#vol').value = String(volume);
+    updateMiniReadouts();
+    return volume;
   }
   function syncDisplayedVideoToActive(force=false){
     if(!(S.audioMaster && S.bgAudio)) return;
@@ -1284,7 +1310,7 @@
   wrap.addEventListener('wheel', (e)=>{
     if(isAnyPanelOpen()) return;
     if(e.shiftKey){ e.preventDefault(); const sign=(e.deltaY>0?1:-1); setActiveCurrentTime(activeCurrentTime()+sign*10); }
-    else{ e.preventDefault(); v.volume=clamp((v.volume||0.9)+(e.deltaY>0?-0.05:0.05),0,1); $('#vol').value=v.volume; updateMiniReadouts(); }
+    else{ e.preventDefault(); setActiveVolume((activeMedia().volume ?? v.volume ?? 0.9)+(e.deltaY>0?-0.05:0.05)); }
     bumpAutoHide();
   }, {passive:false});
 
@@ -1292,11 +1318,7 @@
   $('#btnFwd') .addEventListener('click', ()=>{ setActiveCurrentTime(activeCurrentTime()+10); bumpAutoHide(); });
   $('#btnPrev').addEventListener('click', ()=>{ markUserGesture(); if(S.fileList.length>0 && S.fileIndex>0){ S.fileIndex--; openLocalFile(S.fileList[S.fileIndex]); } });
   $('#btnNext').addEventListener('click', ()=>{ markUserGesture(); if(S.fileList.length>0 && S.fileIndex<S.fileList.length-1){ S.fileIndex++; openLocalFile(S.fileList[S.fileIndex]); } });
-  $('#btnMute').addEventListener('click', ()=>{
-    v.muted=!v.muted;
-    if(S.bgAudio) S.bgAudio.muted = v.muted;
-    setBadge(v.muted ? t('badge_muted') : currentBaseBadge());
-  });
+  $('#btnMute').addEventListener('click', ()=>{ setActiveMuted(!activeMedia().muted); });
 
   // Seek
   const startDrag=()=>{ S.dragging=true; showUI(); seekTip.classList.add('show'); updateSeekTip(); if($('#animMicro')?.value==='on' && S.anim.micro){ startMicroFade(); } };
@@ -1307,7 +1329,7 @@
   seekEl.addEventListener('touchstart', startDrag, {passive:true}); seekEl.addEventListener('touchend', endDrag);
 
   // volume / rate
-  $('#vol').addEventListener('input', e=>{ v.volume=+e.target.value; syncBgAudioFromVideo(); updateMiniReadouts(); bumpAutoHide(); });
+  $('#vol').addEventListener('input', e=>{ setActiveVolume(e.target.value); syncBgAudioFromVideo(); bumpAutoHide(); });
   const rateSel=$('#rateSel');
   function setPlaybackRateFromSelect(){ const val=parseFloat(rateSel.value); v.playbackRate=isFinite(val)?val:1.0; syncBgAudioFromVideo(); updateMiniReadouts(); }
   rateSel.addEventListener('change', ()=>{ setPlaybackRateFromSelect(); bumpAutoHide(); });

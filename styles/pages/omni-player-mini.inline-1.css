@@ -159,14 +159,10 @@ body.mini-portrait .right-group{
     gap:.24rem
   }
 body.mini-portrait .left-group #badgeState{
-    grid-column:1 / span 3;
-    justify-self:stretch;
-    text-align:center
+    display:none
   }
 body.mini-portrait .left-group .badge[title="version"]{
-    grid-column:4;
-    justify-self:stretch;
-    text-align:center
+    display:none
   }
 body.mini-portrait .left-group .btn,
 body.mini-portrait .right-group .btn{
@@ -179,6 +175,13 @@ body.mini-portrait .right-group .btn{
     justify-content:center;
     font-size:15px;
     line-height:1
+  }
+body.mini-portrait .left-group #btnPrev,
+body.mini-portrait .left-group #btnBack,
+body.mini-portrait .left-group #btnFwd,
+body.mini-portrait .left-group #btnNext{
+    white-space:nowrap;
+    font-size:11px
   }
 body.mini-portrait .ctrl-bottom{
     flex-direction:column;
