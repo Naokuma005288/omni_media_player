@@ -237,7 +237,12 @@
     const uniq = [...new Set((urls||[]).filter(Boolean))].slice(0, 6);
     return uniq.map(src=>({ src, sizes:'512x512', type:artworkTypeFromUrl(src) }));
   }
+  function staticFallbackArtworkUrl(kind='audio'){
+    const file = kind === 'video' ? 'fallback-video-512.png' : 'fallback-audio-512.png';
+    return new URL(`./assets/pwa/${file}`, location.href).href;
+  }
   function makeIconDataUrl(kind='audio'){
+    if(OPPlatform.isIOS) return staticFallbackArtworkUrl(kind);
     const makeFallbackSvg = ()=>{
       const primary = kind === 'video' ? '#5d7cff' : '#8d5bff';
       const secondary = kind === 'video' ? '#22d3ee' : '#ff6ad5';
@@ -396,7 +401,7 @@
 
       return canvas.toDataURL('image/png');
     }catch{
-      return makeFallbackSvg();
+      return OPPlatform.isIOS ? staticFallbackArtworkUrl(kind) : makeFallbackSvg();
     }
   }
   function getMetadataLib(){
@@ -1258,7 +1263,9 @@
   }
   function canUseFullscreen(){
     return !!(
+      v.requestFullscreen ||
       wrap.requestFullscreen ||
+      v.webkitRequestFullscreen ||
       wrap.webkitRequestFullscreen ||
       wrap.msRequestFullscreen ||
       v.webkitEnterFullscreen
@@ -1295,12 +1302,15 @@
       }catch{}
       return;
     }
+    try{ if(IOS_WEBKIT && typeof v.webkitEnterFullscreen === 'function'){ v.webkitEnterFullscreen(); return; } }catch{}
+    try{ if(v.requestFullscreen){ await v.requestFullscreen(); return; } }catch{}
+    try{ if(v.webkitRequestFullscreen){ v.webkitRequestFullscreen(); return; } }catch{}
     try{ if(wrap.requestFullscreen){ await wrap.requestFullscreen(); return; } }catch{}
     try{ if(wrap.webkitRequestFullscreen){ wrap.webkitRequestFullscreen(); return; } }catch{}
     try{ if(v.webkitEnterFullscreen){ v.webkitEnterFullscreen(); return; } }catch{}
   }
-  $('#btnPip').addEventListener('click', ()=>{ togglePiP(); bumpAutoHide(); });
-  $('#btnFs') .addEventListener('click', ()=>{ toggleFS();  bumpAutoHide(); });
+  $('#btnPip').addEventListener('click', ()=>{ markUserGesture(); togglePiP(); bumpAutoHide(); });
+  $('#btnFs') .addEventListener('click', ()=>{ markUserGesture(); toggleFS();  bumpAutoHide(); });
   document.addEventListener('fullscreenchange', ()=>{
     ctrl.classList.toggle('fs-minimal', !!document.fullscreenElement);
     showUI(); bumpAutoHide();
