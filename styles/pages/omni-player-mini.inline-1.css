@@ -145,15 +145,9 @@ body.mini-portrait .left-group #btnResume{
   }
 body.mini-portrait .right-group{
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:.32rem
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:.24rem
   }
-body.mini-portrait .right-group #btnSettings{grid-column:1 / -1}
-body.mini-portrait .right-group #btnTips{grid-column:1 / -1}
-body.mini-portrait .right-group #btnLoop{grid-column:1}
-body.mini-portrait .right-group #btnPip{grid-column:2}
-body.mini-portrait .right-group #btnFs{grid-column:1}
-body.mini-portrait .right-group #btnLang{grid-column:2}
 body.mini-portrait .left-group #badgeState{
     grid-column:1 / span 2;
     justify-self:stretch;
@@ -168,8 +162,13 @@ body.mini-portrait .left-group .btn,
 body.mini-portrait .right-group .btn{
     min-width:0;
     height:34px;
-    padding:.28rem .46rem;
+    padding:.2rem .12rem;
     font-size:12px
+  }
+body.mini-portrait .right-group .btn{
+    justify-content:center;
+    font-size:15px;
+    line-height:1
   }
 body.mini-portrait .ctrl-bottom{
     flex-direction:column;

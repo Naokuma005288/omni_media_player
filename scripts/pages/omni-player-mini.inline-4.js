@@ -17,12 +17,30 @@
   function updatePortraitButtonGlyphs(){
     const portrait = document.body.classList.contains('mini-portrait');
     const tipsBtn = $('#btnTips');
+    const settingsBtn = $('#btnSettings');
+    const loopBtn = $('#btnLoop');
+    const pipBtn = $('#btnPip');
     const fsBtn = $('#btnFs');
     const langBtn = $('#btnLang');
     if(tipsBtn){
       tipsBtn.textContent = portrait ? '💡' : t('btn_tips');
       tipsBtn.setAttribute('aria-label', t('btn_tips'));
       tipsBtn.title = t('btn_tips');
+    }
+    if(settingsBtn){
+      settingsBtn.textContent = portrait ? '⚙' : t('btn_settings');
+      settingsBtn.setAttribute('aria-label', t('btn_settings'));
+      settingsBtn.title = t('btn_settings');
+    }
+    if(loopBtn){
+      loopBtn.textContent = portrait ? '↻' : t('btn_loop');
+      loopBtn.setAttribute('aria-label', t('btn_loop'));
+      loopBtn.title = t('btn_loop');
+    }
+    if(pipBtn){
+      pipBtn.textContent = portrait ? '▣' : t('btn_pip');
+      pipBtn.setAttribute('aria-label', t('btn_pip'));
+      pipBtn.title = t('btn_pip');
     }
     if(fsBtn){
       fsBtn.textContent = portrait ? '⛶' : t('btn_fs');
@@ -42,13 +60,6 @@
     document.body.dataset.orientation = portrait ? 'portrait' : 'landscape';
     updatePortraitButtonGlyphs();
   }
-  applyOrientationUi();
-  if(orientationMql){
-    const onOrientationChange = ()=>applyOrientationUi();
-    if(typeof orientationMql.addEventListener === 'function') orientationMql.addEventListener('change', onOrientationChange);
-    else if(typeof orientationMql.addListener === 'function') orientationMql.addListener(onOrientationChange);
-  }
-  window.addEventListener('resize', applyOrientationUi, { passive:true });
 
   // i18n
   const I={ ja:{ btn_play:'再生/一時停止', btn_back:'-10秒', btn_fwd:'+10秒', btn_prev:'前へ', btn_next:'次へ', btn_mute:'ミュート',
@@ -84,6 +95,13 @@
   }};
   function getLang(){ try{ const pref=localStorage.getItem('pc.lang'); if(pref) return pref; return (navigator.language||'ja').toLowerCase().startsWith('ja')?'ja':'en'; }catch{return 'ja'} }
   let LANG=getLang(); const t=(k)=> (I[LANG]&&I[LANG][k]) || (I.ja[k]||k);
+  applyOrientationUi();
+  if(orientationMql){
+    const onOrientationChange = ()=>applyOrientationUi();
+    if(typeof orientationMql.addEventListener === 'function') orientationMql.addEventListener('change', onOrientationChange);
+    else if(typeof orientationMql.addListener === 'function') orientationMql.addListener(onOrientationChange);
+  }
+  window.addEventListener('resize', applyOrientationUi, { passive:true });
   function applyLang(){
     document.documentElement.lang=LANG; document.documentElement.setAttribute('data-lang',LANG);
     document.querySelectorAll('[data-i18n]').forEach(el=>{ const key=el.getAttribute('data-i18n'); const txt=t(key); if(txt) el.textContent=txt; });
