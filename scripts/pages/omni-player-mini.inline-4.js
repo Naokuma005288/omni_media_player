@@ -316,53 +316,114 @@
     return new URL(`./assets/pwa/${file}`, location.href).href;
   }
   function makeIconDataUrl(kind='audio'){
-    if(OPPlatform.isIOS) return staticFallbackArtworkUrl(kind);
     const makeFallbackSvg = ()=>{
-      const primary = kind === 'video' ? '#5d7cff' : '#8d5bff';
-      const secondary = kind === 'video' ? '#22d3ee' : '#ff6ad5';
+      const palette = kind === 'video'
+        ? { primary:'#4f8cff', secondary:'#2dd4bf', tertiary:'#ffd166', panel:'#08111d', panel2:'#0e1b2d' }
+        : { primary:'#ff8a3d', secondary:'#ffd166', tertiary:'#3ad5c3', panel:'#161008', panel2:'#24170e' };
       const centerMarkup = kind === 'video'
         ? `
-          <rect x="160" y="164" width="192" height="136" rx="26" fill="rgba(255,255,255,.96)"/>
-          <path d="M228 195 L310 232 L228 269 Z" fill="#111827"/>
-          <rect x="132" y="392" width="248" height="10" rx="5" fill="url(#accent)"/>
+          <rect x="108" y="118" width="296" height="276" rx="34" fill="url(#panelGlow)" stroke="rgba(255,255,255,.12)" stroke-width="2"/>
+          <rect x="132" y="148" width="248" height="168" rx="24" fill="rgba(6,12,20,.92)"/>
+          <rect x="144" y="160" width="224" height="144" rx="18" fill="url(#screen)"/>
+          <path d="M226 188 L306 232 L226 276 Z" fill="rgba(255,255,255,.95)"/>
+          <rect x="144" y="332" width="224" height="10" rx="5" fill="rgba(255,255,255,.16)"/>
+          <rect x="144" y="332" width="138" height="10" rx="5" fill="url(#accent)"/>
+          <rect x="144" y="360" width="62" height="14" rx="7" fill="rgba(255,255,255,.18)"/>
+          <rect x="214" y="360" width="94" height="14" rx="7" fill="rgba(255,255,255,.10)"/>
+          <rect x="316" y="360" width="52" height="14" rx="7" fill="rgba(255,255,255,.18)"/>
         `
         : `
-          <circle cx="188" cy="288" r="36" fill="rgba(255,255,255,.95)"/>
-          <circle cx="316" cy="248" r="36" fill="rgba(255,255,255,.95)"/>
-          <rect x="214" y="160" width="24" height="126" rx="8" fill="rgba(255,255,255,.95)"/>
-          <g transform="translate(238 168) rotate(-13)">
-            <rect x="0" y="0" width="126" height="24" rx="10" fill="rgba(255,255,255,.95)"/>
+          <rect x="120" y="150" width="118" height="164" rx="28" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.11)" stroke-width="2"/>
+          <rect x="142" y="176" width="72" height="12" rx="6" fill="rgba(255,255,255,.16)"/>
+          <rect x="142" y="200" width="92" height="10" rx="5" fill="url(#accent)"/>
+          <path d="M142 254 C158 242 174 236 190 238 C206 240 220 248 232 264" fill="none" stroke="rgba(255,255,255,.72)" stroke-width="8" stroke-linecap="round"/>
+          <g opacity=".96">
+            <rect x="144" y="274" width="10" height="18" rx="5" fill="${palette.primary}"/>
+            <rect x="160" y="266" width="10" height="26" rx="5" fill="${palette.secondary}"/>
+            <rect x="176" y="256" width="10" height="36" rx="5" fill="${palette.tertiary}"/>
+            <rect x="192" y="262" width="10" height="30" rx="5" fill="rgba(255,255,255,.78)"/>
+            <rect x="208" y="270" width="10" height="22" rx="5" fill="${palette.primary}"/>
           </g>
-          <rect x="132" y="392" width="248" height="10" rx="5" fill="url(#accent)"/>
+          <circle cx="322" cy="236" r="98" fill="#090c11"/>
+          <circle cx="322" cy="236" r="82" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2"/>
+          <circle cx="322" cy="236" r="62" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="10"/>
+          <path d="M322 174 A62 62 0 0 1 376 266" fill="none" stroke="url(#accent)" stroke-width="12" stroke-linecap="round"/>
+          <circle cx="322" cy="236" r="23" fill="url(#label)"/>
+          <circle cx="322" cy="236" r="8" fill="rgba(255,255,255,.94)"/>
+          <circle cx="388" cy="160" r="12" fill="rgba(255,255,255,.94)"/>
+          <rect x="380" y="172" width="16" height="112" rx="8" fill="rgba(255,255,255,.94)"/>
+          <rect x="330" y="188" width="82" height="14" rx="7" fill="rgba(255,255,255,.94)" transform="rotate(24 371 195)"/>
+          <circle cx="336" cy="216" r="10" fill="rgba(255,255,255,.96)"/>
+          <rect x="324" y="220" width="22" height="12" rx="6" fill="${palette.primary}" transform="rotate(24 335 226)"/>
+          <path d="M136 344 C182 334 228 332 276 338 C316 344 348 350 376 344" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="10" stroke-linecap="round"/>
+          <path d="M136 344 C182 334 228 332 276 338 C316 344 348 350 376 344" fill="none" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+          <g opacity=".94">
+            <rect x="140" y="360" width="10" height="18" rx="5" fill="${palette.primary}"/>
+            <rect x="156" y="352" width="10" height="26" rx="5" fill="${palette.secondary}"/>
+            <rect x="172" y="344" width="10" height="34" rx="5" fill="${palette.tertiary}"/>
+            <rect x="188" y="356" width="10" height="22" rx="5" fill="rgba(255,255,255,.78)"/>
+            <rect x="204" y="348" width="10" height="30" rx="5" fill="${palette.primary}"/>
+            <rect x="220" y="340" width="10" height="38" rx="5" fill="${palette.secondary}"/>
+            <rect x="236" y="352" width="10" height="26" rx="5" fill="${palette.tertiary}"/>
+            <rect x="252" y="344" width="10" height="34" rx="5" fill="rgba(255,255,255,.78)"/>
+            <rect x="268" y="336" width="10" height="42" rx="5" fill="${palette.primary}"/>
+            <rect x="284" y="348" width="10" height="30" rx="5" fill="${palette.secondary}"/>
+            <rect x="300" y="340" width="10" height="38" rx="5" fill="${palette.tertiary}"/>
+            <rect x="316" y="352" width="10" height="26" rx="5" fill="rgba(255,255,255,.78)"/>
+            <rect x="332" y="344" width="10" height="34" rx="5" fill="${palette.primary}"/>
+            <rect x="348" y="356" width="10" height="22" rx="5" fill="${palette.secondary}"/>
+          </g>
         `;
       const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
           <defs>
             <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#070b12"/>
-              <stop offset="48%" stop-color="#111827"/>
-              <stop offset="100%" stop-color="#05070b"/>
+              <stop offset="0%" stop-color="#05070b"/>
+              <stop offset="52%" stop-color="${palette.panel}"/>
+              <stop offset="100%" stop-color="#030508"/>
             </linearGradient>
-            <radialGradient id="glowA" cx="28%" cy="24%" r="44%">
-              <stop offset="0%" stop-color="${primary}" stop-opacity=".9"/>
-              <stop offset="100%" stop-color="${primary}" stop-opacity="0"/>
+            <radialGradient id="glowA" cx="24%" cy="18%" r="48%">
+              <stop offset="0%" stop-color="${palette.primary}" stop-opacity=".88"/>
+              <stop offset="100%" stop-color="${palette.primary}" stop-opacity="0"/>
             </radialGradient>
-            <radialGradient id="glowB" cx="76%" cy="78%" r="42%">
-              <stop offset="0%" stop-color="${secondary}" stop-opacity=".72"/>
-              <stop offset="100%" stop-color="${secondary}" stop-opacity="0"/>
+            <radialGradient id="glowB" cx="82%" cy="82%" r="44%">
+              <stop offset="0%" stop-color="${palette.tertiary}" stop-opacity=".62"/>
+              <stop offset="100%" stop-color="${palette.tertiary}" stop-opacity="0"/>
             </radialGradient>
             <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="${primary}"/>
-              <stop offset="100%" stop-color="${secondary}"/>
+              <stop offset="0%" stop-color="${palette.primary}"/>
+              <stop offset="52%" stop-color="${palette.secondary}"/>
+              <stop offset="100%" stop-color="${palette.tertiary}"/>
+            </linearGradient>
+            <linearGradient id="panelGlow" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="rgba(255,255,255,.10)"/>
+              <stop offset="100%" stop-color="${palette.panel2}"/>
+            </linearGradient>
+            <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="${palette.primary}"/>
+              <stop offset="100%" stop-color="${palette.secondary}"/>
+            </linearGradient>
+            <linearGradient id="label" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="${palette.primary}"/>
+              <stop offset="100%" stop-color="${palette.secondary}"/>
             </linearGradient>
           </defs>
           <rect width="512" height="512" fill="url(#bg)"/>
           <rect width="512" height="512" fill="url(#glowA)"/>
           <rect width="512" height="512" fill="url(#glowB)"/>
-          <rect x="78" y="72" width="356" height="368" rx="34" fill="rgba(9,12,20,.88)"/>
-          <rect x="92" y="86" width="328" height="340" rx="28" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.12)" stroke-width="2"/>
-          <rect x="116" y="112" width="280" height="20" rx="10" fill="url(#accent)"/>
+          <g opacity=".22">
+            <path d="M94 106 H418" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+            <path d="M94 406 H418" stroke="rgba(255,255,255,.10)" stroke-width="1"/>
+            <path d="M120 90 V422" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+            <path d="M392 90 V422" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+          </g>
+          <rect x="78" y="72" width="356" height="368" rx="36" fill="rgba(7,10,16,.86)"/>
+          <rect x="92" y="86" width="328" height="340" rx="30" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.12)" stroke-width="2"/>
+          <rect x="116" y="112" width="110" height="16" rx="8" fill="rgba(255,255,255,.16)"/>
+          <rect x="234" y="112" width="162" height="16" rx="8" fill="url(#accent)"/>
           ${centerMarkup}
+          <text x="116" y="392" fill="rgba(255,255,255,.72)" font-family="system-ui, sans-serif" font-size="26" font-weight="700">OMNI</text>
+          <text x="318" y="392" fill="rgba(255,255,255,.48)" font-family="system-ui, sans-serif" font-size="18" font-weight="700">${kind === 'video' ? 'VIDEO' : 'AUDIO'}</text>
         </svg>
       `;
       return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -393,23 +454,24 @@
         ctx.closePath();
         ctx.fill();
       };
-      const primary = kind === 'video' ? '#5d7cff' : '#8d5bff';
-      const secondary = kind === 'video' ? '#22d3ee' : '#ff6ad5';
+      const palette = kind === 'video'
+        ? { primary:'#4f8cff', secondary:'#2dd4bf', tertiary:'#ffd166', panel:'#08111d', panel2:'#0f1d31' }
+        : { primary:'#ff8a3d', secondary:'#ffd166', tertiary:'#3ad5c3', panel:'#171008', panel2:'#26170c' };
       const bg = ctx.createLinearGradient(0, 0, 512, 512);
-      bg.addColorStop(0, '#070b12');
-      bg.addColorStop(0.45, '#111827');
-      bg.addColorStop(1, '#05070b');
+      bg.addColorStop(0, '#05070b');
+      bg.addColorStop(0.5, palette.panel);
+      bg.addColorStop(1, '#030508');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, 512, 512);
 
-      const glowA = ctx.createRadialGradient(140, 120, 10, 140, 120, 220);
-      glowA.addColorStop(0, `${primary}cc`);
+      const glowA = ctx.createRadialGradient(132, 116, 12, 132, 116, 228);
+      glowA.addColorStop(0, `${palette.primary}d6`);
       glowA.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = glowA;
       ctx.fillRect(0, 0, 512, 512);
 
-      const glowB = ctx.createRadialGradient(388, 392, 16, 388, 392, 210);
-      glowB.addColorStop(0, `${secondary}b8`);
+      const glowB = ctx.createRadialGradient(394, 396, 16, 394, 396, 214);
+      glowB.addColorStop(0, `${palette.tertiary}aa`);
       glowB.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = glowB;
       ctx.fillRect(0, 0, 512, 512);
@@ -422,56 +484,184 @@
         ctx.fillRect(x, y, size, size);
       }
 
-      ctx.fillStyle = 'rgba(9,12,20,.86)';
-      drawRoundRect(78, 72, 356, 368, 34);
+      ctx.strokeStyle = 'rgba(255,255,255,.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(94, 106); ctx.lineTo(418, 106);
+      ctx.moveTo(94, 406); ctx.lineTo(418, 406);
+      ctx.moveTo(120, 90); ctx.lineTo(120, 422);
+      ctx.moveTo(392, 90); ctx.lineTo(392, 422);
+      ctx.stroke();
 
-      const panelGrad = ctx.createLinearGradient(78, 72, 434, 440);
-      panelGrad.addColorStop(0, 'rgba(255,255,255,.11)');
-      panelGrad.addColorStop(1, 'rgba(255,255,255,.02)');
+      ctx.fillStyle = 'rgba(7,10,16,.86)';
+      drawRoundRect(78, 72, 356, 368, 36);
+
+      const panelGrad = ctx.createLinearGradient(92, 86, 420, 426);
+      panelGrad.addColorStop(0, 'rgba(255,255,255,.10)');
+      panelGrad.addColorStop(1, palette.panel2);
       ctx.fillStyle = panelGrad;
-      drawRoundRect(92, 86, 328, 340, 28);
+      drawRoundRect(92, 86, 328, 340, 30);
 
       ctx.strokeStyle = 'rgba(255,255,255,.12)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      if(ctx.roundRect){ ctx.roundRect(92, 86, 328, 340, 28); ctx.stroke(); }
+      if(ctx.roundRect){ ctx.roundRect(92, 86, 328, 340, 30); ctx.stroke(); }
       else { ctx.strokeRect(92, 86, 328, 340); }
 
       const accent = ctx.createLinearGradient(110, 110, 402, 160);
-      accent.addColorStop(0, primary);
-      accent.addColorStop(1, secondary);
+      accent.addColorStop(0, palette.primary);
+      accent.addColorStop(0.52, palette.secondary);
+      accent.addColorStop(1, palette.tertiary);
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      drawRoundRect(116, 112, 110, 16, 8);
       ctx.fillStyle = accent;
-      drawRoundRect(116, 112, 280, 20, 10);
+      drawRoundRect(234, 112, 162, 16, 8);
 
-      ctx.fillStyle = 'rgba(255,255,255,.92)';
       if(kind === 'video'){
-        ctx.fillStyle = 'rgba(255,255,255,.96)';
-        drawRoundRect(160, 160, 192, 140, 26);
-        ctx.fillStyle = '#111827';
+        ctx.fillStyle = 'rgba(255,255,255,.06)';
+        drawRoundRect(108, 118, 296, 276, 34);
+        ctx.strokeStyle = 'rgba(255,255,255,.12)';
+        ctx.lineWidth = 2;
+        if(ctx.roundRect){
+          ctx.beginPath();
+          ctx.roundRect(108, 118, 296, 276, 34);
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(6,12,20,.92)';
+        drawRoundRect(132, 148, 248, 168, 24);
+        const screen = ctx.createLinearGradient(144, 160, 368, 304);
+        screen.addColorStop(0, palette.primary);
+        screen.addColorStop(1, palette.secondary);
+        ctx.fillStyle = screen;
+        drawRoundRect(144, 160, 224, 144, 18);
+        ctx.fillStyle = 'rgba(255,255,255,.94)';
         ctx.beginPath();
-        ctx.moveTo(224, 194); ctx.lineTo(310, 230); ctx.lineTo(224, 266);
+        ctx.moveTo(226, 188); ctx.lineTo(306, 232); ctx.lineTo(226, 276);
         ctx.closePath(); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,.16)';
-        for(let i=0;i<9;i++) ctx.fillRect(132 + i*28, 334, 16, 48);
+        drawRoundRect(144, 332, 224, 10, 5);
         ctx.fillStyle = accent;
-        ctx.fillRect(132, 394, 248, 10);
+        drawRoundRect(144, 332, 138, 10, 5);
+        ctx.fillStyle = 'rgba(255,255,255,.18)';
+        drawRoundRect(144, 360, 62, 14, 7);
+        ctx.fillStyle = 'rgba(255,255,255,.10)';
+        drawRoundRect(214, 360, 94, 14, 7);
+        ctx.fillStyle = 'rgba(255,255,255,.18)';
+        drawRoundRect(316, 360, 52, 14, 7);
       }else{
-        ctx.beginPath(); ctx.arc(188, 288, 36, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(316, 248, 36, 0, Math.PI * 2); ctx.fill();
-        ctx.fillRect(214, 160, 24, 126);
-        ctx.save();
-        ctx.translate(238, 166);
-        ctx.rotate(-0.22);
-        ctx.fillRect(0, 0, 126, 24);
-        ctx.restore();
-        for(let i=0;i<24;i++){
-          const h = 12 + (Math.sin(i * 0.58) * 18 + 18);
-          ctx.fillStyle = i % 2 ? primary : secondary;
-          ctx.globalAlpha = 0.85;
-          ctx.fillRect(120 + i*11, 344 - h, 7, h);
+        ctx.fillStyle = 'rgba(255,255,255,.06)';
+        drawRoundRect(120, 150, 118, 164, 28);
+        ctx.strokeStyle = 'rgba(255,255,255,.12)';
+        ctx.lineWidth = 2;
+        if(ctx.roundRect){
+          ctx.beginPath();
+          ctx.roundRect(120, 150, 118, 164, 28);
+          ctx.stroke();
         }
-        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(255,255,255,.16)';
+        drawRoundRect(142, 176, 72, 12, 6);
+        ctx.fillStyle = accent;
+        drawRoundRect(142, 200, 92, 10, 5);
+        ctx.strokeStyle = 'rgba(255,255,255,.72)';
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(142, 254);
+        ctx.bezierCurveTo(158, 242, 174, 236, 190, 238);
+        ctx.bezierCurveTo(206, 240, 220, 248, 232, 264);
+        ctx.stroke();
+        const miniBars = [
+          [144, 274, 10, 18, palette.primary],
+          [160, 266, 10, 26, palette.secondary],
+          [176, 256, 10, 36, palette.tertiary],
+          [192, 262, 10, 30, 'rgba(255,255,255,.78)'],
+          [208, 270, 10, 22, palette.primary]
+        ];
+        for(const [x, y, w, h, color] of miniBars){
+          ctx.fillStyle = color;
+          drawRoundRect(x, y, w, h, 5);
+        }
+
+        ctx.fillStyle = '#090c11';
+        ctx.beginPath(); ctx.arc(322, 236, 98, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,.08)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(322, 236, 82, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.10)';
+        ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.arc(322, 236, 62, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 12;
+        ctx.beginPath(); ctx.arc(322, 236, 62, -Math.PI * 0.5, Math.PI * 0.16); ctx.stroke();
+        const label = ctx.createLinearGradient(298, 212, 346, 260);
+        label.addColorStop(0, palette.primary);
+        label.addColorStop(1, palette.secondary);
+        ctx.fillStyle = label;
+        ctx.beginPath(); ctx.arc(322, 236, 23, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.94)';
+        ctx.beginPath(); ctx.arc(322, 236, 8, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,.94)';
+        ctx.beginPath(); ctx.arc(388, 160, 12, 0, Math.PI * 2); ctx.fill();
+        drawRoundRect(380, 172, 16, 112, 8);
+        ctx.save();
+        ctx.translate(371, 195);
+        ctx.rotate(0.42);
+        ctx.fillStyle = 'rgba(255,255,255,.96)';
+        drawRoundRect(-41, -7, 82, 14, 7);
+        ctx.restore();
+        ctx.fillStyle = 'rgba(255,255,255,.96)';
+        ctx.beginPath(); ctx.arc(336, 216, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.save();
+        ctx.translate(335, 226);
+        ctx.rotate(0.42);
+        ctx.fillStyle = palette.primary;
+        drawRoundRect(-11, -6, 22, 12, 6);
+        ctx.restore();
+
+        const bars = [
+          [140, 360, 10, 18, palette.primary],
+          [156, 352, 10, 26, palette.secondary],
+          [172, 344, 10, 34, palette.tertiary],
+          [188, 356, 10, 22, 'rgba(255,255,255,.78)'],
+          [204, 348, 10, 30, palette.primary],
+          [220, 340, 10, 38, palette.secondary],
+          [236, 352, 10, 26, palette.tertiary],
+          [252, 344, 10, 34, 'rgba(255,255,255,.78)'],
+          [268, 336, 10, 42, palette.primary],
+          [284, 348, 10, 30, palette.secondary],
+          [300, 340, 10, 38, palette.tertiary],
+          [316, 352, 10, 26, 'rgba(255,255,255,.78)'],
+          [332, 344, 10, 34, palette.primary],
+          [348, 356, 10, 22, palette.secondary]
+        ];
+        ctx.strokeStyle = 'rgba(255,255,255,.16)';
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(136, 344);
+        ctx.bezierCurveTo(182, 334, 228, 332, 276, 338);
+        ctx.bezierCurveTo(316, 344, 348, 350, 376, 344);
+        ctx.stroke();
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(136, 344);
+        ctx.bezierCurveTo(182, 334, 228, 332, 276, 338);
+        ctx.bezierCurveTo(316, 344, 348, 350, 376, 344);
+        ctx.stroke();
+        for(const [x, y, w, h, color] of bars){
+          ctx.fillStyle = color;
+          drawRoundRect(x, y, w, h, 5);
+        }
       }
+
+      ctx.fillStyle = 'rgba(255,255,255,.72)';
+      ctx.font = '700 26px system-ui, sans-serif';
+      ctx.fillText('OMNI', 116, 392);
+      ctx.fillStyle = 'rgba(255,255,255,.48)';
+      ctx.font = '700 18px system-ui, sans-serif';
+      ctx.fillText(kind === 'video' ? 'VIDEO' : 'AUDIO', 318, 392);
 
       return canvas.toDataURL('image/png');
     }catch{
@@ -716,7 +906,7 @@
     const artWrap = $('#miniArtWrap');
     const art = $('#miniArt');
     if(first){
-      art.src = first;
+      if(art) art.src = first;
       artWrap?.classList.add('has-art');
     }else{
       art?.removeAttribute('src');
@@ -1391,6 +1581,11 @@
       return;
     }
     try{ if(IOS_WEBKIT && typeof v.webkitEnterFullscreen === 'function'){ v.webkitEnterFullscreen(); return; } }catch{}
+    if(!MOBILE_NATIVE_MODE){
+      try{ if(wrap.requestFullscreen){ await wrap.requestFullscreen(); return; } }catch{}
+      try{ if(wrap.webkitRequestFullscreen){ wrap.webkitRequestFullscreen(); return; } }catch{}
+      try{ if(wrap.msRequestFullscreen){ wrap.msRequestFullscreen(); return; } }catch{}
+    }
     try{ if(v.requestFullscreen){ await v.requestFullscreen(); return; } }catch{}
     try{ if(v.webkitRequestFullscreen){ v.webkitRequestFullscreen(); return; } }catch{}
     try{ if(wrap.requestFullscreen){ await wrap.requestFullscreen(); return; } }catch{}

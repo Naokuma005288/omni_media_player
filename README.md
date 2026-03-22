@@ -4,7 +4,7 @@
 
 ## バージョン
 
-* 全体バージョン: `v4.2.0`
+* 全体バージョン: `v4.4.0`
 * Landing: `index.html`
 * 通常版: `omni-player.html`
 * mini: `omni-player-mini.html`
@@ -14,7 +14,7 @@
 
 ## 最新アップデート
 
-### v4.2.0
+### v4.4.0
 - 通常版に BPM 推定と Key 推定を追加し、解析は複数セグメント投票で以前より安定寄りにしました。
 - 通常版のスペクトラムは Beat 同期と Auto DJ overlap に対応し、次曲が入ってくると視覚側も追従するようにしました。
 - Auto DJ は終盤の BPM モーフだけでなく、次曲の overlap 再生と handoff に対応し、次曲の続き位置から本体へ引き継ぐよう改善しました。
@@ -207,12 +207,20 @@
 ## 既知の制限
 
 * 一部ライブラリは CDN 依存です
+* 通常版の `BPM / Key` 解析で使う `ffmpeg-core` は `jsDelivr` から取得します
 * 初回からの完全オフライン動作は保証していません
 * `file://` 直開きでは PWA、manifest、Cast などが制限されます
 * YouTube 埋め込みは IFrame API ベースのため、本物の音声解析スペクトラムは取得できません
 * PiP / Fullscreen / AirPlay / Cast はブラウザと端末実装差の影響を受けます
 * モバイルではブラウザの自動再生制限の影響を受ける場合があります
 * 外部サイト埋め込みは先方の制限で再生できないことがあります
+
+## GitHub Pages メモ
+
+* `scripts/vendor/ffmpeg/core/ffmpeg-core.wasm` は約 `32 MB` あるため、GitHub への直接アップロードや Pages 配布物に含める運用に向きません
+* 現在は `omni-player` 側で `ffmpeg-core.js / ffmpeg-core.wasm` を CDN 取得するため、GitHub Pages 公開時に `scripts/vendor/ffmpeg/core/` を載せる必要はありません
+* ローカル core を使いたい場合だけ `?ffmpegLocal=1` を付けて開いてください
+* CDN が使えない環境では FFmpeg 解析は無効化され、既存の軽量フォールバック推定へ落ちます
 
 ## 補足
 

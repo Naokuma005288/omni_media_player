@@ -89,7 +89,7 @@ const scrollToNew = document.getElementById('scrollToNew');
 
 /* ===== Store & keys ===== */
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{ return d }},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order', releaseDismissKey='om.release.dismiss.v4.2.0';
+const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order', releaseDismissKey='om.release.dismiss.v4.4.0';
 function applyLandingOrientation(){
   const portrait = orientationMql ? orientationMql.matches : window.innerHeight >= window.innerWidth;
   document.body.classList.toggle('landing-portrait', portrait);
@@ -189,11 +189,11 @@ optTheme?.addEventListener('change',()=>{ store.set(themeKey, optTheme.value); t
 const dict={
   ja:{lang:"JP",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",landingTitle:"OmniMedia – ランディング",alpha:"推奨",beta:"mini",old:"非推奨",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
-      alphaDesc:"安定版。完全機能・低負荷で推奨バージョン。",betaDesc:"軽量でシンプルな操作に絞ったミニモデル。",oldDesc:"旧版。過去構成用として残存。",
-      alphaPoints:["全部入りUI","YouTube / 埋め込み対応","プレイリスト・字幕向け"],betaPoints:["最短操作","ローカル / HLS に最適化","詳細設定は任意"],oldPoints:["旧版UI","互換維持のみ","新規利用は非推奨"],
+      alphaDesc:"PC向け通常版。BPM / Key解析と Auto DJ を重視したフル機能版。",betaDesc:"モバイル向け mini。軽量でシンプルな操作に絞った高速版。",oldDesc:"旧版。過去構成用として残存。",
+      alphaPoints:["PC向けフルUI","BPM / Key解析 + Auto DJ","プレイリスト・字幕向け"],betaPoints:["モバイル優先","ローカル / HLS に最適化","詳細設定は任意"],oldPoints:["旧版UI","互換維持のみ","新規利用は非推奨"],
       searchPH:"検索: Omni Player / mini / PC …", secOmni:"Omni Player シリーズ", secOmniHint:"主要ラインアップ",
       secNew:"新シリーズ", secNewHint:"Coming Soon", cueNew:"新シリーズ（Coming Soon）へ",
-      searchAria:"検索", heroEyebrow:"再生モードを選ぶ", heroTitle:"1つのランディングで、3つの再生スタイル。", heroCopy:"Omni Player は全部入り、mini は最短操作、legacy は互換維持用です。", heroPillAlpha:"Omni Player: 全機能", heroPillMini:"mini: 軽量で高速", heroPillLegacy:"legacy: 互換専用",
+      searchAria:"検索", heroEyebrow:"再生モードを選ぶ", heroTitle:"1つのランディングで、3つの再生スタイル。", heroCopy:"Omni Player は PC 向け解析 / Auto DJ 重視、mini はモバイル向け高速版、legacy は互換維持用です。", heroPillAlpha:"Omni Player: PC向け解析 + Auto DJ", heroPillMini:"mini: モバイル向け高速版", heroPillLegacy:"legacy: 互換専用",
       helpBtnTitle:"ショートカット", installBtnTitle:"アプリとしてインストール", installBtn:"インストール", shareBtnTitle:"共有", shareBtn:"共有", settingsBtnTitle:"設定", langBtnAria:"言語切替", themeBtnAria:"テーマ切替",
       settingsTitle:"設定", settingsLead:"まずはプリセットで方向性を決め、必要なときだけ詳細演出を調整する構成にしています。", tabDisplay:"表示", tabEffects:"エフェクト", tabInteraction:"操作", tabData:"データ", settingsSearchPH:"設定を検索…", settingsSearchAria:"設定を検索", presetBalanced:"バランス", presetPerformance:"省エネ重視", presetAesthetic:"演出重視", advancedEffects:"詳細エフェクト",
       themeDark:"ダーク", themeLight:"ライト", themeAuto:"自動（OS連動）", themeAutoTime:"時間（朝/夜で自動）", randomBtn:"ランダム", autoShift:"自動シフト", enabled:"有効", showLabel:"表示", exportBtn:"エクスポート", importBtn:"インポート", resetBtn:"初期化", resetOrderBtn:"順序リセット",
@@ -207,7 +207,7 @@ const dict={
       liveTitle:"Omni Live", liveDesc:"低遅延・マルチストリームライブ。",
       convertTitle:"Omni Convert", convertDesc:"現在開発中です。",
       editorTitle:"Omni Editor",  editorDesc:"現在開発中です。",
-      releaseTitle:"v4.2.0 の強化ポイント",
+      releaseTitle:"v4.4.0 の強化ポイント",
       releaseLead:"通常版に BPM / Key 推定と Auto DJ を追加し、曲間のつながりを強化しました。",
       releasePoint1:"BPM 推定はセグメント投票ベースになり、途中の揺れに強くなりました。",
       releasePoint2:"Key 推定を追加し、現在の曲調を BPM と並べて確認できます。",
@@ -216,11 +216,11 @@ const dict={
       releaseHideForever:"次回から表示しない"},
   en:{lang:"EN",footer:"© 2025 OmniMedia – Built with ChatGPT-4o + ChatGPT-5.4",landingTitle:"OmniMedia – Landing",alpha:"Rec",beta:"mini",old:"Old",
       alphaTitle:"Omni Player",betaTitle:"Omni Player mini",oldTitle:"Omni Player PC",
-      alphaDesc:"Stable build. Fully featured and optimized.",betaDesc:"A lighter, simpler mini model focused on core playback.",oldDesc:"Legacy version kept for compatibility.",
-      alphaPoints:["Full feature set","YouTube / embed ready","Built for playlists and subtitles"],betaPoints:["Fast core controls","Optimized for local / HLS","Advanced panels are optional"],oldPoints:["Old UI stack","Compatibility only","Not recommended for new use"],
+      alphaDesc:"PC-focused full build with BPM / Key analysis and Auto DJ.",betaDesc:"Mobile-first mini build focused on fast, lightweight playback.",oldDesc:"Legacy version kept for compatibility.",
+      alphaPoints:["PC-first full UI","BPM / Key analysis + Auto DJ","Built for playlists and subtitles"],betaPoints:["Mobile-first controls","Optimized for local / HLS","Advanced panels are optional"],oldPoints:["Old UI stack","Compatibility only","Not recommended for new use"],
       searchPH:"Search: Omni Player / mini / PC …", secOmni:"Omni Player Series", secOmniHint:"Main lineup",
       secNew:"New Series", secNewHint:"Coming Soon", cueNew:"Go to New Series (Coming Soon)",
-      searchAria:"Search", heroEyebrow:"Choose your playback mode", heroTitle:"One landing page, three playback styles.", heroCopy:"Omni Player is the full build, mini is the fast path, and legacy stays for compatibility.", heroPillAlpha:"Omni Player: full feature set", heroPillMini:"mini: lightweight and quick", heroPillLegacy:"legacy: compatibility only",
+      searchAria:"Search", heroEyebrow:"Choose your playback mode", heroTitle:"One landing page, three playback styles.", heroCopy:"Omni Player is the PC build for BPM / Key analysis and Auto DJ, mini is the fast mobile path, and legacy stays for compatibility.", heroPillAlpha:"Omni Player: PC analysis + Auto DJ", heroPillMini:"mini: mobile-first and quick", heroPillLegacy:"legacy: compatibility only",
       helpBtnTitle:"Shortcuts", installBtnTitle:"Install as app", installBtn:"Install", shareBtnTitle:"Share", shareBtn:"Share", settingsBtnTitle:"Settings", langBtnAria:"Switch language", themeBtnAria:"Switch theme",
       settingsTitle:"Settings", settingsLead:"Start with a quick preset, then open detailed visual controls only when you need them.", tabDisplay:"Display", tabEffects:"Effects", tabInteraction:"Interaction", tabData:"Data", settingsSearchPH:"Search settings…", settingsSearchAria:"Search settings", presetBalanced:"Balanced", presetPerformance:"Performance", presetAesthetic:"Aesthetic", advancedEffects:"Advanced effects",
       themeDark:"Dark", themeLight:"Light", themeAuto:"Auto (system)", themeAutoTime:"Auto time (day/night)", randomBtn:"Random", autoShift:"Auto shift", enabled:"Enabled", showLabel:"Show", exportBtn:"Export", importBtn:"Import", resetBtn:"Reset", resetOrderBtn:"Reset order",
@@ -234,7 +234,7 @@ const dict={
       liveTitle:"Omni Live", liveDesc:"Low-latency and multi-stream live playback.",
       convertTitle:"Omni Convert", convertDesc:"Currently under development.",
       editorTitle:"Omni Editor",  editorDesc:"Currently under development.", close:"Close",
-      releaseTitle:"What is new in v4.2.0",
+      releaseTitle:"What is new in v4.4.0",
       releaseLead:"The normal player now focuses on BPM/Key analysis and smoother DJ-style transitions.",
       releasePoint1:"BPM estimation is more stable thanks to segment-based voting.",
       releasePoint2:"Key estimation was added and surfaced alongside BPM.",
@@ -250,7 +250,7 @@ const dict={
       betaBadge:"베타", openBtn:"열기", soonBtn:"준비 중", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"현재 개발 중입니다.",
       editorTitle:"Omni Editor",  editorDesc:"현재 개발 중입니다.", close:"닫기",
-      releaseTitle:"v4.2.0 업데이트",
+      releaseTitle:"v4.4.0 업데이트",
       releaseLead:"일반 버전에 BPM / Key 추정과 Auto DJ가 추가되었습니다.",
       releasePoint1:"세그먼트 투표 기반 BPM 추정으로 안정성이 높아졌습니다.",
       releasePoint2:"Key 추정이 추가되어 BPM과 함께 표시됩니다.",
@@ -266,7 +266,7 @@ const dict={
       betaBadge:"测试版", openBtn:"打开", soonBtn:"开发中", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"目前仍在开发中。",
       editorTitle:"Omni Editor",  editorDesc:"目前仍在开发中。", close:"关闭",
-      releaseTitle:"v4.2.0 更新内容",
+      releaseTitle:"v4.4.0 更新内容",
       releaseLead:"普通版现已强化 BPM / Key 分析与 Auto DJ 过渡。",
       releasePoint1:"基于分段投票的 BPM 估计更稳定。",
       releasePoint2:"新增 Key 估计，并与 BPM 一起显示。",
@@ -282,7 +282,7 @@ const dict={
       betaBadge:"Бета", openBtn:"Открыть", soonBtn:"Скоро", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"Сейчас в разработке.",
       editorTitle:"Omni Editor",  editorDesc:"Сейчас в разработке.", close:"Закрыть",
-      releaseTitle:"Что нового в v4.2.0",
+      releaseTitle:"Что нового в v4.4.0",
       releaseLead:"В обычной версии усилены BPM / Key анализ и DJ-переходы.",
       releasePoint1:"Оценка BPM стала стабильнее за счёт голосования по сегментам.",
       releasePoint2:"Добавлена оценка Key рядом с BPM.",
@@ -298,7 +298,7 @@ const dict={
       betaBadge:"Bêta", openBtn:"Ouvrir", soonBtn:"Bientôt", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"Actuellement en cours de développement.",
       editorTitle:"Omni Editor",  editorDesc:"Actuellement en cours de développement.", close:"Fermer",
-      releaseTitle:"Nouveautés de v4.2.0",
+      releaseTitle:"Nouveautés de v4.4.0",
       releaseLead:"La version standard améliore maintenant l'analyse BPM / tonalité et les transitions façon DJ.",
       releasePoint1:"L'estimation BPM est plus stable grâce à un vote par segments.",
       releasePoint2:"L'estimation de tonalité a été ajoutée à côté du BPM.",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v4.2.0</title>
+<title>OmniMedia – Landing v4.4.0</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 
 <script src="./scripts/pages/landing.inline-1.js"></script>
@@ -20,7 +20,7 @@
 <!-- Splash -->
 <div id="splash" aria-hidden="true">
   <div class="s-logo"><div class="mark"></div><div>OmniMedia</div></div>
-  <div class="s-sub">Landing v4.2.0</div>
+  <div class="s-sub">Landing v4.4.0</div>
   <div class="s-orbit"></div><div class="s-ring"></div>
   <div id="sProgress" class="s-progress" aria-hidden="true"><span class="bar"></span></div>
 </div>
@@ -38,7 +38,7 @@
     <div class="brand">
       <div class="logo" aria-hidden="true"></div>
       <h1 id="title" class="shimmer" data-i18n="landingTitle">OmniMedia – Landing</h1>
-      <span class="version">v4.2.0</span>
+      <span class="version">v4.4.0</span>
       <span id="netBadge" class="badge">Online</span>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
@@ -58,10 +58,10 @@
   <section class="landing-hero" aria-labelledby="heroTitle">
     <p class="eyebrow" id="heroEyebrow" data-i18n="heroEyebrow">Choose your playback mode</p>
     <h2 id="heroTitle" data-i18n="heroTitle">One landing page, three playback styles.</h2>
-    <p class="hero-copy" id="heroCopy" data-i18n="heroCopy">Omni Player is the full build, mini is the fast path, and legacy stays for compatibility.</p>
+    <p class="hero-copy" id="heroCopy" data-i18n="heroCopy">Omni Player is the PC build for deep BPM / Key analysis and Auto DJ, while mini is the fast mobile path.</p>
     <div class="hero-pills" id="heroPills">
-      <span class="hero-pill" id="heroPillAlpha" data-i18n="heroPillAlpha">Omni Player: full feature set</span>
-      <span class="hero-pill" id="heroPillMini" data-i18n="heroPillMini">mini: lightweight and quick</span>
+      <span class="hero-pill" id="heroPillAlpha" data-i18n="heroPillAlpha">Omni Player: PC-focused analysis + Auto DJ</span>
+      <span class="hero-pill" id="heroPillMini" data-i18n="heroPillMini">mini: mobile-first and quick</span>
       <span class="hero-pill" id="heroPillLegacy" data-i18n="heroPillLegacy">legacy: compatibility only</span>
     </div>
   </section>
@@ -75,20 +75,20 @@
       </div>
 
       <div class="grid" id="grid">
-        <article class="card" tabindex="0" draggable="true" data-tags="alpha stable 推奨 youtube embed playlist" data-slug="alpha" data-href="./omni-player.html">
+        <article class="card" tabindex="0" draggable="true" data-tags="alpha stable 推奨 pc desktop bpm key auto dj youtube embed playlist" data-slug="alpha" data-href="./omni-player.html">
           <button class="fav" title="お気に入り"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button>
           <span class="mark alpha" id="markAlpha">推奨</span>
           <h2 id="titleAlpha" data-orig>Omni Player</h2>
-          <p id="descAlpha" data-orig>安定版。完全機能・低負荷で推奨バージョン。</p>
+          <p id="descAlpha" data-orig>PC向け通常版。BPM / Key解析と Auto DJ を重視したフル機能版。</p>
           <div class="compare" id="cmpAlpha"></div>
           <a class="btn" href="./omni-player.html" id="btnAlpha" data-i18n="openBtn">Open</a>
         </article>
 
-        <article class="card" tabindex="0" draggable="true" data-tags="beta test 実験 mini local hls" data-slug="beta" data-href="./omni-player-mini.html">
+        <article class="card" tabindex="0" draggable="true" data-tags="beta test 実験 mini mobile smartphone tablet local hls" data-slug="beta" data-href="./omni-player-mini.html">
           <button class="fav" title="お気に入り"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></button>
           <span class="mark beta" id="markBeta">mini</span>
           <h2 id="titleBeta" data-orig>Omni Player mini</h2>
-          <p id="descBeta" data-orig>軽量でシンプルな操作に絞ったミニモデル。</p>
+          <p id="descBeta" data-orig>モバイル向け mini。軽量でシンプルな操作に絞った高速版。</p>
           <div class="compare" id="cmpBeta"></div>
           <a class="btn" href="./omni-player-mini.html" id="btnBeta" data-i18n="openBtn">Open</a>
         </article>
@@ -313,8 +313,8 @@
 
 <div class="modal" id="releaseModal" aria-hidden="true">
   <div class="card-modal soon-modal release-modal" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
-    <span class="release-chip">v4.2.0</span>
-    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v4.2.0</h3>
+    <span class="release-chip">v4.4.0</span>
+    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v4.4.0</h3>
     <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The normal player now focuses on BPM/Key analysis and smoother DJ-style transitions.</p>
     <div class="soon-points" id="releasePoints">
       <div class="point" data-i18n="releasePoint1">BPM estimation is more stable thanks to segment-based voting.</div>

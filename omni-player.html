@@ -12,6 +12,34 @@
 <link rel="icon" href="./assets/pwa/icon-192.png" sizes="192x192" type="image/png">
 <link rel="icon" href="./assets/pwa/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./assets/pwa/apple-touch-icon.png">
+<script>
+(() => {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol === 'https:') return;
+  const host = String(location.hostname || '').toLowerCase();
+  const isLocalDev =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host.endsWith('.local') ||
+    /^\d+\.\d+\.\d+\.\d+$/.test(host);
+  if (!isLocalDev) return;
+  const resetKey = 'op-normal-sw-dev-reset-v1';
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistrations().then(async (regs) => {
+      if (!regs.length) return;
+      await Promise.all(regs.map((reg) => reg.unregister().catch(() => false)));
+      if ('caches' in window) {
+        const keys = await caches.keys().catch(() => []);
+        await Promise.all(keys.map((key) => caches.delete(key).catch(() => false)));
+      }
+      if (!sessionStorage.getItem(resetKey)) {
+        sessionStorage.setItem(resetKey, '1');
+        location.reload();
+      }
+    }).catch(() => {});
+  }, { once: true });
+})();
+</script>
 
 <!-- === コア再生ライブラリ（先頭・deferで非ブロッキング） === -->
 <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
@@ -148,7 +176,7 @@
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" id="pwaBadge" hidden>PWA</span>
-    <span class="badge" title="version">v4.2.0</span>
+    <span class="badge" title="version">v4.4.0</span>
   </header>
 
   <aside>
@@ -231,6 +259,10 @@
 
       <!-- ★ ローディングオーバーレイ -->
       <div class="loader" id="loader" aria-hidden="true"><div class="spinner"></div></div>
+      <div class="analysis-loader" id="analysisLoader" hidden aria-live="polite">
+        <div class="spinner spinner-sm"></div>
+        <span id="analysisLoaderText">BPM / Key 解析中…</span>
+      </div>
       <div class="embed-error" id="embedError" hidden aria-live="polite">
         <div class="embed-error-card">
           <span class="badge">Embed Error</span>
@@ -243,6 +275,7 @@
       </div>
 
       <video id="v" crossorigin="anonymous" playsinline muted></video>
+      <video id="djDeckVideo" class="dj-deck-video" crossorigin="anonymous" playsinline aria-hidden="true"></video>
       <canvas id="spectrum"></canvas>
       <div class="ass-layer" id="assLayer" aria-hidden="true"></div>
 
@@ -354,10 +387,21 @@
 <div class="ratio-alert" id="ratioAlert" aria-hidden="true">
   <div class="ratio-alert-card" role="dialog" aria-modal="true" aria-labelledby="ratioAlertTitle">
     <h3 id="ratioAlertTitle">9:16 モード</h3>
-    <p>スマホで見ていますか？ スマホの場合は mini 版を使用することをお勧めします。</p>
+    <p>縦長レイアウトです。通常版は PC を前提に調整しているため、スマホでは mini 版の使用を推奨します。</p>
     <div class="row" style="justify-content:flex-end;margin:0">
+      <a class="btn ghost" href="./omni-player-mini.html">mini 版を開く</a>
       <button class="btn ghost" id="ratioAlertClose" type="button">閉じる</button>
       <button class="btn" id="ratioAlertNever" type="button">もう二度と表示しない</button>
+    </div>
+  </div>
+</div>
+
+<div class="ratio-alert" id="deviceGuard" aria-hidden="true">
+  <div class="ratio-alert-card" role="dialog" aria-modal="true" aria-labelledby="deviceGuardTitle">
+    <h3 id="deviceGuardTitle">通常版は PC 専用です</h3>
+    <p>Omni Player は PC 向けに BPM / Key 解析と Auto DJ を強化した構成です。スマホ・タブレットでは mini 版を使用してください。</p>
+    <div class="row" style="justify-content:flex-end;margin:0">
+      <a class="btn" href="./omni-player-mini.html">mini 版を開く</a>
     </div>
   </div>
 </div>
