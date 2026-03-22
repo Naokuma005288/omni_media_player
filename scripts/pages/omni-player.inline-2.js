@@ -16,12 +16,12 @@
   function initSettingsTabs(){
     const card = qs('#settings .settings-card');
     if (!card || card.dataset.tabbified) return;
-    if (card.querySelector('[data-settings-panel]')) {
+    if (card.querySelector('[data-settings-tab]') && card.querySelector('[data-settings-panel]')) {
       card.dataset.tabbified = '1';
       return;
     }
 
-    const rootGrid = card.querySelector('.settings-grid');
+    const rootGrid = Array.from(card.children).find(node => node.classList?.contains('settings-grid'));
     if (!rootGrid || rootGrid.parentElement !== card) return;
 
     // タブとパネルの骨組みを作る
@@ -50,8 +50,12 @@
     }
 
     // タイトル行（h3）の直後にタブ、パネルを挿入
-    const h3 = card.querySelector('h3');
-    (h3?.nextSibling ? card.insertBefore(tabs, h3.nextSibling) : card.appendChild(tabs));
+    const head = card.querySelector('.settings-head');
+    if (head && head.parentElement === card) {
+      card.insertBefore(tabs, head.nextSibling);
+    } else {
+      card.insertBefore(tabs, rootGrid);
+    }
     card.insertBefore(panels, rootGrid);
 
     // 既存セクションを仕分け
