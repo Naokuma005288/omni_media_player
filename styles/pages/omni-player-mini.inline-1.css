@@ -102,21 +102,22 @@
   .ctrl-top{justify-content:space-between}
   .left-group, .right-group{display:flex; gap:.3rem; align-items:center; flex-wrap:wrap}
   .mini-meta{
-    display:grid; grid-template-columns:48px minmax(0,1fr); gap:.55rem; align-items:center;
-    padding:.34rem .42rem; border-radius:14px;
-    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
-    border:1px solid rgba(255,255,255,.12);
+    display:grid; grid-template-columns:32px minmax(0,1fr); gap:.38rem; align-items:center;
+    min-width:0; flex:0 1 220px;
+    padding:.22rem .3rem; border-radius:11px;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    border:1px solid rgba(255,255,255,.08);
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
   }
   .mini-artwrap{
-    width:48px; height:48px; border-radius:12px; overflow:hidden; display:none;
-    background:#0b0f14; box-shadow:0 10px 24px rgba(0,0,0,.22)
+    width:32px; height:32px; border-radius:9px; overflow:hidden; display:none;
+    background:#0b0f14; box-shadow:0 6px 18px rgba(0,0,0,.18)
   }
   .mini-artwrap.has-art{display:block}
   .mini-artwrap img{width:100%; height:100%; object-fit:cover; display:block}
-  .mini-meta-text{min-width:0; display:grid; gap:.18rem}
-  .mini-title{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .mini-subline{display:flex; gap:.42rem; flex-wrap:wrap; color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase}
+  .mini-meta-text{min-width:0; display:grid; gap:.08rem}
+  .mini-title{font-size:12px; font-weight:700; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .mini-subline{display:flex; gap:.28rem; flex-wrap:wrap; color:var(--muted); font-size:9px; letter-spacing:.05em; text-transform:uppercase; line-height:1.1}
   body.mini-portrait .control-bar{
     padding:.42rem .56rem calc(.72rem + env(safe-area-inset-bottom, 0px));
     gap:.42rem
@@ -189,7 +190,8 @@ body.mini-portrait .ctrl-bottom{
   }
 body.mini-portrait #sleepStat{display:none}
   body.mini-portrait .mini-meta{
-    grid-template-columns:44px minmax(0,1fr)
+    grid-template-columns:28px minmax(0,1fr);
+    flex-basis:100%
   }
   body.mini-portrait .seek{
     width:100%
@@ -236,11 +238,11 @@ body.mini-portrait #sleepStat{display:none}
     align-items:center
   }
   body.mini-landscape .mini-meta{
-    grid-template-columns:42px minmax(0,1fr);
-    padding:.28rem .38rem
+    grid-template-columns:28px minmax(0,1fr);
+    padding:.2rem .28rem
   }
   body.mini-landscape .mini-artwrap{
-    width:42px;height:42px;border-radius:11px
+    width:28px;height:28px;border-radius:8px
   }
   body.mini-landscape .sliders{
     grid-template-columns:repeat(3,minmax(122px,1fr));
