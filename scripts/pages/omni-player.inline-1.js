@@ -186,6 +186,46 @@ function foldBpm(bpm){
   while(v>180) v/=2;
   return Math.round(v*10)/10;
 }
+function beatPeriodSec(bpm){
+  const folded=foldBpm(bpm);
+  return folded ? (60/folded) : 0;
+}
+function beatPhaseAtTime(timeSec, bpm){
+  const period=beatPeriodSec(bpm);
+  if(!period) return 0;
+  const pos=((((+timeSec || 0) % period) + period) % period);
+  return pos/period;
+}
+function beatDistanceToBoundarySec(timeSec, bpm){
+  const period=beatPeriodSec(bpm);
+  if(!period) return Infinity;
+  const pos=((((+timeSec || 0) % period) + period) % period);
+  return Math.min(pos, period-pos);
+}
+function shouldLaunchDjDeckOnBeat(currentTimeSec, currentBpm, leftSec, progress){
+  if(!state.bpm.beatSync) return true;
+  const period=beatPeriodSec(currentBpm);
+  if(!period) return true;
+  const windowSec=clampValue(period*0.12, 0.028, 0.085);
+  const emergencySec=Math.max(period*1.15, 0.55);
+  if(progress>=0.72 || leftSec<=emergencySec) return true;
+  return beatDistanceToBoundarySec(currentTimeSec, currentBpm) <= windowSec;
+}
+function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm){
+  if(!state.bpm.beatSync) return 0;
+  const nextPeriod=beatPeriodSec(nextBpm);
+  if(!nextPeriod) return 0;
+  const phase=beatPhaseAtTime(currentTimeSec, currentBpm);
+  const normalized=phase>=0.965 ? 0 : phase;
+  return normalized*nextPeriod;
+}
+function getDjRateEase(progress){
+  const p=clampValue(progress, 0, 1);
+  if(state.bpm.beatSync){
+    return 1 - Math.pow(1-p, 2.35);
+  }
+  return p*p*(3-2*p);
+}
 function hasCompletedTrackAnalysis(item){
   if(!item) return false;
   if(item._analysisDone===true) return true;
@@ -336,7 +376,9 @@ function updateDjReadouts(){
   }
   updateMixKeyReadout();
   if($.djTransitionRead){
-    $.djTransitionRead.textContent=`${state.dj.transitionSec}秒かけて次の曲の BPM に寄せます。`;
+    $.djTransitionRead.textContent=state.bpm.beatSync
+      ? `${state.dj.transitionSec}秒かけて次の曲の BPM と拍を寄せます。`
+      : `${state.dj.transitionSec}秒かけて次の曲の BPM に寄せます。`;
   }
   if($.djStatus){
     let text='OFF';
@@ -2334,10 +2376,11 @@ async function prepareDjDeckMedia(deck){
   });
   return deck._readyPromise;
 }
-async function startDjDeckPlayback(nextIndex){
+async function startDjDeckPlayback(nextIndex, opts={}){
   primeDjDeck(nextIndex);
   const deck=state.dj.deck;
   if(!deck || deck.index!==nextIndex || deck.started) return false;
+  const requestedStartAt=Math.max(0, +opts.startAtSec || 0);
   try{ await ensureAudioOn(); }catch(e){}
   ensureAudioGraph();
   try{ await prepareDjDeckMedia(deck); }catch(e){ return false; }
@@ -2347,13 +2390,17 @@ async function startDjDeckPlayback(nextIndex){
       const src=state.audioCtx.createBufferSource();
       src.buffer=deck.decoded;
       const deckRate=currentDeckRate();
+      const decodedDur=+deck.decoded.duration || 0;
+      const startAt=decodedDur>0
+        ? Math.min(Math.max(0, decodedDur - 0.12), requestedStartAt)
+        : requestedStartAt;
       src.playbackRate.value=deckRate;
       src.connect(deck.gainNode);
-      deck.startOffset=0;
+      deck.startOffset=startAt;
       deck.startedAtCtx=state.audioCtx.currentTime;
       deck.startedRate=deckRate;
       deck.bufferSource=src;
-      src.start(0, 0);
+      src.start(0, startAt);
       deck.started=true;
       return true;
     }catch(e){
@@ -2361,7 +2408,9 @@ async function startDjDeckPlayback(nextIndex){
     }
   }else{
     try{
-      deck.media.currentTime=0;
+      const mediaDur=+deck.media.duration || 0;
+      const maxStart=mediaDur>0 ? Math.max(0, mediaDur - 0.12) : requestedStartAt;
+      deck.media.currentTime=Math.min(maxStart, requestedStartAt);
     }catch(e){}
     try{
       if(deck.gainNode){
@@ -2445,6 +2494,13 @@ function beginDjDeckHandoff(deck, label){
   const token = ++state.dj.handoffToken;
   state.dj.handoffPending = true;
   applyDjDeckVideoVisual(Math.max(deck.mixProgress || 0, 0.92));
+  const minReadyState = deck.video ? 3 : 2;
+  const settleDelta = deck.video ? 0.14 : 0.22;
+  const reseekDelta = deck.video ? 0.24 : 0.38;
+  const hardTimeoutMs = deck.video ? 6200 : 4800;
+  let readyKickTimer = 0;
+  let monitorTimer = 0;
+  let syncStarted = false;
   const clampTargetTime = (time)=>{
     const t = Math.max(0, +time || 0);
     const dur = +($.v?.duration || 0);
@@ -2453,8 +2509,29 @@ function beginDjDeckHandoff(deck, label){
     }
     return t;
   };
-  const finishHandoff = ()=>{
+  const clearReadyWatch = ()=>{
+    if(readyKickTimer){
+      clearTimeout(readyKickTimer);
+      readyKickTimer = 0;
+    }
+    if(monitorTimer){
+      clearTimeout(monitorTimer);
+      monitorTimer = 0;
+    }
+    $.v.removeEventListener('loadedmetadata', syncFromDeck);
+    $.v.removeEventListener('loadeddata', syncFromDeck);
+    $.v.removeEventListener('canplay', syncFromDeck);
+  };
+  const ensureMainNearDeck = ()=>{
+    const target = clampTargetTime(djDeckCurrentTime(deck));
+    if(Math.abs((+($.v.currentTime || 0)) - target) > 0.04){
+      try{ $.v.currentTime = target; }catch(e){}
+    }
+    return target;
+  };
+  const finalizeHandoff = ()=>{
     if(state.dj.handoffToken !== token) return;
+    clearReadyWatch();
     state.dj.handoffPending = false;
     try{ $.v.currentTime = clampTargetTime(djDeckCurrentTime(deck)); }catch(e){}
     applyCurrentMediaTunables();
@@ -2500,12 +2577,7 @@ function beginDjDeckHandoff(deck, label){
   };
   const monitorCatchUp = ()=>{
     if(state.dj.handoffToken !== token) return;
-    const startedAt = performance.now();
-    const minReadyState = deck.video ? 3 : 2;
-    const settleDelta = deck.video ? 0.14 : 0.22;
-    const reseekDelta = deck.video ? 0.24 : 0.38;
-    const softTimeoutMs = deck.video ? 4200 : 2600;
-    const hardTimeoutMs = softTimeoutMs + 2200;
+    let cycleStartedAt = performance.now();
     let stableHits = 0;
     let retriedPlay = false;
     const tick = ()=>{
@@ -2520,50 +2592,62 @@ function beginDjDeckHandoff(deck, label){
       }else{
         stableHits=0;
       }
-      if(stableHits >= 2){
-        finishHandoff();
+      if(stableHits >= 3){
+        finalizeHandoff();
         return;
       }
-      if(ready && delta > reseekDelta){
+      if(delta > reseekDelta || current + settleDelta < target){
         try{ $.v.currentTime = target; }catch(e){}
       }
-      const elapsed = performance.now() - startedAt;
-      if(elapsed >= hardTimeoutMs){
-        finishHandoff();
-        return;
-      }
-      if(elapsed >= softTimeoutMs && ready){
-        try{ $.v.currentTime = target; }catch(e){}
-      }
-      if(elapsed >= softTimeoutMs && !ready && !retriedPlay){
+      if(!ready && !retriedPlay){
         retriedPlay = true;
         requestPlayImmediate(label).catch(()=>{});
       }
-      setTimeout(tick, 60);
+      const elapsed = performance.now() - cycleStartedAt;
+      if(elapsed >= hardTimeoutMs){
+        if(delta <= Math.max(settleDelta*1.6, deck.video ? 0.28 : 0.36)){
+          finalizeHandoff();
+          return;
+        }
+        cycleStartedAt = performance.now();
+        retriedPlay = false;
+        stableHits = 0;
+        try{ $.v.pause(); }catch(e){}
+        ensureMainNearDeck();
+        requestPlayImmediate(label).catch(()=>{});
+      }
+      monitorTimer = setTimeout(tick, 70);
     };
     tick();
   };
   const playAfterSeek = ()=>{
     if(state.dj.handoffToken !== token) return;
+    syncStarted = true;
     try{ $.v.volume = Math.max(0.02, Math.min(0.18, +($.vol?.value || 0)*0.16)); }catch(e){}
     try{ ensureAudioOn(); }catch(e){}
     requestPlayImmediate(label).catch(()=>{});
-    setTimeout(monitorCatchUp, 70);
+    readyKickTimer = setTimeout(monitorCatchUp, 90);
   };
-  const syncFromDeck = ()=>{
-    if(state.dj.handoffToken !== token) return;
-    const target = clampTargetTime(djDeckCurrentTime(deck));
+  function syncFromDeck(){
+    if(state.dj.handoffToken !== token || syncStarted) return;
+    const target = ensureMainNearDeck();
     let settled = false;
-    let timer = 0;
+    let seekTimer = 0;
     const finishSeek = ()=>{
       if(settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(seekTimer);
       $.v.removeEventListener('seeked', onSeeked);
       $.v.removeEventListener('timeupdate', onTimeupdate);
       playAfterSeek();
     };
-    const onSeeked = ()=>finishSeek();
+    const onSeeked = ()=>{
+      if(Math.abs((+($.v.currentTime || 0)) - target) <= reseekDelta){
+        finishSeek();
+        return;
+      }
+      try{ $.v.currentTime = target; }catch(e){}
+    };
     const onTimeupdate = ()=>{
       if(Math.abs((+($.v.currentTime || 0)) - target) <= 0.2) finishSeek();
     };
@@ -2573,16 +2657,26 @@ function beginDjDeckHandoff(deck, label){
     }
     $.v.addEventListener('seeked', onSeeked, { once:true });
     $.v.addEventListener('timeupdate', onTimeupdate);
-    timer = setTimeout(finishSeek, 900);
+    seekTimer = setTimeout(()=>{
+      ensureMainNearDeck();
+      finishSeek();
+    }, 1200);
     try{
       $.v.currentTime = target;
     }catch(e){
       finishSeek();
     }
-  };
-  $.v.addEventListener('loadedmetadata', syncFromDeck, { once:true });
+  }
+  $.v.addEventListener('loadedmetadata', syncFromDeck);
+  $.v.addEventListener('loadeddata', syncFromDeck);
+  $.v.addEventListener('canplay', syncFromDeck);
+  readyKickTimer = setTimeout(()=>{
+    if(state.dj.handoffToken !== token || syncStarted) return;
+    if((+($.v.readyState || 0)) >= 1) syncFromDeck();
+  }, 100);
   $.v.addEventListener('error', ()=>{
     if(state.dj.handoffToken === token){
+      clearReadyWatch();
       state.dj.handoffPending = false;
       if($.v){
         $.v.style.opacity='1';
@@ -3405,14 +3499,17 @@ function updateAutoDjState(){
   state.dj.keyShiftSemitones=0;
   state.dj.keySyncActive=false;
   state.dj.targetMul=syncPlan.rateMul;
-  const eased=p*p*(3-2*p);
+  const eased=getDjRateEase(p);
   applyDjRateMul(1 + (state.dj.targetMul-1)*eased);
   syncDjPitchPolicy();
   if(p>=0.14){
     primeDjDeck(nextIndex);
   }
   if(p>=0.28 && !state.dj.deck?.started){
-    startDjDeckPlayback(nextIndex).catch(()=>{});
+    if(shouldLaunchDjDeckOnBeat(current, currentBpm, left, p)){
+      const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm);
+      startDjDeckPlayback(nextIndex, { startAtSec }).catch(()=>{});
+    }
   }
   applyDjMixVolumes(p);
 }
@@ -3823,10 +3920,17 @@ async function selectIndex(i, opts={}){
     if(it.file){
       state.activeUrl = '';
       resetUiForHTML5(); resetHtml5Video({ preserveDjDeck: !!handoffDeck }); clearAudioMeta();
-      const obj=URL.createObjectURL(it.file);
-      if(state.lastObjUrl){ try{URL.revokeObjectURL(state.lastObjUrl)}catch(e){} }
+      let obj = handoffDeck?.src || '';
+      const reusedDeckBlob = !!(handoffDeck?.objectUrl && handoffDeck.src===handoffDeck.objectUrl);
+      if(!obj){
+        obj = URL.createObjectURL(it.file);
+      }else if(reusedDeckBlob){
+        handoffDeck.objectUrl='';
+      }
+      if(state.lastObjUrl && state.lastObjUrl!==obj){ try{URL.revokeObjectURL(state.lastObjUrl)}catch(e){} }
       const waitingDjHandoff = beginDjDeckHandoff(handoffDeck, 'selectIndex:dj');
-      state.lastObjUrl=obj; $.v.autoplay = false; $.v.src=obj; $.v.load(); applyCurrentMediaTunables();
+      state.lastObjUrl=/^blob:/i.test(obj) ? obj : '';
+      $.v.autoplay = false; $.v.src=obj; $.v.load(); applyCurrentMediaTunables();
       if(fileLooksLikeAudio(it.file)){
         $.audioTitle.textContent = it.title || it.file.name || 'Audio';
         $.audioSub.textContent = 'Local audio';
