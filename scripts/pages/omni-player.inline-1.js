@@ -17,8 +17,8 @@ const $={
   srtMeta:qs('#srtMeta'),audMeta:qs('#audMeta'),
   subSize:qs('#subSize'),subOutline:qs('#subOutline'),subMargin:qs('#subMargin'),subPreset:qs('#subPreset'),
   appAspect:qs('#appAspect'),
-  vol:qs('#vol'),rate:qs('#rate'),master:qs('#master'),
-  volRead:qs('#volRead'),rateRead:qs('#rateRead'),masterRead:qs('#masterRead'),
+  vol:qs('#vol'),rate:qs('#rate'),master:qs('#master'),mixKey:qs('#mixKey'),
+  volRead:qs('#volRead'),rateRead:qs('#rateRead'),masterRead:qs('#masterRead'),mixKeyRead:qs('#mixKeyRead'),
   play:qs('#play'),back10:qs('#back10'),fwd10:qs('#fwd10'),pip:qs('#pip'), fullscreen:qs('#fullscreen'),
   setA:qs('#setA'),setB:qs('#setB'),clearAB:qs('#clearAB'),abDisp:qs('#abDisp'),toggleABLoop:qs('#toggleABLoop'),abLoopStat:qs('#abLoopStat'),
   playlist:qs('#playlist'),btnClear:qs('#btnClear'),btnShuffle:qs('#btnShuffle'),dropMode:qs('#dropMode'),contPlay:qs('#contPlay'),
@@ -111,10 +111,35 @@ function setFileMeta(el, files, emptyText){
   if(list.length===1){ el.textContent = list[0].name || emptyText; return; }
   el.textContent = `${list[0].name} +${list.length-1}`;
 }
+function currentManualKeyShift(){
+  return clampValue(Math.round(+(($.mixKey?.value)||0)), -6, 6);
+}
+function currentManualKeyRate(){
+  return semitoneToRate(currentManualKeyShift());
+}
+function currentDeckRate(){
+  const baseRate=clampValue(+($.rate?.value || 1), 0.25, 2);
+  return clampValue(baseRate * currentManualKeyRate(), 0.25, 2);
+}
+function describeManualKeyShift(){
+  const shift=currentManualKeyShift();
+  const baseKey=parseTrackKey(getCurrentTrackKey());
+  if(baseKey){
+    const shifted=formatTrackKey(baseKey.pc + shift, baseKey.mode);
+    return shift ? `${shifted} · ${shift>0?'+':''}${shift}st` : shifted;
+  }
+  return shift ? `${shift>0?'+':''}${shift}st` : '0st';
+}
+function updateMixKeyReadout(){
+  if($.mixKeyRead){
+    $.mixKeyRead.textContent=describeManualKeyShift();
+  }
+}
 function updateSliderReadouts(){
   if($.volRead) $.volRead.textContent = pct($.vol?.value);
   if($.rateRead) $.rateRead.textContent = pct($.rate?.value);
   if($.masterRead) $.masterRead.textContent = pct($.master?.value);
+  updateMixKeyReadout();
 }
 const APP_ASPECTS = {
   '16:9': { n:16/9, ratio:'16 / 9', layout:'standard' },
@@ -252,32 +277,42 @@ function setMediaPreservePitch(media, on){
   if(prop) media[prop]=!!on;
 }
 function currentEffectiveRate(){
-  const base=+($.rate?.value || 1);
-  return clampValue(base * (state.dj.rateMul || 1), 0.25, 2);
+  return clampValue(currentDeckRate() * (state.dj.rateMul || 1), 0.25, 2);
+}
+function setDjDeckBufferRate(deck, nextRate){
+  if(!deck?.bufferSource || !state.audioCtx) return;
+  const ctxTime=state.audioCtx.currentTime;
+  const prevRate=+deck.startedRate || +deck.bufferSource.playbackRate.value || 1;
+  deck.startOffset=Math.max(0, ((ctxTime - (deck.startedAtCtx || ctxTime)) * prevRate) + (deck.startOffset || 0));
+  deck.startedAtCtx=ctxTime;
+  deck.startedRate=nextRate;
+  try{ deck.bufferSource.playbackRate.value = nextRate; }catch(e){}
 }
 function syncDjPitchPolicy(){
-  const shouldKeySync = !!(
+  const shouldDisablePreserve=!!(
     state.mediaKind==='html5' &&
-    (state.dj.active || state.dj.carryUntil>performance.now()) &&
-    state.dj.keySyncActive &&
-    Math.abs(state.dj.keyShiftSemitones||0)>=1
+    Math.abs(currentManualKeyShift())>=1
   );
-  if(shouldKeySync){
-    if(!state.dj.pitchRestore){
-      state.dj.pitchRestore={
-        videoProp:preservePitchProp($.v),
-        videoValue:preservePitchProp($.v) ? !!$.v[preservePitchProp($.v)] : null,
-        extProp:preservePitchProp(state.extAudio),
-        extValue:preservePitchProp(state.extAudio) ? !!state.extAudio[preservePitchProp(state.extAudio)] : null
-      };
-    }
+  if(shouldDisablePreserve){
+    const restore = state.dj.pitchRestore || (state.dj.pitchRestore = {});
+    const capture = (name, media)=>{
+      if(!media) return;
+      if(restore[name]?.media===media) return;
+      const prop=preservePitchProp(media);
+      restore[name]={ media, prop, value:prop ? !!media[prop] : null };
+    };
+    capture('video', $.v);
+    capture('ext', state.extAudio);
+    capture('deck', state.dj.deck?.media);
     setMediaPreservePitch($.v, false);
     if(state.extAudio) setMediaPreservePitch(state.extAudio, false);
+    if(state.dj.deck?.media) setMediaPreservePitch(state.dj.deck.media, false);
     return;
   }
   if(state.dj.pitchRestore){
-    if(state.dj.pitchRestore.videoProp && $.v) $.v[state.dj.pitchRestore.videoProp]=!!state.dj.pitchRestore.videoValue;
-    if(state.dj.pitchRestore.extProp && state.extAudio) state.extAudio[state.dj.pitchRestore.extProp]=!!state.dj.pitchRestore.extValue;
+    Object.values(state.dj.pitchRestore).forEach(entry=>{
+      if(entry?.prop && entry.media) entry.media[entry.prop]=!!entry.value;
+    });
     state.dj.pitchRestore=null;
   }
 }
@@ -299,18 +334,17 @@ function updateDjReadouts(){
     const keyText=(analysisDone ? getCurrentTrackKey() : '') || '--';
     $.keyRead.textContent=(keyText!=='--' && keyConfidence>0) ? `${keyText} · ${keyConfidence}%` : keyText;
   }
+  updateMixKeyReadout();
   if($.djTransitionRead){
-    $.djTransitionRead.textContent=`${state.dj.transitionSec}秒かけて次の曲の BPM / Key に寄せます。`;
+    $.djTransitionRead.textContent=`${state.dj.transitionSec}秒かけて次の曲の BPM に寄せます。`;
   }
   if($.djStatus){
     let text='OFF';
     if(state.dj.enabled){
       if(state.dj.active){
-        const shift=Math.round(state.dj.keyShiftSemitones||0);
-        text=`MATCH ${Math.round((state.dj.rateMul||1)*100)}%${state.dj.keySyncActive && shift ? ` · ${shift>0?'+':''}${shift}st` : ''}`;
+        text=`MATCH ${Math.round((state.dj.rateMul||1)*100)}%`;
       }else if(state.dj.carryUntil>performance.now()){
-        const shift=Math.round(state.dj.keyShiftSemitones||0);
-        text=`HANDOFF ${Math.round((state.dj.rateMul||1)*100)}%${state.dj.keySyncActive && shift ? ` · ${shift>0?'+':''}${shift}st` : ''}`;
+        text=`HANDOFF ${Math.round((state.dj.rateMul||1)*100)}%`;
       }else if(item?._analysisUnsupported){
         text='N/A';
       }else if(analysisDone && getCurrentTrackBpm()){
@@ -503,6 +537,7 @@ function syncMediaControlAvailability(){
 function applyCurrentMediaTunables(){
   const vol = Math.max(0, Math.min(1, +($.vol?.value || 0)));
   const rate = currentEffectiveRate();
+  const deckRate = currentDeckRate();
   syncDjPitchPolicy();
   if(state.mediaKind === 'youtube'){
     try{
@@ -518,6 +553,12 @@ function applyCurrentMediaTunables(){
   if(state.extAudio){
     state.extAudio.volume = vol;
     state.extAudio.playbackRate = rate;
+  }
+  const deck=state.dj.deck;
+  if(deck?.bufferSource){
+    setDjDeckBufferRate(deck, deckRate);
+  }else if(deck?.media){
+    try{ deck.media.playbackRate = deckRate; }catch(e){}
   }
 }
 function syncMediaPresentation(){
@@ -1407,6 +1448,7 @@ function initTheme(){
 function initPrefs(){
   const vol=0.9; $.v.volume=vol; $.vol.value=vol;
   $.v.playbackRate=1.0; $.rate.value=$.v.playbackRate;
+  if($.mixKey) $.mixKey.value='0';
   if(!Number.isFinite($.v.volume)||$.v.volume===0){ $.vol.value=0.8; $.v.volume=0.8 }
   try{ localStorage.removeItem('pc.vol'); localStorage.removeItem('pc.rate'); }catch(e){}
   $.contPlay.checked = state.contPlay;
@@ -2087,60 +2129,7 @@ async function analyzeItemBpm(item){
 }
 function chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm){
   const bpmTarget=clampValue((+nextBpm||0) / Math.max(1, +currentBpm||0), 0.9, 1.14);
-  const currentKey=parseTrackKey(currentItem?._key || '');
-  const nextKey=parseTrackKey(nextItem?._key || '');
-  const keyConfidence=Math.min(+(currentItem?._keyConfidence || 0), +(nextItem?._keyConfidence || 0));
-  const bpmConfidence=Math.min(
-    Math.max(+(currentItem?._bpmConfidence || 0), 0),
-    Math.max(+(nextItem?._bpmConfidence || 0), 0)
-  );
-  const fallbackShift=nearestSignedSemitone(bpmTarget);
-  const fallbackScore=currentKey && nextKey
-    ? keyCompatibilityScore({ pc:((currentKey.pc+fallbackShift)%12+12)%12, mode:currentKey.mode }, nextKey)
-    : 0;
-  const plan={
-    rateMul:bpmTarget,
-    bpmTarget,
-    currentKey:currentKey?.text || '',
-    nextKey:nextKey?.text || '',
-    keyShiftSemitones:fallbackShift,
-    keySyncActive:false,
-    compatibility:fallbackScore
-  };
-  if(!currentKey || !nextKey || keyConfidence < 0.38 || bpmConfidence < 0.22){
-    return plan;
-  }
-  const candidates=new Set([+bpmTarget.toFixed(5)]);
-  for(let st=-2;st<=2;st++){
-    candidates.add(+clampValue(semitoneToRate(st), 0.88, 1.12).toFixed(5));
-  }
-  let bestScore=-Infinity;
-  let bestRate=plan.rateMul;
-  let bestShift=plan.keyShiftSemitones;
-  let bestCompat=plan.compatibility;
-  candidates.forEach(rate=>{
-    const shift=nearestSignedSemitone(rate);
-    const shifted={ pc:((currentKey.pc+shift)%12+12)%12, mode:currentKey.mode };
-    const compat=keyCompatibilityScore(shifted, nextKey);
-    const bpmError=Math.abs(rate-bpmTarget)/Math.max(0.001, bpmTarget);
-    const shiftPenalty=Math.abs(rateToSemitone(rate)-shift);
-    const score=(compat*(0.62 + keyConfidence*0.28)) - (bpmError*3.8) - (shiftPenalty*0.08);
-    if(score>bestScore){
-      bestScore=score;
-      bestRate=rate;
-      bestShift=shift;
-      bestCompat=compat;
-    }
-  });
-  if(bestCompat >= Math.max(plan.compatibility + 0.08, 0.78) && Math.abs(bestRate-bpmTarget) <= 0.04){
-    plan.rateMul=bestRate;
-    plan.keyShiftSemitones=bestShift;
-    plan.keySyncActive=Math.abs(bestShift)>=1;
-    plan.compatibility=bestCompat;
-  }else{
-    plan.keySyncActive=plan.compatibility >= 0.9 && Math.abs(plan.keyShiftSemitones)>=1;
-  }
-  return plan;
+  return { rateMul:bpmTarget, bpmTarget };
 }
 function getNextTrackIndex(){
   if(!state.list.length || state.cur<0) return -1;
@@ -2216,7 +2205,7 @@ function primeDjDeck(nextIndex){
   media.crossOrigin='anonymous';
   media.playsInline=true;
   media.volume=0;
-  media.playbackRate=Math.max(0.25, +($.rate?.value || 1));
+  media.playbackRate=currentDeckRate();
   if(media===$.djDeckVideo){
     media.classList.remove('active');
     media.style.opacity='0';
@@ -2227,9 +2216,10 @@ function primeDjDeck(nextIndex){
     objectUrl:source?.objectUrl?source.src:'', src:source?.src||'',
     started:false, handoff:false, mixProgress:0,
     sourceNode:null, gainNode:null, analyser:null, freqData:null, timeData:null,
-    bufferSource:null, startedAtCtx:0, startOffset:0, decoded:item._decodedBuffer||null,
+    bufferSource:null, startedAtCtx:0, startOffset:0, startedRate:1, decoded:item._decodedBuffer||null,
     hls:null, dash:null
   };
+  syncDjPitchPolicy();
   if(source?.src && mode!=='hls' && mode!=='dash'){ try{ media.load?.() }catch(e){} }
 }
 function ensureDjDeckGraph(deck){
@@ -2356,9 +2346,12 @@ async function startDjDeckPlayback(nextIndex){
     try{
       const src=state.audioCtx.createBufferSource();
       src.buffer=deck.decoded;
+      const deckRate=currentDeckRate();
+      src.playbackRate.value=deckRate;
       src.connect(deck.gainNode);
       deck.startOffset=0;
       deck.startedAtCtx=state.audioCtx.currentTime;
+      deck.startedRate=deckRate;
       deck.bufferSource=src;
       src.start(0, 0);
       deck.started=true;
@@ -2377,7 +2370,7 @@ async function startDjDeckPlayback(nextIndex){
       }else{
         deck.media.volume=Math.max(0.001, +($.vol?.value || 1));
       }
-      deck.media.playbackRate=Math.max(0.25, +($.rate?.value || 1));
+      deck.media.playbackRate=currentDeckRate();
       await deck.media.play();
       if(deck.video) deck.video.classList.add('active');
       deck.started=true;
@@ -2404,7 +2397,8 @@ function applyDjDeckVideoVisual(progress){
   }
   const p=clampValue(progress, 0, 1);
   const mix=clampValue((p-0.02)/0.72, 0, 1);
-  const visual=Math.pow(mix, 0.72);
+  const deckReady=!!((+deckVideo.readyState || 0) >= 2 && ((+deckVideo.videoWidth || 0) > 0 || itemLooksLikeVideoMedia(deck?.item)));
+  const visual=deckReady ? Math.pow(mix, 0.72) : 0;
   deckVideo.classList.toggle('active', visual>0.001);
   deckVideo.style.opacity=String(visual);
   deckVideo.style.transform=`scale(${0.988 + visual*0.012})`;
@@ -2442,7 +2436,7 @@ function applyDjMixVolumes(progress){
 function djDeckCurrentTime(deck){
   if(!deck?.started) return 0;
   if(deck.bufferSource){
-    return Math.max(0, (state.audioCtx?.currentTime||0) - (deck.startedAtCtx||0) + (deck.startOffset||0));
+    return Math.max(0, (((state.audioCtx?.currentTime||0) - (deck.startedAtCtx||0)) * (+deck.startedRate || 1)) + (deck.startOffset||0));
   }
   return Math.max(0, deck.media?.currentTime || 0);
 }
@@ -2450,15 +2444,7 @@ function beginDjDeckHandoff(deck, label){
   if(!deck?.started) return false;
   const token = ++state.dj.handoffToken;
   state.dj.handoffPending = true;
-  if(deck.video){
-    deck.video.classList.add('active');
-    deck.video.style.opacity='1';
-    deck.video.style.transform='scale(1)';
-  }
-  if($.v){
-    $.v.style.opacity='0';
-    $.v.style.filter='brightness(.82) saturate(.86)';
-  }
+  applyDjDeckVideoVisual(Math.max(deck.mixProgress || 0, 0.92));
   const clampTargetTime = (time)=>{
     const t = Math.max(0, +time || 0);
     const dur = +($.v?.duration || 0);
@@ -2471,37 +2457,87 @@ function beginDjDeckHandoff(deck, label){
     if(state.dj.handoffToken !== token) return;
     state.dj.handoffPending = false;
     try{ $.v.currentTime = clampTargetTime(djDeckCurrentTime(deck)); }catch(e){}
-    cleanupDjDeck();
     applyCurrentMediaTunables();
     try{
       const baseVol=Math.max(0, Math.min(1, +($.vol?.value || 0)));
       $.v.volume=baseVol;
       if(state.extAudio) state.extAudio.volume=baseVol;
     }catch(e){}
+    try{
+      if(deck.gainNode){
+        deck.gainNode.gain.setTargetAtTime(0, state.audioCtx.currentTime, 0.03);
+      }else if(deck.media){
+        deck.media.volume=0;
+      }
+    }catch(e){}
     try{ rampTo(+($.master?.value||1),0.08) }catch(e){}
-    updateDjReadouts();
-    hideLoader();
+    const finalize=()=>{
+      cleanupDjDeck();
+      updateDjReadouts();
+      hideLoader();
+    };
+    if(deck.video && $.v){
+      try{
+        $.v.style.opacity='0';
+        $.v.style.filter='brightness(.88) saturate(.9)';
+        deck.video.style.opacity='1';
+        deck.video.style.transform='scale(1)';
+      }catch(e){}
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          try{
+            $.v.style.opacity='1';
+            $.v.style.filter='';
+            deck.video.style.opacity='0';
+            deck.video.style.transform='scale(.996)';
+          }catch(e){}
+        });
+      });
+      setTimeout(finalize, 180);
+      return;
+    }
+    finalize();
   };
   const monitorCatchUp = ()=>{
     if(state.dj.handoffToken !== token) return;
     const startedAt = performance.now();
+    const minReadyState = deck.video ? 3 : 2;
+    const settleDelta = deck.video ? 0.14 : 0.22;
+    const reseekDelta = deck.video ? 0.24 : 0.38;
+    const softTimeoutMs = deck.video ? 4200 : 2600;
+    const hardTimeoutMs = softTimeoutMs + 2200;
+    let stableHits = 0;
+    let retriedPlay = false;
     const tick = ()=>{
       if(state.dj.handoffToken !== token) return;
       const target = clampTargetTime(djDeckCurrentTime(deck));
       const current = +($.v.currentTime || 0);
-      const ready = !$.v.paused && (+($.v.readyState || 0) >= 2);
+      const ready = !$.v.paused && (+($.v.readyState || 0) >= minReadyState);
       const delta = Math.abs(current - target);
       try{ $.v.volume = Math.max(0.02, Math.min(0.18, +($.vol?.value || 0)*0.16)); }catch(e){}
-      if(ready && delta <= 0.22){
+      if(ready && delta <= settleDelta){
+        stableHits++;
+      }else{
+        stableHits=0;
+      }
+      if(stableHits >= 2){
         finishHandoff();
         return;
       }
-      if(ready && delta > 0.38){
+      if(ready && delta > reseekDelta){
         try{ $.v.currentTime = target; }catch(e){}
       }
-      if((performance.now() - startedAt) >= 1800){
+      const elapsed = performance.now() - startedAt;
+      if(elapsed >= hardTimeoutMs){
         finishHandoff();
         return;
+      }
+      if(elapsed >= softTimeoutMs && ready){
+        try{ $.v.currentTime = target; }catch(e){}
+      }
+      if(elapsed >= softTimeoutMs && !ready && !retriedPlay){
+        retriedPlay = true;
+        requestPlayImmediate(label).catch(()=>{});
       }
       setTimeout(tick, 60);
     };
@@ -3335,8 +3371,6 @@ function updateAutoDjState(){
       if(currentItem && !currentBpm && !currentItem._bpm && !currentItem._bpmPromise) scheduleItemAnalysis(currentItem, 80, { priority:3 });
       if(nextItem && !nextItem._bpm && !nextItem._bpmPromise) scheduleItemAnalysis(nextItem, 520, { priority:2 });
     }
-    state.dj.currentKey=currentItem?._key || '';
-    state.dj.nextKey=nextItem?._key || '';
     state.dj.keyShiftSemitones=0;
     state.dj.keySyncActive=false;
     state.dj.syncPlan=null;
@@ -3366,10 +3400,10 @@ function updateAutoDjState(){
       syncPlan=freshPlan;
     }
   }
-  state.dj.currentKey=syncPlan.currentKey;
-  state.dj.nextKey=syncPlan.nextKey;
-  state.dj.keyShiftSemitones=syncPlan.keyShiftSemitones;
-  state.dj.keySyncActive=syncPlan.keySyncActive;
+  state.dj.currentKey='';
+  state.dj.nextKey='';
+  state.dj.keyShiftSemitones=0;
+  state.dj.keySyncActive=false;
   state.dj.targetMul=syncPlan.rateMul;
   const eased=p*p*(3-2*p);
   applyDjRateMul(1 + (state.dj.targetMul-1)*eased);
@@ -3569,6 +3603,10 @@ $.rate.oninput=()=>{
   updateSliderReadouts();
   applyCurrentMediaTunables();
 };
+$.mixKey.oninput=()=>{
+  updateSliderReadouts();
+  applyCurrentMediaTunables();
+};
 $.master.oninput=()=>{ updateSliderReadouts(); ensureAudioGraph(); const v=+$.master.value; try{ state.outGain.gain.setTargetAtTime(v, state.audioCtx.currentTime, 0.05) }catch(e){ state.outGain.gain.value=v } };
 $.fullscreen.onclick=()=>{
   try{
@@ -3759,8 +3797,9 @@ async function selectIndex(i, opts={}){
   const it=state.list[i]; if(!it) return;
   debugLog('selectIndex', `${i} ${it.file?.name || it.url || '-'}`);
   const handoffDeck = opts.fromDjDeck && state.dj.deck?.item===it ? state.dj.deck : null;
+  const shouldCarry = !!opts.keepDjCarry && !handoffDeck;
   resetBeatTracking();
-  if(opts.keepDjCarry){
+  if(shouldCarry){
     state.dj.carryUntil=performance.now()+5200;
     state.dj.carryFrom=clampValue(state.dj.carryFrom||state.dj.rateMul||1, 0.94, 1.08);
     applyDjRateMul(state.dj.carryFrom);
@@ -4200,6 +4239,7 @@ window.addEventListener('resize',()=>{ try{ updateSpectrumVisibility() }catch(e)
 /* ========= init ========= */
 const savedVol=0.9; $.v.volume=savedVol; $.vol.value=savedVol;
 const savedRate=1.0; $.v.playbackRate=savedRate; $.rate.value=savedRate;
+if($.mixKey) $.mixKey.value='0';
 updateSliderReadouts();
 syncMediaControlAvailability();
 function applySubStylePreset(v){ const m={std:{size:28,outline:3,margin:30},large:{size:40,outline:4,margin:40},small:{size:20,outline:2,margin:20},shadow:{size:28,outline:6,margin:30}}; const p=m[v]||m.std; $.subSize.value=p.size; $.subOutline.value=p.outline; $.subMargin.value=p.margin; applySubStyle() }

@@ -319,7 +319,7 @@
               </div>
             </div>
           </section>
-          <section class="control-module mix-module" aria-label="音量と速度">
+          <section class="control-module mix-module" aria-label="音量と速度とキー">
             <div class="module-head">
               <div class="module-kicker">MIX</div>
               <span class="module-chip" aria-hidden="true">≈</span>
@@ -345,6 +345,13 @@
                   <span class="badge readout" id="masterRead">100%</span>
                 </div>
                 <input id="master" type="range" min="0" max="2" step="0.01" value="1" title="Master gain (0–+6dB)" />
+              </label>
+              <label class="slider-cell">
+                <div class="slider-head">
+                  <span class="slider-tag">KEY</span>
+                  <span class="badge readout" id="mixKeyRead">0st</span>
+                </div>
+                <input id="mixKey" type="range" min="-6" max="6" step="1" value="0" title="Key shift (-6 to +6 semitones)" />
               </label>
             </div>
           </section>
