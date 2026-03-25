@@ -179,6 +179,7 @@ function applyResponsiveUiState(){
   document.body.dataset.viewportOrientation = portrait ? 'portrait' : 'landscape';
 }
 const clampValue=(n,min,max)=>Math.max(min,Math.min(max,n));
+const DJ_BEATS_PER_BAR=4;
 function foldBpm(bpm){
   let v=+bpm||0;
   if(!Number.isFinite(v) || v<=0) return 0;
@@ -190,36 +191,63 @@ function beatPeriodSec(bpm){
   const folded=foldBpm(bpm);
   return folded ? (60/folded) : 0;
 }
-function beatPhaseAtTime(timeSec, bpm){
+function beatPhaseAtTime(timeSec, bpm, anchorSec=0){
   const period=beatPeriodSec(bpm);
   if(!period) return 0;
-  const pos=((((+timeSec || 0) % period) + period) % period);
+  const pos=(((((+timeSec || 0) - (+anchorSec || 0)) % period) + period) % period);
   return pos/period;
 }
-function beatDistanceToBoundarySec(timeSec, bpm){
+function beatDistanceToBoundarySec(timeSec, bpm, anchorSec=0){
   const period=beatPeriodSec(bpm);
   if(!period) return Infinity;
-  const pos=((((+timeSec || 0) % period) + period) % period);
+  const pos=(((((+timeSec || 0) - (+anchorSec || 0)) % period) + period) % period);
   return Math.min(pos, period-pos);
 }
-function shouldLaunchDjDeckOnBeat(currentTimeSec, currentBpm, leftSec, progress){
+function barPhaseAtTime(timeSec, bpm, anchorSec=0, beatsPerBar=DJ_BEATS_PER_BAR){
+  const period=beatPeriodSec(bpm);
+  const beats=Math.max(1, +beatsPerBar || DJ_BEATS_PER_BAR);
+  if(!period) return 0;
+  const barPeriod=period*beats;
+  const pos=(((((+timeSec || 0) - (+anchorSec || 0)) % barPeriod) + barPeriod) % barPeriod);
+  return pos/barPeriod;
+}
+function barDistanceToBoundarySec(timeSec, bpm, anchorSec=0, beatsPerBar=DJ_BEATS_PER_BAR){
+  const period=beatPeriodSec(bpm);
+  const beats=Math.max(1, +beatsPerBar || DJ_BEATS_PER_BAR);
+  if(!period) return Infinity;
+  const barPeriod=period*beats;
+  const pos=(((((+timeSec || 0) - (+anchorSec || 0)) % barPeriod) + barPeriod) % barPeriod);
+  return Math.min(pos, barPeriod-pos);
+}
+function shouldLaunchDjDeckOnBeat(currentTimeSec, currentBpm, leftSec, progress, currentItem=null){
   if(!state.bpm.beatSync) return true;
   const period=beatPeriodSec(currentBpm);
   if(!period) return true;
-  const windowSec=clampValue(period*0.12, 0.028, 0.085);
-  const emergencySec=Math.max(period*1.15, 0.55);
-  if(progress>=0.72 || leftSec<=emergencySec) return true;
-  return beatDistanceToBoundarySec(currentTimeSec, currentBpm) <= windowSec;
+  const anchorSec=getItemDjCueIn(currentItem);
+  const beatWindow=clampValue(period*0.12, 0.028, 0.085);
+  const barPeriod=period*DJ_BEATS_PER_BAR;
+  const barWindow=clampValue(barPeriod*0.08, 0.075, 0.22);
+  const hardEmergencySec=Math.max(period*1.15, 0.55);
+  if(progress>=0.94 || leftSec<=hardEmergencySec) return true;
+  if(barDistanceToBoundarySec(currentTimeSec, currentBpm, anchorSec) <= barWindow) return true;
+  const softEmergencySec=Math.max(barPeriod*1.05, 1.6);
+  if(progress>=0.82 || leftSec<=softEmergencySec){
+    return beatDistanceToBoundarySec(currentTimeSec, currentBpm, anchorSec) <= Math.max(beatWindow, barWindow*0.34);
+  }
+  return false;
 }
-function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm, nextItem=null){
+function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm, nextItem=null, currentItem=null){
   const cueBase=getItemDjCueIn(nextItem);
-  if(cueBase>0.35) return cueBase;
   if(!state.bpm.beatSync) return cueBase;
   const nextPeriod=beatPeriodSec(nextBpm);
   if(!nextPeriod) return cueBase;
-  const phase=beatPhaseAtTime(currentTimeSec, currentBpm);
-  const normalized=phase>=0.965 ? 0 : phase;
-  return cueBase + normalized*nextPeriod;
+  const barPhase=barPhaseAtTime(currentTimeSec, currentBpm, getItemDjCueIn(currentItem));
+  const normalized=barPhase>=0.985 ? 0 : barPhase;
+  const additional=normalized*(nextPeriod*DJ_BEATS_PER_BAR);
+  const maxAdditional=itemLooksLikeVideoMedia(nextItem)
+    ? Math.min(nextPeriod*DJ_BEATS_PER_BAR*0.92, 2.2)
+    : Math.min(nextPeriod*DJ_BEATS_PER_BAR*0.98, 6);
+  return cueBase + Math.min(additional, maxAdditional);
 }
 function getDjRateEase(progress){
   const p=clampValue(progress, 0, 1);
@@ -401,7 +429,7 @@ function updateDjReadouts(){
   updateMixKeyReadout();
   if($.djTransitionRead){
     $.djTransitionRead.textContent=state.bpm.beatSync
-      ? `${state.dj.transitionSec}秒かけて次の曲の BPM と拍を寄せます。`
+      ? `${state.dj.transitionSec}秒かけて次の曲の BPM と小節を寄せます。`
       : `${state.dj.transitionSec}秒かけて次の曲の BPM に寄せます。`;
   }
   if($.djStatus){
@@ -3728,8 +3756,8 @@ function updateAutoDjState(){
     primeDjDeck(nextIndex);
   }
   if(p>=0.28 && !state.dj.deck?.started){
-    if(shouldLaunchDjDeckOnBeat(current, currentBpm, left, p)){
-      const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm, nextItem);
+    if(shouldLaunchDjDeckOnBeat(current, currentBpm, left, p, currentItem)){
+      const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm, nextItem, currentItem);
       startDjDeckPlayback(nextIndex, { startAtSec }).catch(()=>{});
     }
   }
