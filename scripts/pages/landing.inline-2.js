@@ -1,3 +1,14 @@
+// Absorbed from former landing.inline-1.js to reduce file count.
+(function(){
+  const ok = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if(ok){
+    const l=document.createElement('link');
+    l.rel='manifest';
+    l.href='./assets/pwa/manifest.webmanifest';
+    document.head.appendChild(l);
+  }
+})();
+
 /* ===== Refs ===== */
 const meta = document.getElementById('themeColorMeta');
 const themeBtn = document.getElementById('themeBtn');

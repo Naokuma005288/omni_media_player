@@ -211,13 +211,15 @@ function shouldLaunchDjDeckOnBeat(currentTimeSec, currentBpm, leftSec, progress)
   if(progress>=0.72 || leftSec<=emergencySec) return true;
   return beatDistanceToBoundarySec(currentTimeSec, currentBpm) <= windowSec;
 }
-function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm){
-  if(!state.bpm.beatSync) return 0;
+function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm, nextItem=null){
+  const cueBase=getItemDjCueIn(nextItem);
+  if(cueBase>0.35) return cueBase;
+  if(!state.bpm.beatSync) return cueBase;
   const nextPeriod=beatPeriodSec(nextBpm);
-  if(!nextPeriod) return 0;
+  if(!nextPeriod) return cueBase;
   const phase=beatPhaseAtTime(currentTimeSec, currentBpm);
   const normalized=phase>=0.965 ? 0 : phase;
-  return normalized*nextPeriod;
+  return cueBase + normalized*nextPeriod;
 }
 function getDjRateEase(progress){
   const p=clampValue(progress, 0, 1);
@@ -225,6 +227,28 @@ function getDjRateEase(progress){
     return 1 - Math.pow(1-p, 2.35);
   }
   return p*p*(3-2*p);
+}
+function smoothstep01(value){
+  const v=clampValue(value, 0, 1);
+  return v*v*(3-(2*v));
+}
+function getItemDjCueIn(item){
+  const cue=+item?._djCueIn || 0;
+  const confidence=+item?._djCueInConfidence || 0;
+  if(!Number.isFinite(cue) || cue<=0.12) return 0;
+  const maxCue=itemLooksLikeVideoMedia(item) ? 1.4 : 8;
+  if(cue>maxCue) return 0;
+  if(confidence<0.26 && cue>1.2) return 0;
+  return clampValue(cue, 0, maxCue);
+}
+function getDjMixProfile(progress){
+  const p=clampValue(progress, 0, 1);
+  const currentMul=Math.max(0, Math.cos((smoothstep01(p)*Math.PI)/2));
+  const nextAttack=smoothstep01(clampValue((p-0.08)/0.82, 0, 1));
+  const nextMul=clampValue(0.02 + nextAttack*0.98, 0, 1);
+  const mixProgress=clampValue((p-0.03)/0.84, 0, 1);
+  const visualProgress=clampValue((p-0.12)/0.72, 0, 1);
+  return { currentMul, nextMul, mixProgress, visualProgress };
 }
 function hasCompletedTrackAnalysis(item){
   if(!item) return false;
@@ -936,6 +960,110 @@ function initCanvasHud(){
   window.matchMedia?.('(display-mode: standalone)')?.addEventListener?.('change', showStandalone);
 })();
 
+// Absorbed from former omni-player.inline-2.js to reduce file count.
+/* ========= Settings: Tabs ========= */
+(function(){
+  const pick = (title) => {
+    const t = (title||'').toLowerCase();
+    if (t.includes('字幕')) return 'sub';
+    if (t.includes('スペクトラム')) return 'spec';
+    if (t.includes('eq') || t.includes('10バンド')) return 'eq';
+    if (t.includes('アニメ')) return 'anim';
+    if (t.includes('ブックマーク') || t.includes('lrc') || t.includes('歌詞') ||
+        t.includes('チャプター') || t.includes('スクリーンショット') ||
+        t.includes('設定バックアップ') || t.includes('スリープ')) return 'ext';
+    return 'ext';
+  };
+
+  function initSettingsTabs(){
+    const card = qs('#settings .settings-card');
+    if (!card || card.dataset.tabbified) return;
+    if (card.querySelector('[data-settings-tab]') && card.querySelector('[data-settings-panel]')) {
+      card.dataset.tabbified = '1';
+      return;
+    }
+
+    const rootGrid = Array.from(card.children).find(node => node.classList?.contains('settings-grid'));
+    if (!rootGrid || rootGrid.parentElement !== card) return;
+
+    const tabsData = [
+      ['sub','字幕'],
+      ['spec','スペクトラム'],
+      ['eq','EQ'],
+      ['anim','アニメ'],
+      ['ext','拡張'],
+      ['all','すべて']
+    ];
+    const tabs = document.createElement('div');
+    tabs.className = 'settings-tabs';
+    tabs.setAttribute('role','tablist');
+
+    const panels = document.createElement('div');
+    panels.className = 'settings-panels';
+
+    const grids = {};
+    for (const [key] of tabsData){
+      const g = document.createElement('div');
+      g.className = 'settings-grid';
+      g.dataset.tabPanel = key;
+      panels.appendChild(g);
+      grids[key] = g;
+    }
+
+    const head = card.querySelector('.settings-head');
+    if (head && head.parentElement === card) card.insertBefore(tabs, head.nextSibling);
+    else card.insertBefore(tabs, rootGrid);
+    card.insertBefore(panels, rootGrid);
+
+    const sections = Array.from(rootGrid.querySelectorAll('.settings-section'));
+    sections.forEach(sec=>{
+      const title = sec.querySelector('h4')?.textContent || '';
+      const key = pick(title);
+      (grids[key] || grids.ext).appendChild(sec);
+    });
+    rootGrid.remove();
+
+    const activate = (key) => {
+      Array.from(panels.querySelectorAll('.settings-grid')).forEach(g=>{
+        const show = key==='all' || g.dataset.tabPanel===key;
+        g.classList.toggle('active', show);
+        g.style.display = show ? 'grid' : 'none';
+      });
+      Array.from(tabs.querySelectorAll('.tab')).forEach(b=>{
+        b.setAttribute('aria-selected', b.dataset.tab===key ? 'true' : 'false');
+      });
+      try { store.set('pc.settings.tab', key); } catch(e){}
+    };
+
+    tabsData.forEach(([key,label])=>{
+      const btn = document.createElement('button');
+      btn.className = 'tab';
+      btn.type = 'button';
+      btn.dataset.tab = key;
+      btn.setAttribute('role','tab');
+      btn.textContent = label;
+      btn.addEventListener('click', ()=>activate(key));
+      tabs.appendChild(btn);
+    });
+
+    const last = (store && store.get) ? store.get('pc.settings.tab','all') : 'all';
+    activate(last);
+    card.dataset.tabbified = '1';
+  }
+
+  window.addEventListener('load', initSettingsTabs);
+  const b = document.getElementById('btnSettings');
+  if (b) b.addEventListener('click', initSettingsTabs, { once:true });
+})();
+
+// Absorbed from former omni-player.inline-4.js to reduce file count.
+window.OPAnim?.init?.({ wrap: document.getElementById('playerWrap'), artWrap: document.getElementById('artWrap'), bg: document.getElementById('bgArt') });
+window.OPAnim?.bindMedia?.(document.getElementById('v'));
+window.OPFun?.init?.({ wrap: document.getElementById('playerWrap'), bg: document.getElementById('bgArt') });
+window.OPAurora?.init?.({ wrap: document.getElementById('playerWrap'), bg: document.getElementById('bgArt') });
+window.OPGrid?.init?.({ wrap: document.getElementById('playerWrap'), bg: document.getElementById('bgArt') });
+window.OPBoot?.tick?.('エフェクト準備…');
+
 /* ========= ローダー表示 ========= */
 let loaderHideTimer=0;
 let loaderHoldUntil=0;
@@ -1099,15 +1227,18 @@ function guessAnalysisInputName(item){
 }
 async function runAnalysisWorkerDetailedFromPayload(payload){
   const worker=ensureAnalysisWorker();
+  const source=payload.monoBuffer instanceof ArrayBuffer ? payload.monoBuffer : payload.monoBuffer.buffer;
+  const fallbackMonoBuffer=source.slice(0);
   const cloneForFallback=()=>{
-    const source=payload.monoBuffer instanceof ArrayBuffer ? payload.monoBuffer : payload.monoBuffer.buffer;
-    return new Float32Array(source.slice(0));
+    return new Float32Array(fallbackMonoBuffer.slice(0));
   };
+  const cueInResult=estimateDjCueInFromMonoDetailed(new Float32Array(source), payload.sampleRate);
   if(!worker){
     const mono=cloneForFallback();
     return {
       bpmResult:estimateBpmFromPreparedMono(mono, payload.sampleRate),
-      keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate)
+      keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate),
+      cueInResult
     };
   }
   const id=++analysisWorkerReq;
@@ -1128,9 +1259,10 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
     const mono=cloneForFallback();
     return {
       bpmResult:estimateBpmFromPreparedMono(mono, payload.sampleRate),
-      keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate)
+      keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate),
+      cueInResult
     };
-  });
+  }).then(result=>({ ...(result||{}), cueInResult:result?.cueInResult || cueInResult }));
 }
 async function extractMonoWithFfmpeg(item, maxSeconds=72, sampleRate=16000, signal){
   const ffmpeg=await ensureFfmpegAnalysis();
@@ -1412,14 +1544,20 @@ async function buildAnalysisMonoPayload(audioBuffer, maxSeconds=60, targetRate=1
   return { monoBuffer:trimmed.buffer, sampleRate:outputRate, transfer:[trimmed.buffer] };
 }
 async function analyzeDecodedBufferDetailed(audioBuffer){
+  const decodedCueInResult=estimateDjCueInFromDecodedAudioDetailed(audioBuffer);
   const payload=await buildAnalysisMonoPayload(audioBuffer);
   if(!payload){
     return {
       bpmResult:{ bpm:0, confidence:0 },
-      keyResult:{ key:'', confidence:0 }
+      keyResult:{ key:'', confidence:0 },
+      cueInResult:decodedCueInResult
     };
   }
-  return await runAnalysisWorkerDetailedFromPayload(payload);
+  const results=await runAnalysisWorkerDetailedFromPayload(payload);
+  if((decodedCueInResult?.confidence || 0) > ((results?.cueInResult?.confidence || 0) + 0.04)){
+    return { ...(results||{}), cueInResult:decodedCueInResult };
+  }
+  return results;
 }
 function hideAnalysisLoader(opts={}){
   try{
@@ -1793,6 +1931,78 @@ function buildMonoMix(audioBuffer, maxSeconds=180){
   }
   return { mono, sampleRate };
 }
+function estimateDjCueInFromMonoDetailed(mono, sampleRate, opts={}){
+  if(!mono?.length || !sampleRate) return { cueIn:0, confidence:0 };
+  const scanSeconds=clampValue(+opts.scanSeconds || 20, 8, 28);
+  const frameSeconds=clampValue(+opts.frameSeconds || 0.05, 0.03, 0.08);
+  const maxSamples=Math.min(mono.length, Math.floor(sampleRate*scanSeconds));
+  const frameSize=Math.max(256, Math.floor(sampleRate*frameSeconds));
+  const frameCount=Math.floor(maxSamples/frameSize);
+  if(frameCount<12) return { cueIn:0, confidence:0 };
+  const energies=new Float32Array(frameCount);
+  const onsets=new Float32Array(frameCount);
+  let prevEnergy=0;
+  for(let frame=0; frame<frameCount; frame++){
+    const start=frame*frameSize;
+    let energy=0;
+    let flux=0;
+    let prevAbs=start>0 ? Math.abs(mono[start-1] || 0) : 0;
+    for(let i=0;i<frameSize;i++){
+      const v=Math.abs(mono[start+i] || 0);
+      energy += v;
+      const diff=v-prevAbs;
+      if(diff>0) flux += diff;
+      prevAbs=v;
+    }
+    const normalizedEnergy=energy/frameSize;
+    energies[frame]=normalizedEnergy;
+    onsets[frame]=Math.max(0, normalizedEnergy-prevEnergy)*0.55 + (flux/frameSize)*0.45;
+    prevEnergy=normalizedEnergy;
+  }
+  let sumEnergy=0, maxEnergy=0, sumOnset=0;
+  for(let i=0;i<frameCount;i++){
+    sumEnergy += energies[i];
+    maxEnergy=Math.max(maxEnergy, energies[i]);
+    sumOnset += onsets[i];
+  }
+  if(maxEnergy<=1e-5) return { cueIn:0, confidence:0 };
+  const avgEnergy=sumEnergy/frameCount;
+  const avgOnset=sumOnset/frameCount;
+  const baseThreshold=Math.max(avgEnergy*1.45, maxEnergy*0.18, 0.008);
+  const onsetThreshold=Math.max(avgOnset*1.8, 0.004);
+  const sustainFrames=Math.max(2, Math.round(0.18/frameSeconds));
+  let bestFrame=-1;
+  let bestScore=0;
+  for(let i=0;i<=frameCount-sustainFrames;i++){
+    let sustainEnergy=0;
+    let sustainOnset=0;
+    for(let j=0;j<sustainFrames;j++){
+      sustainEnergy += energies[i+j];
+      sustainOnset += onsets[i+j];
+    }
+    sustainEnergy/=sustainFrames;
+    sustainOnset/=sustainFrames;
+    const earlyPenalty=i<=1 ? 0.82 : 1;
+    const energyScore=sustainEnergy/Math.max(baseThreshold, 1e-6);
+    const onsetScore=sustainOnset/Math.max(onsetThreshold, 1e-6);
+    const score=(energyScore*0.72 + onsetScore*0.28)*earlyPenalty;
+    if(score>1.02 && score>bestScore){
+      bestScore=score;
+      bestFrame=i;
+      if(i<=Math.max(2, Math.round(0.35/frameSeconds)) && score>1.45) break;
+    }
+  }
+  if(bestFrame<0) return { cueIn:0, confidence:0 };
+  let cueIn=Math.max(0, bestFrame*frameSeconds - 0.04);
+  if(cueIn<0.12) cueIn=0;
+  const confidence=clampValue((bestScore-1)*0.58 + Math.min(0.28, maxEnergy>avgEnergy*2.2 ? 0.16 : 0.08), 0, 0.96);
+  return { cueIn, confidence };
+}
+function estimateDjCueInFromDecodedAudioDetailed(audioBuffer){
+  const mix=buildMonoMix(audioBuffer, 24);
+  if(!mix) return { cueIn:0, confidence:0 };
+  return estimateDjCueInFromMonoDetailed(mix.mono, mix.sampleRate, { scanSeconds:24 });
+}
 function summarizeWeightedVotes(votes, fallbackValue=0){
   let total=0, bestValue=fallbackValue, bestScore=0, secondScore=0;
   votes.forEach((score, value)=>{
@@ -2110,6 +2320,8 @@ async function analyzeItemBpm(item){
         item._key='';
         item._bpmConfidence=0;
         item._keyConfidence=0;
+        item._djCueIn=0;
+        item._djCueInConfidence=0;
         item._analysisDone=true;
         item._analysisUnsupported=true;
         if(state.list[state.cur]===item) updateDjReadouts();
@@ -2133,11 +2345,21 @@ async function analyzeItemBpm(item){
         const decoded=await ctx.decodeAudioData(ab.slice(0));
         results=await analyzeDecodedBufferDetailed(decoded);
       }
-      const { bpmResult, keyResult }=results || { bpmResult:{ bpm:0, confidence:0 }, keyResult:{ key:'', confidence:0 } };
+      const {
+        bpmResult,
+        keyResult,
+        cueInResult
+      }=results || {
+        bpmResult:{ bpm:0, confidence:0 },
+        keyResult:{ key:'', confidence:0 },
+        cueInResult:{ cueIn:0, confidence:0 }
+      };
       item._bpm=bpmResult.bpm||0;
       item._bpmConfidence=bpmResult.confidence||0;
       item._key=keyResult.key||'';
       item._keyConfidence=keyResult.confidence||0;
+      item._djCueIn=cueInResult?.cueIn || 0;
+      item._djCueInConfidence=cueInResult?.confidence || 0;
       item._analysisDone=true;
       if(state.list[state.cur]===item) updateDjReadouts();
       return item._bpm;
@@ -2151,6 +2373,8 @@ async function analyzeItemBpm(item){
       item._key='';
       item._bpmConfidence=0;
       item._keyConfidence=0;
+      item._djCueIn=0;
+      item._djCueInConfidence=0;
       item._analysisDone=true;
       return 0;
     }finally{
@@ -2465,22 +2689,20 @@ function applyDjMixVolumes(progress){
     return;
   }
   const p=clampValue(progress,0,1);
-  deck.mixProgress=p;
-  const cross=Math.sin((p*Math.PI)/2);
-  const curMul=Math.max(0, Math.cos((p*Math.PI)/2));
-  const nextMul=Math.max(0, Math.min(1, 0.08 + cross*0.92));
-  $.v.volume=baseVol*curMul;
-  if(state.extAudio) state.extAudio.volume=baseVol*curMul;
+  const profile=getDjMixProfile(p);
+  deck.mixProgress=profile.mixProgress;
+  $.v.volume=baseVol*profile.currentMul;
+  if(state.extAudio) state.extAudio.volume=baseVol*profile.currentMul;
   if(deck.gainNode){
     try{
       deck.media.muted=false;
       deck.media.volume=1;
     }catch(e){}
-    try{ deck.gainNode.gain.setTargetAtTime(baseVol*nextMul, state.audioCtx.currentTime, 0.04) }catch(e){ deck.gainNode.gain.value=baseVol*nextMul; }
+    try{ deck.gainNode.gain.setTargetAtTime(baseVol*profile.nextMul, state.audioCtx.currentTime, 0.04) }catch(e){ deck.gainNode.gain.value=baseVol*profile.nextMul; }
   }else{
-    deck.media.volume=baseVol*nextMul;
+    deck.media.volume=baseVol*profile.nextMul;
   }
-  applyDjDeckVideoVisual(p);
+  applyDjDeckVideoVisual(profile.visualProgress);
 }
 function djDeckCurrentTime(deck){
   if(!deck?.started) return 0;
@@ -3507,7 +3729,7 @@ function updateAutoDjState(){
   }
   if(p>=0.28 && !state.dj.deck?.started){
     if(shouldLaunchDjDeckOnBeat(current, currentBpm, left, p)){
-      const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm);
+      const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm, nextItem);
       startDjDeckPlayback(nextIndex, { startAtSec }).catch(()=>{});
     }
   }

@@ -83,7 +83,7 @@
 
 主な実装:
 
-* スクリプト: `scripts/pages/landing.inline-1.js`, `scripts/pages/landing.inline-2.js`
+* スクリプト: `scripts/pages/landing.inline-2.js`
 * スタイル: `styles/pages/landing.inline-1.css`
 
 ### 2\. Omni Player
@@ -101,7 +101,6 @@
 主な実装:
 
 * 本体スクリプト: `scripts/pages/omni-player.inline-1.js`
-* 補助スクリプト: `scripts/pages/omni-player.inline-2.js`, `scripts/pages/omni-player.inline-4.js`
 * スタイル: `styles/pages/omni-player.inline-1.css`
 
 現在の通常版のポイント:
@@ -123,7 +122,7 @@
 
 主な実装:
 
-* スクリプト: `scripts/pages/omni-player-mini.inline-2.js`, `scripts/pages/omni-player-mini.inline-3.js`, `scripts/pages/omni-player-mini.inline-4.js`
+* スクリプト: `scripts/pages/omni-player-mini.inline-4.js`
 * スタイル: `styles/pages/omni-player-mini.inline-1.css`
 
 補足:
@@ -173,13 +172,8 @@
 
 ### ページスクリプト
 
-* `scripts/pages/landing.inline-1.js`
 * `scripts/pages/landing.inline-2.js`
 * `scripts/pages/omni-player.inline-1.js`
-* `scripts/pages/omni-player.inline-2.js`
-* `scripts/pages/omni-player.inline-4.js`
-* `scripts/pages/omni-player-mini.inline-2.js`
-* `scripts/pages/omni-player-mini.inline-3.js`
 * `scripts/pages/omni-player-mini.inline-4.js`
 * `scripts/pages/omni-player-legacy.inline-1.js`
 
