@@ -34,7 +34,7 @@ const $={
   settings:qs('#settings'), btnSettings:qs('#btnSettings'), btnSettingsClose:qs('#btnSettingsClose'), btnSettingsCloseTop:qs('#btnSettingsCloseTop'),
   portraitSettingsDock:qs('#portraitSettingsDock'), portraitControlsSection:qs('#portraitControlsSection'),
   specMode:qs('#specMode'), specOverlay:qs('#specOverlay'), specSens:qs('#specSens'), specBins:qs('#specBins'),
-  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'),
+  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), metroEnable:qs('#metroEnable'), metroVolume:qs('#metroVolume'), metroRead:qs('#metroRead'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'),
   hueLow:qs('#hueLow'), hueHigh:qs('#hueHigh'), sat:qs('#sat'), light:qs('#light'),
   rainbowSpeed:qs('#rainbowSpeed'), rainbowPhase:qs('#rainbowPhase'),
   subSearch:qs('#subSearch'), btnSubSearch:qs('#btnSubSearch'), subHits:qs('#subHits'),
@@ -134,6 +134,19 @@ function updateMixKeyReadout(){
   if($.mixKeyRead){
     $.mixKeyRead.textContent=describeManualKeyShift();
   }
+}
+function updateMetronomeReadout(){
+  if(!$.metroRead) return;
+  if(!state.metronome.enabled){
+    $.metroRead.textContent='OFF';
+    return;
+  }
+  const bpm=getCurrentTrackBpm();
+  if(!bpm){
+    $.metroRead.textContent='WAIT';
+    return;
+  }
+  $.metroRead.textContent=`${mediaPaused() ? 'READY' : 'ON'} ${bpm}`;
 }
 function setDjPhase(nextPhase='idle'){
   const phase=String(nextPhase||'idle');
@@ -638,6 +651,7 @@ function updateDjReadouts(){
     $.keyRead.textContent=(keyText!=='--' && keyConfidence>0) ? `${keyText} · ${keyConfidence}%` : keyText;
   }
   updateMixKeyReadout();
+  updateMetronomeReadout();
   if($.djTransitionRead){
     const targetText=state.bpm.beatSync ? 'BPM と小節' : 'BPM';
     $.djTransitionRead.textContent=`${state.dj.transitionSec}秒・${getDjModeLabel()} / 次の曲の ${targetText} を寄せます。`;
@@ -684,6 +698,7 @@ function resetBeatTracking(){
   state.bpm.pulse=0;
   state.bpm.current=0;
   state.bpm.confidence=0;
+  resetMetronomeSchedule();
   updateDjReadouts();
 }
 function clearPendingPause(){
@@ -977,6 +992,11 @@ const state={
     current:0, confidence:0, pulse:0, lastBeatAt:0, detectedAt:0,
     envelope:0, baseline:0, deviation:0, prev:0, onsets:[],
     beatSync: store.get('pc.bpm.beatSync', true)
+  },
+  metronome:{
+    enabled: store.get('pc.metro.enabled', false),
+    volume: clampValue(+(store.get('pc.metro.volume', 0.24) || 0.24), 0, 1),
+    gainNode:null, nextBeatIndex:null, trackSig:''
   },
   dj:{
     enabled: store.get('pc.dj.enabled', true),
@@ -1944,6 +1964,91 @@ function ensureAudioGraph(){
 
     restoreEqValues();
     $.eqState.textContent = state.eq.enabled? 'ON' : 'BYPASS';
+  }
+}
+function ensureMetronomeGraph(){
+  if(!state.audioCtx || !state.outGain) return null;
+  if(!state.metronome.gainNode){
+    const g=state.audioCtx.createGain();
+    g.gain.value=1;
+    g.connect(state.outGain);
+    state.metronome.gainNode=g;
+  }
+  return state.metronome.gainNode;
+}
+function resetMetronomeSchedule(){
+  state.metronome.nextBeatIndex=null;
+  state.metronome.trackSig='';
+}
+function scheduleMetronomeClick(when, accent=false){
+  const ac=state.audioCtx;
+  const bus=ensureMetronomeGraph();
+  if(!ac || !bus || !state.metronome.enabled) return;
+  const peak=clampValue((state.metronome.volume||0.24) * (accent ? 1.12 : 0.84), 0.001, 0.92);
+  const duration=accent ? 0.05 : 0.036;
+  const osc=ac.createOscillator();
+  const filter=ac.createBiquadFilter();
+  const gain=ac.createGain();
+  filter.type='highpass';
+  filter.frequency.value=accent ? 920 : 760;
+  osc.type=accent ? 'triangle' : 'square';
+  osc.frequency.setValueAtTime(accent ? 1760 : 1320, when);
+  osc.frequency.exponentialRampToValueAtTime(accent ? 1280 : 980, when+duration);
+  gain.gain.setValueAtTime(0.0001, when);
+  gain.gain.exponentialRampToValueAtTime(peak, when+0.0025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, when+duration);
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(bus);
+  osc.start(when);
+  osc.stop(when+duration+0.012);
+  osc.onended=()=>{
+    try{ osc.disconnect() }catch(e){}
+    try{ filter.disconnect() }catch(e){}
+    try{ gain.disconnect() }catch(e){}
+  };
+}
+function updateMetronomeScheduler(){
+  if(!state.metronome.enabled || state.mediaKind!=='html5' || state.usingYouTube || state.usingIframe){
+    resetMetronomeSchedule();
+    return;
+  }
+  const bpm=getCurrentTrackBpm();
+  if(!bpm || mediaPaused()){
+    resetMetronomeSchedule();
+    return;
+  }
+  ensureAudioGraph();
+  const ac=state.audioCtx;
+  const bus=ensureMetronomeGraph();
+  if(!ac || !bus || ac.state!=='running') return;
+  const currentItem=state.list[state.cur];
+  const period=beatPeriodSec(bpm);
+  if(!period) return;
+  const anchorSec=getItemDjCueIn(currentItem);
+  const mediaNow=Math.max(0, mediaCurrent());
+  const mediaRate=Math.max(0.25, currentEffectiveRate());
+  const beatFloat=(mediaNow-anchorSec)/period;
+  const desiredNext=Math.max(0, Math.floor(beatFloat+0.02)+1);
+  const trackSig=`${state.cur}|${Math.round(bpm*10)}|${anchorSec.toFixed(3)}`;
+  if(
+    state.metronome.trackSig!==trackSig ||
+    !Number.isFinite(state.metronome.nextBeatIndex) ||
+    state.metronome.nextBeatIndex < desiredNext ||
+    state.metronome.nextBeatIndex > (desiredNext + 1)
+  ){
+    state.metronome.trackSig=trackSig;
+    state.metronome.nextBeatIndex=desiredNext;
+  }
+  const lookAheadCtx=0.16;
+  const mediaLookAhead=lookAheadCtx*mediaRate;
+  const nowCtx=ac.currentTime;
+  while((anchorSec + (state.metronome.nextBeatIndex*period)) <= (mediaNow + mediaLookAhead)){
+    const beatMediaTime=anchorSec + (state.metronome.nextBeatIndex*period);
+    const deltaMedia=beatMediaTime-mediaNow;
+    const when=nowCtx + Math.max(0, deltaMedia/mediaRate);
+    scheduleMetronomeClick(when, (state.metronome.nextBeatIndex % DJ_BEATS_PER_BAR)===0);
+    state.metronome.nextBeatIndex++;
   }
 }
 function makeEqFilters(ac){
@@ -4347,7 +4452,7 @@ async function buildThumbs(){
   }
 }
 function updateSeekUI(){ const dur=mediaDuration(), cur=mediaCurrent(); if(dur<=0) return; const p=100*(cur/dur); $.seekProg.style.width=p+'%'; $.seekThumb.style.left=p+'%'; $.seek.setAttribute('aria-valuenow',String(Math.round(p))) }
-function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); const cur=mediaCurrent(); syncAmbientFromThumbTime(cur); syncVideoEdgeGlow(); updateAutoDjState(); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
+function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); const cur=mediaCurrent(); syncAmbientFromThumbTime(cur); syncVideoEdgeGlow(); updateAutoDjState(); updateMetronomeScheduler(); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
 startSeekRAF();
 function seekFromClientX(x){ const rect=$.seek.getBoundingClientRect(); const ratio=Math.min(1,Math.max(0,(x-rect.left)/rect.width)); mediaSeekTo((mediaDuration()||0)*ratio); rampTo(+($.master?.value||1),0.06) }
 function showPreview(clientX){
@@ -4672,6 +4777,8 @@ function applySpecControlsToState(){
   state.spec.mode=$.specMode.value; state.spec.overlayOnVideo=$.specOverlay.checked; state.spec.sens=+$.specSens.value; state.spec.bins=+$.specBins.value; state.spec.hueLow=+$.hueLow.value; state.spec.hueHigh=+$.hueHigh.value; state.spec.sat=+$.sat.value; state.spec.light=+$.light.value; state.spec.rainbowSpeed=+$.rainbowSpeed.value; state.spec.rainbowPhase=+$.rainbowPhase.value;
   state.bpm.beatSync=!!$.beatSync?.checked;
   state.dj.enabled=!!$.autoDj?.checked;
+  state.metronome.enabled=!!$.metroEnable?.checked;
+  state.metronome.volume=clampValue(+(($.metroVolume?.value)||0.24), 0, 1);
   state.dj.transitionSec=clampValue(+(($.djTransition?.value)||12), 6, 20);
   state.dj.modePref=($.djMode?.value && DJ_MODE_LABELS[$.djMode.value]) ? $.djMode.value : 'auto';
   state.dj.candidateWindow=clampValue(+(($.djCandidateWindow?.value)||5), 2, 8);
@@ -4679,10 +4786,18 @@ function applySpecControlsToState(){
   store.set('pc.spec.mode',state.spec.mode); store.set('pc.spec.overlay',state.spec.overlayOnVideo); store.set('pc.spec.sens',state.spec.sens); store.set('pc.spec.bins',state.spec.bins); store.set('pc.spec.hueLow',state.spec.hueLow); store.set('pc.spec.hueHigh',state.spec.hueHigh); store.set('pc.spec.sat',state.spec.sat); store.set('pc.spec.light',state.spec.light); store.set('pc.spec.rainbowSpeed',state.spec.rainbowSpeed); store.set('pc.spec.rainbowPhase',state.spec.rainbowPhase);
   store.set('pc.bpm.beatSync', state.bpm.beatSync);
   store.set('pc.dj.enabled', state.dj.enabled);
+  store.set('pc.metro.enabled', state.metronome.enabled);
+  store.set('pc.metro.volume', state.metronome.volume);
   store.set('pc.dj.transitionSec', state.dj.transitionSec);
   store.set('pc.dj.modePref', state.dj.modePref);
   store.set('pc.dj.candidateWindow', state.dj.candidateWindow);
   store.set('pc.dj.repeatGuard', state.dj.repeatGuard);
+  if(state.metronome.enabled){
+    try{ ensureAudioOn(); }catch(e){}
+    ensureAudioGraph();
+  }else{
+    resetMetronomeSchedule();
+  }
   state._logRanges=null; state._logCenters=null; state.spec.lastDraw=0;
   updateDjReadouts();
 }
@@ -4690,6 +4805,8 @@ function initSpecControlsFromState(){
   $.specMode.value=state.spec.mode; $.specOverlay.checked=state.spec.overlayOnVideo; $.specSens.value=state.spec.sens; $.specBins.value=state.spec.bins; $.hueLow.value=state.spec.hueLow; $.hueHigh.value=state.spec.hueHigh; $.sat.value=state.spec.sat; $.light.value=state.spec.light; $.rainbowSpeed.value=state.spec.rainbowSpeed; $.rainbowPhase.value=state.spec.rainbowPhase;
   if($.beatSync) $.beatSync.checked=!!state.bpm.beatSync;
   if($.autoDj) $.autoDj.checked=!!state.dj.enabled;
+  if($.metroEnable) $.metroEnable.checked=!!state.metronome.enabled;
+  if($.metroVolume) $.metroVolume.value=String(state.metronome.volume);
   if($.djTransition) $.djTransition.value=String(state.dj.transitionSec);
   if($.djMode) $.djMode.value=state.dj.modePref || 'auto';
   if($.djCandidateWindow) $.djCandidateWindow.value=String(state.dj.candidateWindow);
@@ -4697,7 +4814,7 @@ function initSpecControlsFromState(){
   updateDjReadouts();
 }
 initSpecControlsFromState();
-[$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
+[$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.metroEnable,$.metroVolume,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
   el.addEventListener('change',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
   el.addEventListener('input',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
 });
@@ -4710,8 +4827,8 @@ function wireMediaErrorHandlers(){
   $.v.oncanplay=()=>{ debugLog('event:canplay', `ready=${$.v.readyState}`); hideLoader(); unlockAudioCtx(); startUnmuteWatchdog(); ensureAudioOn(); if(state.dj.handoffPending) return; if(state.lastUserGestureAt && (Date.now()-state.lastUserGestureAt)<4000) requestPlayImmediate('canplay'); else requestPlay('canplay') };
   $.v.onwaiting=()=>{ debugLog('event:waiting', `network=${$.v.networkState}`); showLoader() };
   $.v.onplaying=()=>{ debugLog('event:playing', `t=${fmt($.v.currentTime||0)}`); hideLoader(); };
-  $.v.onplay=()=>{ debugLog('event:play', `t=${fmt($.v.currentTime||0)}`); try{state.audioCtx && state.audioCtx.state==='suspended' && state.audioCtx.resume()}catch(e){} setPlayingUI(true); enforceBackdropPolicy() };
-  $.v.onpause=()=>{ debugLog('event:pause', `t=${fmt($.v.currentTime||0)}`); setPlayingUI(false); enforceBackdropPolicy(); scheduleQueuedAnalysisRun(180); schedulePlaylistBpmScan(500); };
+  $.v.onplay=()=>{ debugLog('event:play', `t=${fmt($.v.currentTime||0)}`); try{state.audioCtx && state.audioCtx.state==='suspended' && state.audioCtx.resume()}catch(e){} setPlayingUI(true); enforceBackdropPolicy(); updateDjReadouts() };
+  $.v.onpause=()=>{ debugLog('event:pause', `t=${fmt($.v.currentTime||0)}`); setPlayingUI(false); enforceBackdropPolicy(); resetMetronomeSchedule(); updateDjReadouts(); scheduleQueuedAnalysisRun(180); schedulePlaylistBpmScan(500); };
   $.v.onended=()=>{ debugLog('event:ended', `cont=${state.contPlay?'1':'0'}`); enforceBackdropPolicy(); scheduleQueuedAnalysisRun(180); schedulePlaylistBpmScan(500); if(!state.contPlay) return; if(state.list.length>0){ const next=getDjAdvanceIndex(); if(next>=0 && next!==state.cur){ selectIndex(next,{ keepDjCarry: !!state.dj.carryPrimed, autoAdvance:true, fromDjDeck: !!state.dj.deck?.started }) } } };
 }
 wireMediaErrorHandlers();
