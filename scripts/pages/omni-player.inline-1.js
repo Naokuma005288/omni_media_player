@@ -34,7 +34,7 @@ const $={
   settings:qs('#settings'), btnSettings:qs('#btnSettings'), btnSettingsClose:qs('#btnSettingsClose'), btnSettingsCloseTop:qs('#btnSettingsCloseTop'),
   portraitSettingsDock:qs('#portraitSettingsDock'), portraitControlsSection:qs('#portraitControlsSection'),
   specMode:qs('#specMode'), specOverlay:qs('#specOverlay'), specSens:qs('#specSens'), specBins:qs('#specBins'),
-  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'),
+  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'),
   hueLow:qs('#hueLow'), hueHigh:qs('#hueHigh'), sat:qs('#sat'), light:qs('#light'),
   rainbowSpeed:qs('#rainbowSpeed'), rainbowPhase:qs('#rainbowPhase'),
   subSearch:qs('#subSearch'), btnSubSearch:qs('#btnSubSearch'), subHits:qs('#subHits'),
@@ -135,6 +135,12 @@ function updateMixKeyReadout(){
     $.mixKeyRead.textContent=describeManualKeyShift();
   }
 }
+function setDjPhase(nextPhase='idle'){
+  const phase=String(nextPhase||'idle');
+  if(state.dj.phase===phase) return;
+  state.dj.phase=phase;
+  updateDjReadouts();
+}
 function updateSliderReadouts(){
   if($.volRead) $.volRead.textContent = pct($.vol?.value);
   if($.rateRead) $.rateRead.textContent = pct($.rate?.value);
@@ -180,6 +186,55 @@ function applyResponsiveUiState(){
 }
 const clampValue=(n,min,max)=>Math.max(min,Math.min(max,n));
 const DJ_BEATS_PER_BAR=4;
+const DJ_MIX_PROFILE_PRESETS={
+  balanced:{
+    id:'balanced', statusLabel:'BAL',
+    nextDelay:0.08, nextSpan:0.82, nextPower:1.02, nextFloor:0.02,
+    currentDelay:0, currentSpan:0.92, currentPower:1,
+    mixDelay:0.03, mixSpan:0.84,
+    visualDelay:0.12, visualSpan:0.72,
+    primeAtProgress:0.14, launchAtProgress:0.28
+  },
+  smooth:{
+    id:'smooth', statusLabel:'SMOOTH',
+    nextDelay:0.11, nextSpan:0.82, nextPower:1.12, nextFloor:0.02,
+    currentDelay:0, currentSpan:0.96, currentPower:1.18,
+    mixDelay:0.05, mixSpan:0.88,
+    visualDelay:0.17, visualSpan:0.7,
+    primeAtProgress:0.12, launchAtProgress:0.25
+  },
+  late:{
+    id:'late', statusLabel:'LATE',
+    nextDelay:0.18, nextSpan:0.68, nextPower:1.22, nextFloor:0.01,
+    currentDelay:0, currentSpan:1, currentPower:1.24,
+    mixDelay:0.1, mixSpan:0.72,
+    visualDelay:0.25, visualSpan:0.58,
+    primeAtProgress:0.1, launchAtProgress:0.34
+  },
+  tight:{
+    id:'tight', statusLabel:'TIGHT',
+    nextDelay:0.04, nextSpan:0.74, nextPower:0.92, nextFloor:0.04,
+    currentDelay:0, currentSpan:0.78, currentPower:0.88,
+    mixDelay:0.02, mixSpan:0.76,
+    visualDelay:0.08, visualSpan:0.68,
+    primeAtProgress:0.16, launchAtProgress:0.22
+  },
+  videoSafe:{
+    id:'videoSafe', statusLabel:'VIDEO',
+    nextDelay:0.12, nextSpan:0.78, nextPower:1.08, nextFloor:0.01,
+    currentDelay:0, currentSpan:0.98, currentPower:1.12,
+    mixDelay:0.06, mixSpan:0.84,
+    visualDelay:0.28, visualSpan:0.56,
+    primeAtProgress:0.1, launchAtProgress:0.3
+  }
+};
+const DJ_MODE_LABELS={
+  auto:'自動',
+  smooth:'なめらか',
+  late:'遅め',
+  tight:'タイト',
+  videoSafe:'動画優先'
+};
 function foldBpm(bpm){
   let v=+bpm||0;
   if(!Number.isFinite(v) || v<=0) return 0;
@@ -269,13 +324,169 @@ function getItemDjCueIn(item){
   if(confidence<0.26 && cue>1.2) return 0;
   return clampValue(cue, 0, maxCue);
 }
-function getDjMixProfile(progress){
+function dbToGain(db){
+  return Math.pow(10, (+db||0)/20);
+}
+function gainToDb(gain){
+  return 20*Math.log10(Math.max(1e-5, +gain || 1));
+}
+function getItemDjLoudness(item){
+  const loudness=+item?._djLoudness;
+  return Number.isFinite(loudness) && loudness < 0 ? loudness : null;
+}
+function getItemDjMixConfidence(item){
+  const confidence=+item?._djMixConfidence;
+  return Number.isFinite(confidence) ? clampValue(confidence, 0, 1) : 0;
+}
+function getItemDjQuietness(item, edge='head'){
+  const bodyDb=+item?._djBodyDb;
+  const edgeDb=edge==='tail' ? +item?._djTailDb : +item?._djHeadDb;
+  if(!Number.isFinite(bodyDb) || !Number.isFinite(edgeDb) || bodyDb>=0 || edgeDb>=0) return 0;
+  return clampValue((bodyDb-edgeDb)/12, 0, 1);
+}
+function getDjProfilePreset(id){
+  return DJ_MIX_PROFILE_PRESETS[id] || DJ_MIX_PROFILE_PRESETS.balanced;
+}
+function getDjModeLabel(mode=state.dj.modePref){
+  return DJ_MODE_LABELS[mode] || DJ_MODE_LABELS.auto;
+}
+function forwardPlaylistDistance(fromIndex, toIndex, total=state.list.length){
+  const count=Math.max(0, total|0);
+  if(count<=1) return 0;
+  const from=((+fromIndex||0)%count+count)%count;
+  const to=((+toIndex||0)%count+count)%count;
+  return (to-from+count)%count;
+}
+function getDjCandidateIndices(fromIndex=state.cur, windowSize=state.dj.candidateWindow){
+  const total=state.list.length||0;
+  if(total<2 || fromIndex<0) return [];
+  const limit=Math.max(1, Math.min(total-1, windowSize|0 || state.dj.candidateWindow || 5));
+  const out=[];
+  for(let step=1; step<=limit; step++){
+    out.push((fromIndex+step)%total);
+  }
+  return out;
+}
+function getDjAdvanceIndex(){
+  if(
+    state.dj.enabled &&
+    state.dj.nextIndex>=0 &&
+    state.dj.nextIndex!==state.cur &&
+    (state.dj.active || !!state.dj.syncPlan || !!state.dj.deck?.started)
+  ) return state.dj.nextIndex;
+  if(state.dj.enabled && state.cur>=0 && state.list.length>1){
+    return chooseAutoDjNextIndex(state.cur);
+  }
+  if(!state.list.length || state.cur<0) return -1;
+  const next=(state.cur+1)%state.list.length;
+  return next===state.cur ? -1 : next;
+}
+function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateItem, currentBpm){
+  if(candidateIndex<0 || candidateIndex===currentIndex || !candidateItem) return null;
+  const failedUntil=+candidateItem?._djAutoDjFailedUntil || 0;
+  if(failedUntil>Date.now()) return null;
+  const distance=forwardPlaylistDistance(currentIndex, candidateIndex, state.list.length);
+  const proximityScore=clampValue(1-((Math.max(1, distance)-1)*0.16), 0.18, 1);
+  const sameVisualClass=itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(candidateItem);
+  const typeScore=sameVisualClass ? 1 : 0.72;
+  const candidateBpm=Math.round(candidateItem?._bpm || 0);
+  const bpmKnown=!!(currentBpm && candidateBpm);
+  const bpmRatio=bpmKnown ? clampValue(candidateBpm/Math.max(1, currentBpm), 0.82, 1.18) : 1;
+  const bpmDelta=bpmKnown ? Math.abs(1-bpmRatio) : 0.07;
+  const bpmScore=bpmKnown ? clampValue(1-(bpmDelta/0.14), 0, 1) : 0.34;
+  const currentLoudness=getItemDjLoudness(currentItem);
+  const nextLoudness=getItemDjLoudness(candidateItem);
+  const loudnessScore=(currentLoudness!=null && nextLoudness!=null)
+    ? clampValue(1-(Math.abs(currentLoudness-nextLoudness)/6), 0.1, 1)
+    : 0.55;
+  const introQuietness=getItemDjQuietness(candidateItem, 'head');
+  const outroQuietness=getItemDjQuietness(currentItem, 'tail');
+  const cueIn=getItemDjCueIn(candidateItem);
+  const cuePenalty=clampValue(cueIn/(itemLooksLikeVideoMedia(candidateItem) ? 2 : 4), 0, 0.8);
+  const cueScore=1-(cuePenalty*0.45);
+  const analysisConfidence=Math.min(
+    Math.max(+currentItem?._bpmConfidence || 0, getItemDjMixConfidence(currentItem)),
+    Math.max(+candidateItem?._bpmConfidence || 0, getItemDjMixConfidence(candidateItem))
+  );
+  const recentAgeMs=Date.now() - (+candidateItem?._djLastAutoPickedAt || 0);
+  const repeatPenalty=(state.dj.repeatGuard && candidateItem?._djLastAutoPickedAt && recentAgeMs<1800000)
+    ? clampValue((1800000-recentAgeMs)/1800000, 0, 1)*0.28
+    : 0;
+  const score=(
+    proximityScore*0.18 +
+    typeScore*0.14 +
+    bpmScore*0.26 +
+    loudnessScore*0.15 +
+    outroQuietness*0.09 +
+    introQuietness*0.1 +
+    cueScore*0.04 +
+    analysisConfidence*0.08
+  ) - repeatPenalty;
+  return {
+    index:candidateIndex,
+    item:candidateItem,
+    score,
+    distance,
+    bpmScore,
+    loudnessScore,
+    introQuietness,
+    outroQuietness,
+    analysisConfidence,
+    isAnalyzed:!!(candidateItem?._bpm && candidateItem?._analysisDone)
+  };
+}
+function markDjCandidatePlaybackFailure(item, cooldownMs=180000){
+  if(!item) return;
+  item._djAutoDjFailedUntil=Date.now()+Math.max(15000, +cooldownMs || 180000);
+}
+function chooseAutoDjNextIndex(currentIndex=state.cur){
+  const currentItem=state.list[currentIndex];
+  if(!currentItem || state.list.length<2) return -1;
+  const fallback=(currentIndex+1)%state.list.length;
+  const currentBpm=getTrackBpmInfo(currentItem).bpm || 0;
+  const candidates=getDjCandidateIndices(currentIndex, 5);
+  if(!candidates.length) return fallback;
+  const scored=candidates
+    .map(index=>scoreDjCandidate(currentIndex, index, currentItem, state.list[index], currentBpm))
+    .filter(Boolean);
+  const analyzed=scored.filter(entry=>entry.isAnalyzed);
+  if(!analyzed.length) return fallback;
+  analyzed.sort((a,b)=>b.score-a.score);
+  const best=analyzed[0];
+  const nextDefault=fallback;
+  if(!best) return nextDefault;
+  if(best.index!==nextDefault){
+    const nextDefaultScore=scored.find(entry=>entry.index===nextDefault)?.score ?? -Infinity;
+    if(best.score < nextDefaultScore + 0.09){
+      return nextDefault;
+    }
+  }
+  return best.index;
+}
+function queueDjCandidateAnalysis(index=state.cur, windowSize=state.dj.candidateWindow){
+  const indices=getDjCandidateIndices(index, windowSize);
+  indices.forEach((candidateIndex, pos)=>{
+    const candidateItem=state.list[candidateIndex];
+    if(!candidateItem || candidateItem._bpmPromise || hasCompletedTrackAnalysis(candidateItem)) return;
+    const priority=pos===0 ? 2 : 1;
+    const delay=isDesktopOnlyAnalysisMode()
+      ? (pos===0 ? 920 : (1600 + pos*380))
+      : (2200 + pos*1200);
+    scheduleItemAnalysis(candidateItem, delay, { priority });
+  });
+}
+function getDjMixProfile(progress, syncPlan=null){
   const p=clampValue(progress, 0, 1);
-  const currentMul=Math.max(0, Math.cos((smoothstep01(p)*Math.PI)/2));
-  const nextAttack=smoothstep01(clampValue((p-0.08)/0.82, 0, 1));
-  const nextMul=clampValue(0.02 + nextAttack*0.98, 0, 1);
-  const mixProgress=clampValue((p-0.03)/0.84, 0, 1);
-  const visualProgress=clampValue((p-0.12)/0.72, 0, 1);
+  const spec=syncPlan?.mixProfile || DJ_MIX_PROFILE_PRESETS.balanced;
+  const currentPhase=clampValue((p-(spec.currentDelay||0))/Math.max(0.24, spec.currentSpan||1), 0, 1);
+  const currentCurve=Math.pow(smoothstep01(currentPhase), Math.max(0.55, spec.currentPower||1));
+  const currentMul=Math.max(0, Math.cos((currentCurve*Math.PI)/2));
+  const nextPhase=clampValue((p-(spec.nextDelay||0))/Math.max(0.24, spec.nextSpan||1), 0, 1);
+  const nextAttack=Math.pow(smoothstep01(nextPhase), Math.max(0.55, spec.nextPower||1));
+  const nextFloor=clampValue(spec.nextFloor ?? 0.02, 0, 0.25);
+  const nextMul=clampValue(nextFloor + nextAttack*(1-nextFloor), 0, 1);
+  const mixProgress=clampValue((p-(spec.mixDelay||0))/Math.max(0.24, spec.mixSpan||0.84), 0, 1);
+  const visualProgress=clampValue((p-(spec.visualDelay||0))/Math.max(0.24, spec.visualSpan||0.72), 0, 1);
   return { currentMul, nextMul, mixProgress, visualProgress };
 }
 function hasCompletedTrackAnalysis(item){
@@ -428,19 +639,31 @@ function updateDjReadouts(){
   }
   updateMixKeyReadout();
   if($.djTransitionRead){
-    $.djTransitionRead.textContent=state.bpm.beatSync
-      ? `${state.dj.transitionSec}秒かけて次の曲の BPM と小節を寄せます。`
-      : `${state.dj.transitionSec}秒かけて次の曲の BPM に寄せます。`;
+    const targetText=state.bpm.beatSync ? 'BPM と小節' : 'BPM';
+    $.djTransitionRead.textContent=`${state.dj.transitionSec}秒・${getDjModeLabel()} / 次の曲の ${targetText} を寄せます。`;
+  }
+  if($.djCandidateRead){
+    $.djCandidateRead.textContent=`先の${state.dj.candidateWindow}曲から候補選択${state.dj.repeatGuard ? ' · 再登場回避' : ''}`;
   }
   if($.djStatus){
     let text='OFF';
     if(state.dj.enabled){
+      const syncPlan=state.dj.syncPlan;
       if(state.dj.active){
-        text=`MATCH ${Math.round((state.dj.rateMul||1)*100)}%`;
+        const rateText=`${Math.round((state.dj.rateMul||1)*100)}%`;
+        const gainDb=syncPlan ? gainToDb(syncPlan.deckGainMul || 1) : 0;
+        const gainText=Math.abs(gainDb)>=0.4 ? ` ${gainDb>0?'+':''}${gainDb.toFixed(1)}dB` : '';
+        const hopText=(state.dj.nextIndex>=0 && state.dj.nextIndex!==((state.cur+1)%Math.max(1,state.list.length))) ? ` P${forwardPlaylistDistance(state.cur, state.dj.nextIndex, state.list.length)}` : '';
+        const phaseLabel=state.dj.phase==='armed' ? 'ARM' : (state.dj.phase==='prepare' ? 'PREP' : (syncPlan?.statusLabel || 'MATCH'));
+        text=`${phaseLabel} ${rateText}${gainText}${hopText}`;
       }else if(state.dj.carryUntil>performance.now()){
         text=`HANDOFF ${Math.round((state.dj.rateMul||1)*100)}%`;
       }else if(item?._analysisUnsupported){
         text='N/A';
+      }else if(state.dj.phase==='scan'){
+        text='SCAN';
+      }else if(state.dj.phase==='handoff'){
+        text='HANDOFF';
       }else if(analysisDone && getCurrentTrackBpm()){
         text='READY';
       }else{
@@ -497,6 +720,7 @@ function cleanupDjDeck(){
   state.dj.deck=null;
 }
 function resetAutoDj(full=true, preserveDeck=false){
+  setDjPhase('idle');
   state.dj.active=false;
   state.dj.nextIndex=-1;
   state.dj.currentBpm=0;
@@ -757,6 +981,10 @@ const state={
   dj:{
     enabled: store.get('pc.dj.enabled', true),
     transitionSec: Math.max(6, Math.min(20, store.get('pc.dj.transitionSec', 12))),
+    modePref: store.get('pc.dj.modePref', 'auto'),
+    candidateWindow: Math.max(2, Math.min(8, store.get('pc.dj.candidateWindow', 5))),
+    repeatGuard: store.get('pc.dj.repeatGuard', true),
+    phase:'idle',
     active:false, nextIndex:-1, currentBpm:0, nextBpm:0, targetMul:1,
     rateMul:1, carryPrimed:false, carryFrom:1, carryUntil:0,
     handoffPending:false, handoffToken:0,
@@ -1261,12 +1489,14 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
     return new Float32Array(fallbackMonoBuffer.slice(0));
   };
   const cueInResult=estimateDjCueInFromMonoDetailed(new Float32Array(source), payload.sampleRate);
+  const mixResult=estimateDjMixMetricsFromMonoDetailed(new Float32Array(source), payload.sampleRate);
   if(!worker){
     const mono=cloneForFallback();
     return {
       bpmResult:estimateBpmFromPreparedMono(mono, payload.sampleRate),
       keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate),
-      cueInResult
+      cueInResult,
+      mixResult
     };
   }
   const id=++analysisWorkerReq;
@@ -1288,9 +1518,14 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
     return {
       bpmResult:estimateBpmFromPreparedMono(mono, payload.sampleRate),
       keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate),
-      cueInResult
+      cueInResult,
+      mixResult
     };
-  }).then(result=>({ ...(result||{}), cueInResult:result?.cueInResult || cueInResult }));
+  }).then(result=>({
+    ...(result||{}),
+    cueInResult:result?.cueInResult || cueInResult,
+    mixResult:result?.mixResult || mixResult
+  }));
 }
 async function extractMonoWithFfmpeg(item, maxSeconds=72, sampleRate=16000, signal){
   const ffmpeg=await ensureFfmpegAnalysis();
@@ -1573,19 +1808,30 @@ async function buildAnalysisMonoPayload(audioBuffer, maxSeconds=60, targetRate=1
 }
 async function analyzeDecodedBufferDetailed(audioBuffer){
   const decodedCueInResult=estimateDjCueInFromDecodedAudioDetailed(audioBuffer);
+  const decodedMixResult=estimateDjMixMetricsFromDecodedAudioDetailed(audioBuffer);
   const payload=await buildAnalysisMonoPayload(audioBuffer);
   if(!payload){
     return {
       bpmResult:{ bpm:0, confidence:0 },
       keyResult:{ key:'', confidence:0 },
-      cueInResult:decodedCueInResult
+      cueInResult:decodedCueInResult,
+      mixResult:decodedMixResult
     };
   }
   const results=await runAnalysisWorkerDetailedFromPayload(payload);
   if((decodedCueInResult?.confidence || 0) > ((results?.cueInResult?.confidence || 0) + 0.04)){
-    return { ...(results||{}), cueInResult:decodedCueInResult };
+    return {
+      ...(results||{}),
+      cueInResult:decodedCueInResult,
+      mixResult:((decodedMixResult?.confidence || 0) >= ((results?.mixResult?.confidence || 0) - 0.02))
+        ? decodedMixResult
+        : (results?.mixResult || decodedMixResult)
+    };
   }
-  return results;
+  if((decodedMixResult?.confidence || 0) > ((results?.mixResult?.confidence || 0) + 0.04)){
+    return { ...(results||{}), mixResult:decodedMixResult };
+  }
+  return { ...(results||{}), mixResult:results?.mixResult || decodedMixResult };
 }
 function hideAnalysisLoader(opts={}){
   try{
@@ -1958,6 +2204,112 @@ function buildMonoMix(audioBuffer, maxSeconds=180){
     for(let i=0;i<maxSamples;i++) mono[i]+=src[i]/chCount;
   }
   return { mono, sampleRate };
+}
+function measureMonoWindowDb(mono, start=0, end=mono?.length||0, maxSamples=220000){
+  if(!mono?.length) return { db:0, peakDb:0 };
+  const a=Math.max(0, Math.min(Math.max(0, mono.length-1), Math.floor(start)));
+  const b=Math.max(a+1, Math.min(mono.length, Math.floor(end)));
+  const len=Math.max(1, b-a);
+  const step=Math.max(1, Math.floor(len/Math.max(1, maxSamples)));
+  let sumSq=0;
+  let peak=0;
+  let count=0;
+  for(let i=a;i<b;i+=step){
+    const sample=+mono[i] || 0;
+    const abs=Math.abs(sample);
+    sumSq += sample*sample;
+    if(abs>peak) peak=abs;
+    count++;
+  }
+  if(!count) return { db:0, peakDb:0 };
+  const rms=Math.sqrt(sumSq/count);
+  return {
+    db:rms>1e-5 ? (20*Math.log10(rms)) : -72,
+    peakDb:peak>1e-5 ? (20*Math.log10(peak)) : -72
+  };
+}
+function measureAudioBufferWindowDb(audioBuffer, startSec=0, durationSec=0, maxSamples=220000){
+  if(!audioBuffer) return { db:0, peakDb:0 };
+  const sampleRate=audioBuffer.sampleRate||44100;
+  const totalSamples=audioBuffer.length||0;
+  const chCount=Math.min(2, audioBuffer.numberOfChannels||1);
+  if(!sampleRate || !totalSamples || !chCount) return { db:0, peakDb:0 };
+  const startSample=Math.max(0, Math.min(totalSamples-1, Math.floor(Math.max(0, startSec)*sampleRate)));
+  const requestedEnd=durationSec>0 ? (startSample + Math.floor(durationSec*sampleRate)) : totalSamples;
+  const endSample=Math.max(startSample+1, Math.min(totalSamples, requestedEnd));
+  const len=Math.max(1, endSample-startSample);
+  const step=Math.max(1, Math.floor(len/Math.max(1, maxSamples)));
+  const channels=[];
+  for(let ch=0; ch<chCount; ch++) channels.push(audioBuffer.getChannelData(ch));
+  let sumSq=0;
+  let peak=0;
+  let count=0;
+  for(let i=startSample;i<endSample;i+=step){
+    let sample=0;
+    for(let ch=0; ch<chCount; ch++) sample += channels[ch][i] || 0;
+    sample/=chCount;
+    const abs=Math.abs(sample);
+    sumSq += sample*sample;
+    if(abs>peak) peak=abs;
+    count++;
+  }
+  if(!count) return { db:0, peakDb:0 };
+  const rms=Math.sqrt(sumSq/count);
+  return {
+    db:rms>1e-5 ? (20*Math.log10(rms)) : -72,
+    peakDb:peak>1e-5 ? (20*Math.log10(peak)) : -72
+  };
+}
+function estimateDjMixMetricsFromMonoDetailed(mono, sampleRate){
+  if(!mono?.length || !sampleRate) return { loudness:0, headDb:0, tailDb:0, bodyDb:0, introQuietness:0, outroQuietness:0, confidence:0 };
+  const totalSec=Math.max(0.1, mono.length/sampleRate);
+  const headSec=Math.min(10, Math.max(4, totalSec*0.16));
+  const tailSec=Math.min(10, Math.max(4, totalSec*0.16));
+  const bodySec=Math.min(18, Math.max(8, totalSec*0.22));
+  const bodyStartSec=Math.max(headSec, Math.min(Math.max(0, totalSec-bodySec), totalSec*0.42));
+  const loudness=measureMonoWindowDb(mono, 0, mono.length);
+  const head=measureMonoWindowDb(mono, 0, Math.min(mono.length, Math.floor(headSec*sampleRate)));
+  const tail=measureMonoWindowDb(mono, Math.max(0, mono.length-Math.floor(tailSec*sampleRate)), mono.length);
+  const body=measureMonoWindowDb(mono, Math.floor(bodyStartSec*sampleRate), Math.min(mono.length, Math.floor((bodyStartSec+bodySec)*sampleRate)));
+  const introQuietness=clampValue((body.db-head.db)/12, 0, 1);
+  const outroQuietness=clampValue((body.db-tail.db)/12, 0, 1);
+  const confidence=clampValue(
+    0.2 +
+    (totalSec>18 ? 0.18 : 0.08) +
+    (body.peakDb>-30 ? 0.16 : 0.08) +
+    (head.peakDb>-42 ? 0.1 : 0) +
+    (tail.peakDb>-42 ? 0.1 : 0) +
+    Math.min(0.18, Math.abs(body.db-loudness.db)*0.02),
+    0,
+    0.94
+  );
+  return { loudness:loudness.db, headDb:head.db, tailDb:tail.db, bodyDb:body.db, introQuietness, outroQuietness, confidence };
+}
+function estimateDjMixMetricsFromDecodedAudioDetailed(audioBuffer){
+  if(!audioBuffer) return { loudness:0, headDb:0, tailDb:0, bodyDb:0, introQuietness:0, outroQuietness:0, confidence:0 };
+  const totalSec=Math.max(0.1, +audioBuffer.duration || 0);
+  if(!totalSec) return { loudness:0, headDb:0, tailDb:0, bodyDb:0, introQuietness:0, outroQuietness:0, confidence:0 };
+  const headSec=Math.min(10, Math.max(4, totalSec*0.12));
+  const tailSec=Math.min(10, Math.max(4, totalSec*0.12));
+  const bodySec=Math.min(18, Math.max(8, totalSec*0.18));
+  const bodyStartSec=Math.max(headSec, Math.min(Math.max(0, totalSec-bodySec), totalSec*0.44));
+  const loudness=measureAudioBufferWindowDb(audioBuffer, 0, totalSec);
+  const head=measureAudioBufferWindowDb(audioBuffer, 0, headSec);
+  const tail=measureAudioBufferWindowDb(audioBuffer, Math.max(0, totalSec-tailSec), tailSec);
+  const body=measureAudioBufferWindowDb(audioBuffer, bodyStartSec, bodySec);
+  const introQuietness=clampValue((body.db-head.db)/12, 0, 1);
+  const outroQuietness=clampValue((body.db-tail.db)/12, 0, 1);
+  const confidence=clampValue(
+    0.28 +
+    (totalSec>22 ? 0.2 : 0.1) +
+    (body.peakDb>-30 ? 0.14 : 0.06) +
+    (head.peakDb>-42 ? 0.08 : 0) +
+    (tail.peakDb>-42 ? 0.08 : 0) +
+    Math.min(0.16, Math.abs(body.db-loudness.db)*0.018),
+    0,
+    0.96
+  );
+  return { loudness:loudness.db, headDb:head.db, tailDb:tail.db, bodyDb:body.db, introQuietness, outroQuietness, confidence };
 }
 function estimateDjCueInFromMonoDetailed(mono, sampleRate, opts={}){
   if(!mono?.length || !sampleRate) return { cueIn:0, confidence:0 };
@@ -2350,6 +2702,11 @@ async function analyzeItemBpm(item){
         item._keyConfidence=0;
         item._djCueIn=0;
         item._djCueInConfidence=0;
+        item._djLoudness=0;
+        item._djHeadDb=0;
+        item._djTailDb=0;
+        item._djBodyDb=0;
+        item._djMixConfidence=0;
         item._analysisDone=true;
         item._analysisUnsupported=true;
         if(state.list[state.cur]===item) updateDjReadouts();
@@ -2376,11 +2733,13 @@ async function analyzeItemBpm(item){
       const {
         bpmResult,
         keyResult,
-        cueInResult
+        cueInResult,
+        mixResult
       }=results || {
         bpmResult:{ bpm:0, confidence:0 },
         keyResult:{ key:'', confidence:0 },
-        cueInResult:{ cueIn:0, confidence:0 }
+        cueInResult:{ cueIn:0, confidence:0 },
+        mixResult:{ loudness:0, headDb:0, tailDb:0, bodyDb:0, confidence:0 }
       };
       item._bpm=bpmResult.bpm||0;
       item._bpmConfidence=bpmResult.confidence||0;
@@ -2388,6 +2747,11 @@ async function analyzeItemBpm(item){
       item._keyConfidence=keyResult.confidence||0;
       item._djCueIn=cueInResult?.cueIn || 0;
       item._djCueInConfidence=cueInResult?.confidence || 0;
+      item._djLoudness=Number.isFinite(mixResult?.loudness) ? mixResult.loudness : 0;
+      item._djHeadDb=Number.isFinite(mixResult?.headDb) ? mixResult.headDb : 0;
+      item._djTailDb=Number.isFinite(mixResult?.tailDb) ? mixResult.tailDb : 0;
+      item._djBodyDb=Number.isFinite(mixResult?.bodyDb) ? mixResult.bodyDb : 0;
+      item._djMixConfidence=mixResult?.confidence || 0;
       item._analysisDone=true;
       if(state.list[state.cur]===item) updateDjReadouts();
       return item._bpm;
@@ -2403,6 +2767,11 @@ async function analyzeItemBpm(item){
       item._keyConfidence=0;
       item._djCueIn=0;
       item._djCueInConfidence=0;
+      item._djLoudness=0;
+      item._djHeadDb=0;
+      item._djTailDb=0;
+      item._djBodyDb=0;
+      item._djMixConfidence=0;
       item._analysisDone=true;
       return 0;
     }finally{
@@ -2423,12 +2792,54 @@ async function analyzeItemBpm(item){
 }
 function chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm){
   const bpmTarget=clampValue((+nextBpm||0) / Math.max(1, +currentBpm||0), 0.9, 1.14);
-  return { rateMul:bpmTarget, bpmTarget };
+  const bpmDelta=Math.abs(1-bpmTarget);
+  const nextCue=getItemDjCueIn(nextItem);
+  const introQuietness=getItemDjQuietness(nextItem, 'head');
+  const outroQuietness=getItemDjQuietness(currentItem, 'tail');
+  const currentLoudness=getItemDjLoudness(currentItem);
+  const nextLoudness=getItemDjLoudness(nextItem);
+  const loudnessDeltaDb=(currentLoudness!=null && nextLoudness!=null)
+    ? clampValue(currentLoudness-nextLoudness, -5.5, 5.5)
+    : 0;
+  const analysisConfidence=Math.min(
+    Math.max(getItemDjMixConfidence(currentItem), +currentItem?._bpmConfidence || 0),
+    Math.max(getItemDjMixConfidence(nextItem), +nextItem?._bpmConfidence || 0)
+  );
+  let profileId='balanced';
+  if(state.dj.modePref && state.dj.modePref!=='auto'){
+    profileId=state.dj.modePref;
+  }else if(itemLooksLikeVideoMedia(currentItem) || itemLooksLikeVideoMedia(nextItem)){
+    profileId='videoSafe';
+  }else if(nextCue>=0.8 || introQuietness>=0.42){
+    profileId='late';
+  }else if(outroQuietness>=0.42 || bpmDelta>=0.065 || Math.abs(loudnessDeltaDb)>=2.8){
+    profileId='smooth';
+  }else if(state.dj.transitionSec<=8 || (nextCue<0.2 && introQuietness<0.18 && bpmDelta<0.04)){
+    profileId='tight';
+  }
+  if(analysisConfidence<0.2 && profileId==='tight' && state.dj.modePref==='auto') profileId='balanced';
+  const mixProfile=getDjProfilePreset(profileId);
+  const deckGainMul=clampValue(dbToGain(loudnessDeltaDb*0.38), 0.84, 1.18);
+  const currentGainMul=clampValue(dbToGain(-loudnessDeltaDb*0.12), 0.92, 1.08);
+  return {
+    rateMul:bpmTarget,
+    bpmTarget,
+    profileId,
+    mixProfile,
+    statusLabel:mixProfile.statusLabel,
+    primeAtProgress:mixProfile.primeAtProgress,
+    launchAtProgress:mixProfile.launchAtProgress,
+    deckGainMul,
+    currentGainMul,
+    loudnessDeltaDb,
+    introQuietness,
+    outroQuietness,
+    nextCue,
+    analysisConfidence
+  };
 }
 function getNextTrackIndex(){
-  if(!state.list.length || state.cur<0) return -1;
-  const next=(state.cur+1)%state.list.length;
-  return next===state.cur ? -1 : next;
+  return getDjAdvanceIndex();
 }
 function queueBpmAnalysisAround(index=state.cur){
   const token=++analysisQueueToken;
@@ -2443,20 +2854,12 @@ function queueBpmAnalysisAround(index=state.cur){
       focusAnalysisTimer=0;
       if(token!==analysisQueueToken) return;
       scheduleItemAnalysis(current, isDesktopOnlyAnalysisMode() ? 120 : 1200, { priority:3 });
-      const nextIndex=(index>=0 && state.list.length>1) ? ((index+1)%state.list.length) : -1;
-      if(nextIndex>=0 && nextIndex!==index){
-        const nextItem=state.list[nextIndex];
-        if(nextItem) scheduleItemAnalysis(nextItem, isDesktopOnlyAnalysisMode() ? 1100 : 3200, { priority:2 });
-      }
+      queueDjCandidateAnalysis(index, state.dj.candidateWindow);
       schedulePlaylistBpmScan(5200);
     }, isDesktopOnlyAnalysisMode() ? 80 : 900);
     return;
   }
-  const nextIndex=(index>=0 && state.list.length>1) ? ((index+1)%state.list.length) : -1;
-  if(nextIndex>=0 && nextIndex!==index){
-    const nextItem=state.list[nextIndex];
-    if(nextItem) scheduleItemAnalysis(nextItem, 2200, { priority:2 });
-  }
+  queueDjCandidateAnalysis(index, state.dj.candidateWindow);
   schedulePlaylistBpmScan(5200);
 }
 function startPlaylistBpmScan(){
@@ -2717,18 +3120,21 @@ function applyDjMixVolumes(progress){
     return;
   }
   const p=clampValue(progress,0,1);
-  const profile=getDjMixProfile(p);
+  const syncPlan=state.dj.syncPlan;
+  const profile=getDjMixProfile(p, syncPlan);
+  const currentGainMul=clampValue(syncPlan?.currentGainMul || 1, 0.9, 1.08);
+  const deckGainMul=clampValue(syncPlan?.deckGainMul || 1, 0.84, 1.18);
   deck.mixProgress=profile.mixProgress;
-  $.v.volume=baseVol*profile.currentMul;
-  if(state.extAudio) state.extAudio.volume=baseVol*profile.currentMul;
+  $.v.volume=clampValue(baseVol*profile.currentMul*currentGainMul, 0, 1);
+  if(state.extAudio) state.extAudio.volume=clampValue(baseVol*profile.currentMul*currentGainMul, 0, 1);
   if(deck.gainNode){
     try{
       deck.media.muted=false;
       deck.media.volume=1;
     }catch(e){}
-    try{ deck.gainNode.gain.setTargetAtTime(baseVol*profile.nextMul, state.audioCtx.currentTime, 0.04) }catch(e){ deck.gainNode.gain.value=baseVol*profile.nextMul; }
+    try{ deck.gainNode.gain.setTargetAtTime(clampValue(baseVol*profile.nextMul*deckGainMul, 0, 1.18), state.audioCtx.currentTime, 0.04) }catch(e){ deck.gainNode.gain.value=clampValue(baseVol*profile.nextMul*deckGainMul, 0, 1.18); }
   }else{
-    deck.media.volume=baseVol*profile.nextMul;
+    deck.media.volume=clampValue(baseVol*profile.nextMul*deckGainMul, 0, 1);
   }
   applyDjDeckVideoVisual(profile.visualProgress);
 }
@@ -2741,6 +3147,7 @@ function djDeckCurrentTime(deck){
 }
 function beginDjDeckHandoff(deck, label){
   if(!deck?.started) return false;
+  setDjPhase('handoff');
   const token = ++state.dj.handoffToken;
   state.dj.handoffPending = true;
   applyDjDeckVideoVisual(Math.max(deck.mixProgress || 0, 0.92));
@@ -2830,6 +3237,8 @@ function beginDjDeckHandoff(deck, label){
     let cycleStartedAt = performance.now();
     let stableHits = 0;
     let retriedPlay = false;
+    let restartCycles = 0;
+    const maxRestartCycles = deck.video ? 3 : 2;
     const tick = ()=>{
       if(state.dj.handoffToken !== token) return;
       const target = clampTargetTime(djDeckCurrentTime(deck));
@@ -2859,6 +3268,17 @@ function beginDjDeckHandoff(deck, label){
           finalizeHandoff();
           return;
         }
+        if(restartCycles >= maxRestartCycles){
+          try{ $.v.currentTime = target; }catch(e){}
+          try{
+            const baseVol=Math.max(0, Math.min(1, +($.vol?.value || 0)));
+            $.v.volume=baseVol;
+            if(state.extAudio) state.extAudio.volume=baseVol;
+          }catch(e){}
+          finalizeHandoff();
+          return;
+        }
+        restartCycles++;
         cycleStartedAt = performance.now();
         retriedPlay = false;
         stableHits = 0;
@@ -3660,6 +4080,7 @@ function mediaPaused(){ return state.usingYouTube ? !(state.yt && state.yt.getPl
 function updateAutoDjState(){
   const now=performance.now();
   if(state.dj.carryUntil>now && !state.dj.active){
+    setDjPhase('carry');
     const duration=5200;
     const remain=state.dj.carryUntil-now;
     const p=clampValue(1-(remain/duration),0,1);
@@ -3672,10 +4093,12 @@ function updateAutoDjState(){
       state.dj.keySyncActive=false;
       applyDjRateMul(1);
       syncDjPitchPolicy();
+      setDjPhase('idle');
     }
   }
   if(!state.dj.enabled || state.mediaKind!=='html5' || mediaPaused() || !state.contPlay || state.list.length<2){
     if(state.dj.active) resetAutoDj(true);
+    else setDjPhase('idle');
     return;
   }
   const nextIndex=getNextTrackIndex();
@@ -3683,6 +4106,7 @@ function updateAutoDjState(){
   const current=mediaCurrent();
   if(nextIndex<0 || !Number.isFinite(duration) || duration<=0){
     if(state.dj.active) resetAutoDj(false);
+    else setDjPhase('idle');
     return;
   }
   const transition=state.dj.transitionSec;
@@ -3711,9 +4135,11 @@ function updateAutoDjState(){
   const nextItem=state.list[nextIndex];
   const nextBpm=Math.round(nextItem?._bpm || 0);
   if(!currentBpm || !nextBpm){
+    setDjPhase('scan');
     if(!shouldHoldBpmKeyAnalysis()){
       if(currentItem && !currentBpm && !currentItem._bpm && !currentItem._bpmPromise) scheduleItemAnalysis(currentItem, 80, { priority:3 });
       if(nextItem && !nextItem._bpm && !nextItem._bpmPromise) scheduleItemAnalysis(nextItem, 520, { priority:2 });
+      queueDjCandidateAnalysis(state.cur, state.dj.candidateWindow);
     }
     state.dj.keyShiftSemitones=0;
     state.dj.keySyncActive=false;
@@ -3749,16 +4175,38 @@ function updateAutoDjState(){
   state.dj.keyShiftSemitones=0;
   state.dj.keySyncActive=false;
   state.dj.targetMul=syncPlan.rateMul;
+  const primeAtProgress=clampValue(syncPlan.primeAtProgress ?? 0.14, 0.06, 0.4);
+  const launchAtProgress=clampValue(syncPlan.launchAtProgress ?? 0.28, primeAtProgress, 0.52);
+  if(state.dj.deck?.started) setDjPhase('mix');
+  else if(p>=primeAtProgress) setDjPhase('armed');
+  else setDjPhase('prepare');
   const eased=getDjRateEase(p);
   applyDjRateMul(1 + (state.dj.targetMul-1)*eased);
   syncDjPitchPolicy();
-  if(p>=0.14){
+  if(p>=primeAtProgress){
     primeDjDeck(nextIndex);
   }
-  if(p>=0.28 && !state.dj.deck?.started){
+  if(p>=launchAtProgress && !state.dj.deck?.started){
     if(shouldLaunchDjDeckOnBeat(current, currentBpm, left, p, currentItem)){
       const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm, nextItem, currentItem);
-      startDjDeckPlayback(nextIndex, { startAtSec }).catch(()=>{});
+      startDjDeckPlayback(nextIndex, { startAtSec }).then(started=>{
+        if(started) return;
+        markDjCandidatePlaybackFailure(nextItem, itemLooksLikeVideoMedia(nextItem) ? 240000 : 120000);
+        if(state.dj.nextIndex===nextIndex){
+          state.dj.nextIndex=-1;
+          state.dj.syncPlan=null;
+        }
+        cleanupDjDeck();
+        updateDjReadouts();
+      }).catch(()=>{
+        markDjCandidatePlaybackFailure(nextItem, itemLooksLikeVideoMedia(nextItem) ? 240000 : 120000);
+        if(state.dj.nextIndex===nextIndex){
+          state.dj.nextIndex=-1;
+          state.dj.syncPlan=null;
+        }
+        cleanupDjDeck();
+        updateDjReadouts();
+      });
     }
   }
   applyDjMixVolumes(p);
@@ -4142,6 +4590,9 @@ async function selectIndex(i, opts={}){
   }
   state.cur=i; renderPlaylist();
   const it=state.list[i]; if(!it) return;
+  if(opts.autoAdvance || opts.fromDjDeck){
+    it._djLastAutoPickedAt=Date.now();
+  }
   debugLog('selectIndex', `${i} ${it.file?.name || it.url || '-'}`);
   const handoffDeck = opts.fromDjDeck && state.dj.deck?.item===it ? state.dj.deck : null;
   const shouldCarry = !!opts.keepDjCarry && !handoffDeck;
@@ -4152,6 +4603,9 @@ async function selectIndex(i, opts={}){
     applyDjRateMul(state.dj.carryFrom);
     state.dj.carryPrimed=false;
     state.dj.active=false;
+    state.dj.nextIndex=-1;
+    state.dj.currentBpm=0;
+    state.dj.nextBpm=0;
     state.dj.syncPlan=null;
   }else{
     resetAutoDj(true, !!handoffDeck);
@@ -4219,10 +4673,16 @@ function applySpecControlsToState(){
   state.bpm.beatSync=!!$.beatSync?.checked;
   state.dj.enabled=!!$.autoDj?.checked;
   state.dj.transitionSec=clampValue(+(($.djTransition?.value)||12), 6, 20);
+  state.dj.modePref=($.djMode?.value && DJ_MODE_LABELS[$.djMode.value]) ? $.djMode.value : 'auto';
+  state.dj.candidateWindow=clampValue(+(($.djCandidateWindow?.value)||5), 2, 8);
+  state.dj.repeatGuard=!!$.djRepeatGuard?.checked;
   store.set('pc.spec.mode',state.spec.mode); store.set('pc.spec.overlay',state.spec.overlayOnVideo); store.set('pc.spec.sens',state.spec.sens); store.set('pc.spec.bins',state.spec.bins); store.set('pc.spec.hueLow',state.spec.hueLow); store.set('pc.spec.hueHigh',state.spec.hueHigh); store.set('pc.spec.sat',state.spec.sat); store.set('pc.spec.light',state.spec.light); store.set('pc.spec.rainbowSpeed',state.spec.rainbowSpeed); store.set('pc.spec.rainbowPhase',state.spec.rainbowPhase);
   store.set('pc.bpm.beatSync', state.bpm.beatSync);
   store.set('pc.dj.enabled', state.dj.enabled);
   store.set('pc.dj.transitionSec', state.dj.transitionSec);
+  store.set('pc.dj.modePref', state.dj.modePref);
+  store.set('pc.dj.candidateWindow', state.dj.candidateWindow);
+  store.set('pc.dj.repeatGuard', state.dj.repeatGuard);
   state._logRanges=null; state._logCenters=null; state.spec.lastDraw=0;
   updateDjReadouts();
 }
@@ -4231,10 +4691,13 @@ function initSpecControlsFromState(){
   if($.beatSync) $.beatSync.checked=!!state.bpm.beatSync;
   if($.autoDj) $.autoDj.checked=!!state.dj.enabled;
   if($.djTransition) $.djTransition.value=String(state.dj.transitionSec);
+  if($.djMode) $.djMode.value=state.dj.modePref || 'auto';
+  if($.djCandidateWindow) $.djCandidateWindow.value=String(state.dj.candidateWindow);
+  if($.djRepeatGuard) $.djRepeatGuard.checked=!!state.dj.repeatGuard;
   updateDjReadouts();
 }
 initSpecControlsFromState();
-[$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.djTransition].forEach(el=>{
+[$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
   el.addEventListener('change',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
   el.addEventListener('input',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
 });
@@ -4249,7 +4712,7 @@ function wireMediaErrorHandlers(){
   $.v.onplaying=()=>{ debugLog('event:playing', `t=${fmt($.v.currentTime||0)}`); hideLoader(); };
   $.v.onplay=()=>{ debugLog('event:play', `t=${fmt($.v.currentTime||0)}`); try{state.audioCtx && state.audioCtx.state==='suspended' && state.audioCtx.resume()}catch(e){} setPlayingUI(true); enforceBackdropPolicy() };
   $.v.onpause=()=>{ debugLog('event:pause', `t=${fmt($.v.currentTime||0)}`); setPlayingUI(false); enforceBackdropPolicy(); scheduleQueuedAnalysisRun(180); schedulePlaylistBpmScan(500); };
-  $.v.onended=()=>{ debugLog('event:ended', `cont=${state.contPlay?'1':'0'}`); enforceBackdropPolicy(); scheduleQueuedAnalysisRun(180); schedulePlaylistBpmScan(500); if(!state.contPlay) return; if(state.list.length>0){ const next=(state.cur+1)%state.list.length; if(next!==state.cur){ selectIndex(next,{ keepDjCarry: !!state.dj.carryPrimed, autoAdvance:true, fromDjDeck: !!state.dj.deck?.started }) } } };
+  $.v.onended=()=>{ debugLog('event:ended', `cont=${state.contPlay?'1':'0'}`); enforceBackdropPolicy(); scheduleQueuedAnalysisRun(180); schedulePlaylistBpmScan(500); if(!state.contPlay) return; if(state.list.length>0){ const next=getDjAdvanceIndex(); if(next>=0 && next!==state.cur){ selectIndex(next,{ keepDjCarry: !!state.dj.carryPrimed, autoAdvance:true, fromDjDeck: !!state.dj.deck?.started }) } } };
 }
 wireMediaErrorHandlers();
 

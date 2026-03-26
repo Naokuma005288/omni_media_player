@@ -176,7 +176,7 @@
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" id="pwaBadge" hidden>PWA</span>
-    <span class="badge" title="version">v4.5.0</span>
+    <span class="badge" title="version">v4.6.0</span>
   </header>
 
   <aside>
@@ -516,6 +516,29 @@
         </div>
         <div class="row">
           <span class="subtitle" id="djTransitionRead">12秒かけて次の曲の BPM に寄せます。</span>
+        </div>
+        <div class="row split">
+          <div class="col">
+            <label>Auto DJ モード</label>
+            <select id="djMode">
+              <option value="auto">自動</option>
+              <option value="smooth">なめらか</option>
+              <option value="late">遅め</option>
+              <option value="tight">タイト</option>
+              <option value="videoSafe">動画優先</option>
+            </select>
+          </div>
+          <div class="col">
+            <label>候補先読み</label>
+            <input id="djCandidateWindow" type="range" min="2" max="8" step="1" value="5" />
+          </div>
+        </div>
+        <div class="row">
+          <span class="subtitle" id="djCandidateRead">先の5曲から候補選択</span>
+        </div>
+        <div class="row switch">
+          <input id="djRepeatGuard" type="checkbox" checked />
+          <label for="djRepeatGuard">最近 Auto DJ した曲をしばらく避ける</label>
         </div>
         <div class="row split">
           <div class="col">
