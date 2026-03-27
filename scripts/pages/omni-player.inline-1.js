@@ -1831,7 +1831,7 @@ function initCanvasHud(){
   let raf=0;
   const loop=(t)=>{
     drawHeaderHud(t||0);
-    drawStatusHud(t||0);
+    if($.statusCanvas) drawStatusHud(t||0);
     raf=requestAnimationFrame(loop);
   };
   if(!raf) raf=requestAnimationFrame(loop);
