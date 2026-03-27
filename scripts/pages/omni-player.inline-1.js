@@ -5289,10 +5289,10 @@ function updateAutoDjState(){
     setDjPhase('carry');
     const duration=5200;
     const remain=state.dj.carryUntil-now;
-    const p=clampValue(1-(remain/duration),0,1);
-    const eased=1-Math.pow(1-p,2);
+    const carryProgress=clampValue(1-(remain/duration),0,1);
+    const eased=1-Math.pow(1-carryProgress,2);
     applyDjRateMul(state.dj.carryFrom + (1-state.dj.carryFrom)*eased);
-    if(p>=1){
+    if(carryProgress>=1){
       state.dj.carryUntil=0;
       state.dj.carryFrom=1;
       state.dj.keyShiftSemitones=0;
@@ -5372,10 +5372,12 @@ function updateAutoDjState(){
   if(state.dj.syncPlan && (state.dj.syncPlan.currentIndex!==state.cur || state.dj.syncPlan.nextIndex!==nextIndex)){
     state.dj.syncPlan=null;
   }
+  const planSeedTransition=Math.max(0.01, state.dj.syncPlan?.effectiveTransitionSec || state.dj.transitionSec || 12);
+  const pSeed=clampValue(1-(left/planSeedTransition),0,1);
   let syncPlan=state.dj.syncPlan;
   if(!syncPlan){
       const freshPlan=chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm);
-      if(p>=0.08 || state.dj.deck?.started){
+      if(pSeed>=0.08 || state.dj.deck?.started){
       syncPlan={ ...freshPlan, currentIndex:state.cur, nextIndex, currentMeterBpm, nextMeterBpm, lockedAt:performance.now() };
       state.dj.syncPlan=syncPlan;
     }else{
@@ -5384,7 +5386,7 @@ function updateAutoDjState(){
   }
   const effectiveTransition=getDjEffectiveTransitionSec(state.dj.transitionSec, syncPlan);
   syncPlan.effectiveTransitionSec=effectiveTransition;
-  const p=clampValue(1-(left/effectiveTransition),0,1);
+  const mixProgress=clampValue(1-(left/effectiveTransition),0,1);
   state.dj.currentKey='';
   state.dj.nextKey='';
   state.dj.keyShiftSemitones=0;
@@ -5393,19 +5395,19 @@ function updateAutoDjState(){
   const primeAtProgress=clampValue(syncPlan.primeAtProgress ?? 0.14, 0.06, 0.4);
   const launchAtProgress=clampValue(syncPlan.launchAtProgress ?? 0.28, primeAtProgress, 0.52);
   if(state.dj.deck?.started) setDjPhase('mix');
-  else if(p>=primeAtProgress) setDjPhase('armed');
+  else if(mixProgress>=primeAtProgress) setDjPhase('armed');
   else setDjPhase('prepare');
   if(state.dj.phase==='prepare') state.dj.handoffNote='次の deck を先読みしています。';
   else if(state.dj.phase==='armed') state.dj.handoffNote='小節境界を見て deck を起動します。';
   else if(state.dj.phase==='mix') state.dj.handoffNote='クロスフェードと位相合わせを継続中です。';
-  const eased=getDjRateEase(p);
+  const eased=getDjRateEase(mixProgress);
   applyDjRateMul(1 + (state.dj.targetMul-1)*eased);
   syncDjPitchPolicy();
-  if(p>=primeAtProgress){
+  if(mixProgress>=primeAtProgress){
     primeDjDeck(nextIndex);
   }
-  if(p>=launchAtProgress && !state.dj.deck?.started){
-    if(shouldLaunchDjDeckOnBeat(current, currentMeterBpm || currentBpm, left, p, currentItem, syncPlan)){
+  if(mixProgress>=launchAtProgress && !state.dj.deck?.started){
+    if(shouldLaunchDjDeckOnBeat(current, currentMeterBpm || currentBpm, left, mixProgress, currentItem, syncPlan)){
       const startAtSec=getDjDeckStartOffset(current, currentMeterBpm || currentBpm, nextMeterBpm || nextBpm, nextItem, currentItem, syncPlan);
       startDjDeckPlayback(nextIndex, { startAtSec }).then(started=>{
         if(started) return;
