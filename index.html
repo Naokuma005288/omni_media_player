@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v4.8.0</title>
+<title>OmniMedia – Landing v5.0.0</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 
 <link rel="stylesheet" href="./styles/pages/landing.inline-1.css">
@@ -18,7 +18,7 @@
 <!-- Splash -->
 <div id="splash" aria-hidden="true">
   <div class="s-logo"><div class="mark"></div><div>OmniMedia</div></div>
-  <div class="s-sub">Landing v4.8.0</div>
+  <div class="s-sub">Landing v5.0.0</div>
   <div class="s-orbit"></div><div class="s-ring"></div>
   <div id="sProgress" class="s-progress" aria-hidden="true"><span class="bar"></span></div>
 </div>
@@ -36,7 +36,7 @@
     <div class="brand">
       <div class="logo" aria-hidden="true"></div>
       <h1 id="title" class="shimmer" data-i18n="landingTitle">OmniMedia – Landing</h1>
-      <span class="version">v4.8.0</span>
+      <span class="version">v5.0.0</span>
       <span id="netBadge" class="badge">Online</span>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
@@ -311,14 +311,14 @@
 
 <div class="modal" id="releaseModal" aria-hidden="true">
   <div class="card-modal soon-modal release-modal" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
-    <span class="release-chip">v4.8.0</span>
-    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v4.8.0</h3>
-    <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The normal player now refines Auto DJ with manual key control, beat alignment, and cleaner video handoff.</p>
+    <span class="release-chip">v5.0.0</span>
+    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v5.0.0</h3>
+    <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The normal player now drives Auto DJ with phrase and energy analysis, adaptive transition timing, and a stage-wide transition accent.</p>
     <div class="soon-points" id="releasePoints">
-      <div class="point" data-i18n="releasePoint1">Auto DJ now matches by BPM while Key is handled manually from the MIX card.</div>
-      <div class="point" data-i18n="releasePoint2">A new Key slider lets you shift playback in semitones without changing the Auto DJ decision.</div>
-      <div class="point" data-i18n="releasePoint3">Video handoff between MP4 tracks keeps the live mix position instead of restarting from the beginning.</div>
-      <div class="point" data-i18n="releasePoint4">Beat sync now launches the next deck closer to the beat, and the video fade follows the audio crossfade.</div>
+      <div class="point" data-i18n="releasePoint1">Auto DJ now stores intro/outro bars and entry/exit energy so each track carries its own mix profile.</div>
+      <div class="point" data-i18n="releasePoint2">Candidate scoring and sync profile selection now use phrase and energy, not just BPM and loudness.</div>
+      <div class="point" data-i18n="releasePoint3">Beat and bar alignment now follows meter BPM plus beat anchors, and the transition window can stretch with phrase overlap.</div>
+      <div class="point" data-i18n="releasePoint4">A new DJ transition accent sweeps across the stage in sync with mix progress and handoff phase.</div>
     </div>
     <div class="release-actions">
       <button class="btn" id="releaseHideForever" data-i18n="releaseHideForever">Do not show again</button>

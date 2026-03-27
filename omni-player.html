@@ -176,7 +176,7 @@
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" id="pwaBadge" hidden>PWA</span>
-    <span class="badge" title="version">v4.8.0</span>
+    <span class="badge" title="version">v5.0.0</span>
   </header>
 
   <aside>
@@ -297,6 +297,26 @@
       <video id="djDeckVideo" class="dj-deck-video" crossorigin="anonymous" playsinline aria-hidden="true"></video>
       <canvas id="spectrum"></canvas>
       <div class="ass-layer" id="assLayer" aria-hidden="true"></div>
+      <div class="dj-transition-hud" id="djTransitionHud" hidden aria-live="polite">
+        <div class="dj-transition-head">
+          <span class="badge dj-transition-phase" id="djTransitionPhase">READY</span>
+          <span class="dj-transition-mode" id="djTransitionModeHud">AUTO DJ</span>
+        </div>
+        <div class="dj-transition-route">
+          <div class="dj-transition-track current">
+            <span class="dj-transition-track-tag">NOW</span>
+            <strong id="djTransitionCurrentTitle">--</strong>
+          </div>
+          <div class="dj-transition-arrow" aria-hidden="true">→</div>
+          <div class="dj-transition-track next">
+            <span class="dj-transition-track-tag">NEXT</span>
+            <strong id="djTransitionNextTitle">--</strong>
+          </div>
+        </div>
+        <div class="dj-transition-meta" id="djTransitionMetaHud">Auto DJ standby</div>
+        <div class="dj-transition-note" id="djTransitionNoteHud">Beat / bar alignment</div>
+        <div class="dj-transition-bar" aria-hidden="true"><div class="dj-transition-bar-fill" id="djTransitionBar"></div></div>
+      </div>
 
       <div class="audio-info" id="audioInfo">
         <div class="artwrap" id="artWrap"><img id="audioCover" alt=""></div>

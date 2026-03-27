@@ -4,7 +4,7 @@
 
 ## バージョン
 
-* 全体バージョン: `v4.8.0`
+* 全体バージョン: `v5.0.0`
 * Landing: `index.html`
 * 通常版: `omni-player.html`
 * mini: `omni-player-mini.html`
@@ -13,6 +13,20 @@
 ## ページ構成
 
 ## 最新アップデート
+
+### v5.0.0
+- 通常版の Auto DJ は `phrase / energy` 解析を持つ構成へ進み、各曲へ `intro / outro bars` と `entry / exit energy` を保持するようになりました。
+- 候補選択は `BPM / loudness / phrase / energy` を見て次曲を採点し、`NEXT` プレビューと HUD から判断理由を追えるようにしました。
+- 遷移プロファイルは `phrase` に応じて `prime / launch / fade` を自動補正し、固定秒数だけでなく overlap と energy gap に応じて mix 窓を伸縮させます。
+- beat / bar 合わせは `meter BPM + beat anchor` 基準へ寄り、deck 起動と開始位置が同じ拍基準で動くようになりました。
+- 通常版のステージには `DJ transition accent` を追加し、mix progress と handoff phase に同期して画面全体でも遷移が見えるようにしました。
+
+### v4.9.0
+- 通常版に `DJ Transition HUD` を追加し、`prepare / armed / mix / handoff / settle` の進行、`NOW / NEXT`、handoff の状態を見えるようにしました。
+- `mp4` の Auto DJ は映像を無理にテンポ変更せず、映像は等速のまま BPM 側の基準で mix を管理する構成へ整理しました。
+- BPM 解析は小数 BPM 前提へ寄せ、onset 解析の刻みも細かくして、メトロノームと `BEAT` 表示が少しずつ流れる問題を抑えました。
+- handoff watchdog を追加し、追従誤差、再同期回数、現在段階を見ながら安全に確定するようにしました。
+- `NEXT` プレビューは左側バーへ移し、HUD は横長 `BEAT BAR` をやめてコンパクトな `BEAT` 表示へ整理しました。
 
 ### v4.8.0
 - 通常版に `NEXT` プレビューカードを追加し、Auto DJ が次に選ぶ曲と判断材料を `AUTO / LOCK / LIVE` 付きで見えるようにしました。

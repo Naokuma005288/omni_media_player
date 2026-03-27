@@ -17,6 +17,9 @@ const $={
   srtMeta:qs('#srtMeta'),audMeta:qs('#audMeta'),
   subSize:qs('#subSize'),subOutline:qs('#subOutline'),subMargin:qs('#subMargin'),subPreset:qs('#subPreset'),
   appAspect:qs('#appAspect'),
+  djTransitionHud:qs('#djTransitionHud'),djTransitionPhase:qs('#djTransitionPhase'),djTransitionModeHud:qs('#djTransitionModeHud'),
+  djTransitionCurrentTitle:qs('#djTransitionCurrentTitle'),djTransitionNextTitle:qs('#djTransitionNextTitle'),
+  djTransitionMetaHud:qs('#djTransitionMetaHud'),djTransitionNoteHud:qs('#djTransitionNoteHud'),djTransitionBar:qs('#djTransitionBar'),
   vol:qs('#vol'),rate:qs('#rate'),master:qs('#master'),mixKey:qs('#mixKey'),
   volRead:qs('#volRead'),rateRead:qs('#rateRead'),masterRead:qs('#masterRead'),mixKeyRead:qs('#mixKeyRead'),
   play:qs('#play'),back10:qs('#back10'),fwd10:qs('#fwd10'),pip:qs('#pip'), fullscreen:qs('#fullscreen'),
@@ -187,10 +190,145 @@ function updateMetronomeReadout(){
   }
   $.metroRead.textContent=`${mediaPaused() ? 'READY' : 'ON'} ${formatBpmValue(bpm, 1)} · ${getMetronomeSubdivisionLabel()}`;
 }
+function getItemDisplayTitle(item){
+  if(!item) return '--';
+  const raw=String(item.title || item.file?.name || item.url || 'Item');
+  return raw.replace(/\.[^/.?#]+(?=$|[?#])/, '') || raw;
+}
+function getDjPhaseBadgeLabel(phase=state.dj.phase, syncPlan=state.dj.syncPlan){
+  const p=String(phase||'idle');
+  if(p==='prepare') return 'PREP';
+  if(p==='armed') return 'ARM';
+  if(p==='mix') return syncPlan?.statusLabel || 'MIX';
+  if(p==='handoff') return 'HANDOFF';
+  if(p==='settle') return 'LOCK';
+  if(p==='carry') return 'CARRY';
+  if(p==='scan') return 'SCAN';
+  return 'READY';
+}
+function resetDjTransitionTelemetry(){
+  state.dj.mixProgress=0;
+  state.dj.visualProgress=0;
+  state.dj.handoffRetries=0;
+  state.dj.handoffDelta=0;
+  state.dj.handoffNote='';
+  state.dj.handoffStage='';
+}
+function getDjEffectiveTransitionSec(baseTransition=state.dj.transitionSec, syncPlan=state.dj.syncPlan){
+  const base=clampValue(+baseTransition || state.dj.transitionSec || 12, 6, 20);
+  if(!syncPlan) return base;
+  const overlapBars=clampValue(+syncPlan.overlapBars || Math.min(+syncPlan.introBars || 0, +syncPlan.outroBars || 0), 0, 4);
+  const energyGap=clampValue(+syncPlan.energyGap || 0, 0, 1);
+  const meterBpm=+syncPlan.currentMeterBpm || +syncPlan.nextMeterBpm || state.dj.currentBpm || 0;
+  const barSec=meterBeatPeriodSec(meterBpm)*DJ_BEATS_PER_BAR;
+  let effective=base;
+  if(barSec){
+    effective += Math.min(barSec*overlapBars*0.32, 3.2);
+    if((+syncPlan.introBars || 0) >= 6) effective += Math.min(barSec*0.55, 1.8);
+  }
+  effective += base*clampValue((energyGap-0.24)/0.8, -0.12, 0.18);
+  if((+syncPlan.introBars || 0) <= 1 && (+syncPlan.outroBars || 0) <= 1 && energyGap < 0.24){
+    effective -= 0.8;
+  }
+  return clampValue(Math.round(effective*10)/10, 6, 20);
+}
+function getDjTransitionWindowProgress(){
+  const dur=mediaDuration();
+  const transition=Math.max(0.01, getDjEffectiveTransitionSec(state.dj.transitionSec, state.dj.syncPlan)||0);
+  if(!Number.isFinite(dur) || dur<=0 || transition<=0) return 0;
+  return clampValue(1-((dur-mediaCurrent())/transition), 0, 1);
+}
+function getDjTransitionOverlayState(){
+  const syncPlan=state.dj.syncPlan;
+  const phase=state.dj.handoffPending ? (state.dj.handoffStage || 'handoff') : (state.dj.phase || 'idle');
+  const show=!!(
+    state.dj.enabled &&
+    (
+      state.dj.handoffPending ||
+      state.dj.active ||
+      phase==='prepare' ||
+      phase==='armed' ||
+      phase==='carry' ||
+      phase==='settle'
+    )
+  );
+  if(!show){
+    return { show:false, phase:'idle', phaseLabel:'READY', modeText:'AUTO DJ', currentTitle:'--', nextTitle:'--', meta:'', note:'', progress:0 };
+  }
+  const currentItem=state.list[state.cur] || null;
+  const currentTitle=getItemDisplayTitle(currentItem);
+  const preview=state.dj.enabled ? getDjPreviewState() : null;
+  const nextIndex=(state.dj.nextIndex>=0 ? state.dj.nextIndex : preview?.index ?? -1);
+  const nextItem=nextIndex>=0 ? state.list[nextIndex] : null;
+  const nextTitle=getItemDisplayTitle(nextItem);
+  const progress=phase==='carry'
+    ? clampValue(1-((Math.max(0, state.dj.carryUntil-performance.now()))/5200), 0, 1)
+    : (state.dj.handoffPending ? 1 : clampValue(state.dj.mixProgress || getDjTransitionWindowProgress(), 0, 1));
+  const metaParts=[];
+  if(state.dj.currentBpm && state.dj.nextBpm){
+    metaParts.push(`${formatBpmValue(state.dj.currentBpm, 1)} → ${formatBpmValue(state.dj.nextBpm, 1)} BPM`);
+  }else if(preview?.entry?.candidateBpm){
+    metaParts.push(`NEXT ${formatBpmValue(preview.entry.candidateBpm, 1)} BPM`);
+  }
+  if(syncPlan?.effectiveTransitionSec) metaParts.push(`Fade ${syncPlan.effectiveTransitionSec.toFixed(1)}s`);
+  if(syncPlan?.outroBars || syncPlan?.introBars) metaParts.push(`Bars ${Math.round(syncPlan.outroBars || 0)}→${Math.round(syncPlan.introBars || 0)}`);
+  if(Number.isFinite(syncPlan?.energyGap)) metaParts.push(`Energy ${Math.round((1-clampValue(syncPlan.energyGap, 0, 1))*100)}%`);
+  if(syncPlan?.analysisConfidence>0) metaParts.push(`Conf ${Math.round(syncPlan.analysisConfidence*100)}%`);
+  if(syncPlan?.profileId) metaParts.push(syncPlan.profileId.toUpperCase());
+  if(state.dj.handoffPending && Number.isFinite(state.dj.handoffDelta) && state.dj.handoffDelta>0){
+    metaParts.push(`Δ ${state.dj.handoffDelta.toFixed(2)}s`);
+  }
+  if(state.dj.handoffRetries>0) metaParts.push(`Retry ${state.dj.handoffRetries}`);
+  const note=state.dj.handoffNote || (
+    phase==='prepare' ? '次の deck を先読みしています。' :
+    phase==='armed' ? '小節境界を待って起動します。' :
+    phase==='mix' ? 'クロスフェードと映像遷移を同期中です。' :
+    phase==='settle' ? '本体へ追従した位置を確認しています。' :
+    phase==='carry' ? 'handoff 後の基準を整えています。' :
+    phase==='handoff' ? 'deck から本体へ映像と音声を引き継いでいます。' :
+    'Auto DJ が次曲を準備中です。'
+  );
+  return {
+    show:true,
+    phase,
+    phaseLabel:getDjPhaseBadgeLabel(phase, syncPlan),
+    modeText:`AUTO DJ · ${getDjModeLabel()}`,
+    currentTitle,
+    nextTitle,
+    meta:metaParts.join(' · ') || 'Auto DJ standby',
+    note,
+    progress
+  };
+}
+function updateDjTransitionOverlay(){
+  if(!$.djTransitionHud) return;
+  const view=getDjTransitionOverlayState();
+  if($.wrap){
+    $.wrap.dataset.djPhase=view.show ? view.phase : 'idle';
+    const visualProgress=clampValue(state.dj.visualProgress || state.dj.mixProgress || 0, 0, 1);
+    const handoffBoost=view.phase==='handoff' ? 1 : (view.phase==='settle' ? 0.42 : 0);
+    $.wrap.style.setProperty('--dj-mix-progress', visualProgress.toFixed(3));
+    $.wrap.style.setProperty('--dj-handoff-boost', handoffBoost.toFixed(3));
+  }
+  $.djTransitionHud.hidden=!view.show;
+  $.djTransitionHud.classList.toggle('show', !!view.show);
+  if(!view.show) return;
+  if($.djTransitionPhase) $.djTransitionPhase.textContent=view.phaseLabel;
+  if($.djTransitionModeHud) $.djTransitionModeHud.textContent=view.modeText;
+  if($.djTransitionCurrentTitle) $.djTransitionCurrentTitle.textContent=view.currentTitle;
+  if($.djTransitionNextTitle) $.djTransitionNextTitle.textContent=view.nextTitle;
+  if($.djTransitionMetaHud) $.djTransitionMetaHud.textContent=view.meta;
+  if($.djTransitionNoteHud) $.djTransitionNoteHud.textContent=view.note;
+  if($.djTransitionBar) $.djTransitionBar.style.width=`${Math.round(clampValue(view.progress, 0, 1)*1000)/10}%`;
+}
 function setDjPhase(nextPhase='idle'){
   const phase=String(nextPhase||'idle');
-  if(state.dj.phase===phase) return;
+  if(state.dj.phase===phase){
+    updateDjTransitionOverlay();
+    return;
+  }
   state.dj.phase=phase;
+  state.dj.phaseStartedAt=performance.now();
   updateDjReadouts();
 }
 function updateSliderReadouts(){
@@ -386,34 +524,41 @@ function barDistanceToBoundarySec(timeSec, bpm, anchorSec=0, beatsPerBar=DJ_BEAT
   const pos=(((((+timeSec || 0) - (+anchorSec || 0)) % barPeriod) + barPeriod) % barPeriod);
   return Math.min(pos, barPeriod-pos);
 }
-function shouldLaunchDjDeckOnBeat(currentTimeSec, currentBpm, leftSec, progress, currentItem=null){
+function shouldLaunchDjDeckOnBeat(currentTimeSec, currentBpm, leftSec, progress, currentItem=null, syncPlan=null){
   if(!state.bpm.beatSync) return true;
   const period=beatPeriodSec(currentBpm);
   if(!period) return true;
-  const anchorSec=getItemDjCueIn(currentItem);
+  const anchorSec=getItemBeatAnchorSec(currentItem);
   const beatWindow=clampValue(period*0.12, 0.028, 0.085);
   const barPeriod=period*DJ_BEATS_PER_BAR;
-  const barWindow=clampValue(barPeriod*0.08, 0.075, 0.22);
+  const preferPhraseBars=(+syncPlan?.introBars || 0) >= 2 || (+syncPlan?.outroBars || 0) >= 2;
+  const barWindow=clampValue(barPeriod*(preferPhraseBars ? 0.09 : 0.08), 0.075, 0.24);
   const hardEmergencySec=Math.max(period*1.15, 0.55);
   if(progress>=0.94 || leftSec<=hardEmergencySec) return true;
   if(barDistanceToBoundarySec(currentTimeSec, currentBpm, anchorSec) <= barWindow) return true;
-  const softEmergencySec=Math.max(barPeriod*1.05, 1.6);
-  if(progress>=0.82 || leftSec<=softEmergencySec){
+  const softEmergencySec=Math.max(barPeriod*(preferPhraseBars ? 0.92 : 1.05), preferPhraseBars ? 2.1 : 1.6);
+  if(progress>=(preferPhraseBars ? 0.88 : 0.82) || leftSec<=softEmergencySec){
     return beatDistanceToBoundarySec(currentTimeSec, currentBpm, anchorSec) <= Math.max(beatWindow, barWindow*0.34);
   }
   return false;
 }
-function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm, nextItem=null, currentItem=null){
+function getDjDeckStartOffset(currentTimeSec, currentBpm, nextBpm, nextItem=null, currentItem=null, syncPlan=null){
   const cueBase=getItemDjCueIn(nextItem);
   if(!state.bpm.beatSync) return cueBase;
   const nextPeriod=beatPeriodSec(nextBpm);
   if(!nextPeriod) return cueBase;
-  const barPhase=barPhaseAtTime(currentTimeSec, currentBpm, getItemDjCueIn(currentItem));
+  const currentAnchor=getItemBeatAnchorSec(currentItem);
+  const nextAnchor=getItemBeatAnchorSec(nextItem);
+  const barPhase=barPhaseAtTime(currentTimeSec, currentBpm, currentAnchor);
   const normalized=barPhase>=0.985 ? 0 : barPhase;
-  const additional=normalized*(nextPeriod*DJ_BEATS_PER_BAR);
+  const barPeriod=nextPeriod*DJ_BEATS_PER_BAR;
+  let alignedStart=Math.max(0, nextAnchor + normalized*barPeriod);
+  while(alignedStart + 0.0001 < cueBase) alignedStart += barPeriod;
+  const additional=Math.max(0, alignedStart-cueBase);
+  const introBars=Math.max(1, Math.round(syncPlan?.introBars || getItemDjIntroBars(nextItem) || 1));
   const maxAdditional=itemLooksLikeVideoMedia(nextItem)
-    ? Math.min(nextPeriod*DJ_BEATS_PER_BAR*0.92, 2.2)
-    : Math.min(nextPeriod*DJ_BEATS_PER_BAR*0.98, 6);
+    ? Math.min(barPeriod*0.92, 2.2)
+    : Math.min(barPeriod*Math.min(4, introBars)*0.98, 8);
   return cueBase + Math.min(additional, maxAdditional);
 }
 function getDjRateEase(progress){
@@ -470,6 +615,54 @@ function getItemDjQuietness(item, edge='head'){
   const edgeDb=edge==='tail' ? +item?._djTailDb : +item?._djHeadDb;
   if(!Number.isFinite(bodyDb) || !Number.isFinite(edgeDb) || bodyDb>=0 || edgeDb>=0) return 0;
   return clampValue((bodyDb-edgeDb)/12, 0, 1);
+}
+function getItemDjIntroBars(item){
+  const bars=+item?._djIntroBars;
+  if(Number.isFinite(bars) && bars>=0) return clampValue(Math.round(bars), 0, 16);
+  return clampValue(Math.round(getItemDjQuietness(item, 'head')*8), 0, 16);
+}
+function getItemDjOutroBars(item){
+  const bars=+item?._djOutroBars;
+  if(Number.isFinite(bars) && bars>=0) return clampValue(Math.round(bars), 0, 16);
+  return clampValue(Math.round(getItemDjQuietness(item, 'tail')*8), 0, 16);
+}
+function getItemDjEntryEnergy(item){
+  const energy=+item?._djEntryEnergy;
+  if(Number.isFinite(energy)) return clampValue(energy, 0, 1);
+  return clampValue(1-(getItemDjQuietness(item, 'head')*0.9), 0, 1);
+}
+function getItemDjExitEnergy(item){
+  const energy=+item?._djExitEnergy;
+  if(Number.isFinite(energy)) return clampValue(energy, 0, 1);
+  return clampValue(1-(getItemDjQuietness(item, 'tail')*0.9), 0, 1);
+}
+function getItemDjPhraseConfidence(item){
+  const confidence=+item?._djPhraseConfidence;
+  if(Number.isFinite(confidence)) return clampValue(confidence, 0, 1);
+  return clampValue(getItemDjMixConfidence(item)*0.72, 0, 1);
+}
+function getDjPhraseTransitionMetrics(currentItem, nextItem){
+  const introBars=getItemDjIntroBars(nextItem);
+  const outroBars=getItemDjOutroBars(currentItem);
+  const entryEnergy=getItemDjEntryEnergy(nextItem);
+  const exitEnergy=getItemDjExitEnergy(currentItem);
+  const energyGap=Math.abs(exitEnergy-entryEnergy);
+  const roomScore=clampValue((introBars+outroBars)/8, 0, 1);
+  const barMatchScore=clampValue(1-(Math.abs(outroBars-introBars)/6), 0, 1);
+  const energyScore=clampValue(1-(energyGap/0.72), 0, 1);
+  const confidence=Math.min(getItemDjPhraseConfidence(currentItem), getItemDjPhraseConfidence(nextItem));
+  return {
+    introBars,
+    outroBars,
+    entryEnergy,
+    exitEnergy,
+    energyGap,
+    roomScore,
+    barMatchScore,
+    energyScore,
+    confidence,
+    score:(roomScore*0.34) + (barMatchScore*0.28) + (energyScore*0.38)
+  };
 }
 function getDjProfilePreset(id){
   return DJ_MIX_PROFILE_PRESETS[id] || DJ_MIX_PROFILE_PRESETS.balanced;
@@ -592,6 +785,7 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
   const cueIn=getItemDjCueIn(candidateItem);
   const cuePenalty=clampValue(cueIn/(itemLooksLikeVideoMedia(candidateItem) ? 2 : 4), 0, 0.8);
   const cueScore=1-(cuePenalty*0.45);
+  const phraseMetrics=getDjPhraseTransitionMetrics(currentItem, candidateItem);
   const analysisConfidence=Math.min(
     Math.max(+currentItem?._bpmConfidence || 0, getItemDjMixConfidence(currentItem)),
     Math.max(+candidateItem?._bpmConfidence || 0, getItemDjMixConfidence(candidateItem))
@@ -602,14 +796,15 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
     ? clampValue((1800000-recentAgeMs)/1800000, 0, 1)*0.28
     : 0;
   const score=(
-    proximityScore*0.18 +
-    typeScore*0.14 +
-    bpmScore*0.26 +
-    loudnessScore*0.15 +
-    outroQuietness*0.09 +
-    introQuietness*0.1 +
-    cueScore*0.04 +
-    analysisConfidence*0.08
+    proximityScore*0.15 +
+    typeScore*0.11 +
+    bpmScore*0.22 +
+    loudnessScore*0.13 +
+    outroQuietness*0.06 +
+    introQuietness*0.07 +
+    phraseMetrics.score*0.16 +
+    cueScore*0.03 +
+    analysisConfidence*0.07
   ) - repeatPenalty;
   return {
     index:candidateIndex,
@@ -624,6 +819,13 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
     loudnessDeltaDb,
     introQuietness,
     outroQuietness,
+    introBars:phraseMetrics.introBars,
+    outroBars:phraseMetrics.outroBars,
+    entryEnergy:phraseMetrics.entryEnergy,
+    exitEnergy:phraseMetrics.exitEnergy,
+    energyGap:phraseMetrics.energyGap,
+    phraseScore:phraseMetrics.score,
+    phraseConfidence:phraseMetrics.confidence,
     analysisConfidence,
     cueIn,
     sameVisualClass,
@@ -695,6 +897,7 @@ function getDjPreviewState(currentIndex=state.cur){
     (state.dj.deck?.started || state.dj.handoffPending || !!state.dj.syncPlan)
   ) ? state.dj.nextIndex : -1;
   if(manualIndex>=0){
+    const phraseMetrics=getDjPhraseTransitionMetrics(currentItem, state.list[manualIndex]);
     entry=scoreDjCandidate(currentIndex, manualIndex, currentItem, state.list[manualIndex], pool.currentBpm || 0) || {
       index:manualIndex,
       item:state.list[manualIndex],
@@ -706,6 +909,13 @@ function getDjPreviewState(currentIndex=state.cur){
       loudnessDeltaDb:0,
       introQuietness:getItemDjQuietness(state.list[manualIndex], 'head'),
       outroQuietness:getItemDjQuietness(currentItem, 'tail'),
+      introBars:phraseMetrics.introBars,
+      outroBars:phraseMetrics.outroBars,
+      entryEnergy:phraseMetrics.entryEnergy,
+      exitEnergy:phraseMetrics.exitEnergy,
+      energyGap:phraseMetrics.energyGap,
+      phraseScore:phraseMetrics.score,
+      phraseConfidence:phraseMetrics.confidence,
       analysisConfidence:0,
       cueIn:getItemDjCueIn(state.list[manualIndex]),
       sameVisualClass:itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(state.list[manualIndex]),
@@ -713,6 +923,7 @@ function getDjPreviewState(currentIndex=state.cur){
     };
     mode='locked';
   }else if(frozenIndex>=0){
+    const phraseMetrics=getDjPhraseTransitionMetrics(currentItem, state.list[frozenIndex]);
     entry=scoreDjCandidate(currentIndex, frozenIndex, currentItem, state.list[frozenIndex], pool.currentBpm || 0) || {
       index:frozenIndex,
       item:state.list[frozenIndex],
@@ -724,6 +935,13 @@ function getDjPreviewState(currentIndex=state.cur){
       loudnessDeltaDb:0,
       introQuietness:getItemDjQuietness(state.list[frozenIndex], 'head'),
       outroQuietness:getItemDjQuietness(currentItem, 'tail'),
+      introBars:phraseMetrics.introBars,
+      outroBars:phraseMetrics.outroBars,
+      entryEnergy:phraseMetrics.entryEnergy,
+      exitEnergy:phraseMetrics.exitEnergy,
+      energyGap:phraseMetrics.energyGap,
+      phraseScore:phraseMetrics.score,
+      phraseConfidence:phraseMetrics.confidence,
       analysisConfidence:0,
       cueIn:getItemDjCueIn(state.list[frozenIndex]),
       sameVisualClass:itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(state.list[frozenIndex]),
@@ -738,13 +956,18 @@ function getDjPreviewState(currentIndex=state.cur){
   const distance=entry?.distance ?? forwardPlaylistDistance(currentIndex, nextIndex, state.list.length);
   const bpmDeltaPct=(entry?.bpmKnown && Number.isFinite(entry?.bpmRatio)) ? ((entry.bpmRatio-1)*100) : null;
   const loudnessText=Number.isFinite(entry?.loudnessDeltaDb) ? `${entry.loudnessDeltaDb>0?'+':''}${entry.loudnessDeltaDb.toFixed(1)}dB` : '--';
+  const introBars=Math.max(0, Math.round(entry?.introBars || 0));
+  const outroBars=Math.max(0, Math.round(entry?.outroBars || 0));
+  const entryEnergyPct=Math.round(clampValue(entry?.entryEnergy ?? 0.5, 0, 1)*100);
   const reasonParts=[
     bpm ? `${formatBpmValue(bpm, 1)} BPM${bpmDeltaPct!=null ? ` ${bpmDeltaPct>=0?'+':''}${bpmDeltaPct.toFixed(1)}%` : ''}` : 'BPM scan',
-    `Intro ${Math.round((entry?.introQuietness || 0)*100)}%`,
+    `Bars O${outroBars}→I${introBars}`,
+    `Entry ${entryEnergyPct}%`,
     `Loud ${loudnessText}`
   ];
   if(entry?.analysisConfidence>0) reasonParts.push(`Conf ${Math.round(entry.analysisConfidence*100)}%`);
   return {
+    entry,
     index:nextIndex,
     item:nextItem,
     mode,
@@ -1034,9 +1257,10 @@ function updateDjReadouts(){
   updateMetronomeReadout();
   if($.djTransitionRead){
     const targetText=state.bpm.beatSync ? 'BPM と小節' : 'BPM';
+    const transitionLabel=state.dj.syncPlan?.effectiveTransitionSec ? `${state.dj.syncPlan.effectiveTransitionSec.toFixed(1)}秒` : `${state.dj.transitionSec}秒`;
     $.djTransitionRead.textContent=(!currentMediaAllowsDjTempoMatch() && itemLooksLikeVideoMedia(item))
-      ? `${state.dj.transitionSec}秒・${getDjModeLabel()} / 映像は等速のまま、${targetText} 基準でつなぎます。`
-      : `${state.dj.transitionSec}秒・${getDjModeLabel()} / 次の曲の ${targetText} を寄せます。`;
+      ? `${transitionLabel}・${getDjModeLabel()} / 映像は等速のまま、${targetText} 基準でつなぎます。`
+      : `${transitionLabel}・${getDjModeLabel()} / 次の曲の ${targetText} を寄せます。`;
   }
   if($.djCandidateRead){
     $.djCandidateRead.textContent=`先の${state.dj.candidateWindow}曲から候補選択${state.dj.repeatGuard ? ' · 再登場回避' : ''}`;
@@ -1045,7 +1269,11 @@ function updateDjReadouts(){
     let text='OFF';
     if(state.dj.enabled){
       const syncPlan=state.dj.syncPlan;
-      if(state.dj.active){
+      if(state.dj.handoffPending){
+        const deltaText=state.dj.handoffDelta>0 ? ` Δ${state.dj.handoffDelta.toFixed(2)}s` : '';
+        const retryText=state.dj.handoffRetries>0 ? ` R${state.dj.handoffRetries}` : '';
+        text=`${getDjPhaseBadgeLabel(state.dj.handoffStage || 'handoff', syncPlan)}${deltaText}${retryText}`;
+      }else if(state.dj.active){
         const rateText=getDjRateStatusText();
         const gainDb=syncPlan ? gainToDb(syncPlan.deckGainMul || 1) : 0;
         const gainText=Math.abs(gainDb)>=0.4 ? ` ${gainDb>0?'+':''}${gainDb.toFixed(1)}dB` : '';
@@ -1069,15 +1297,16 @@ function updateDjReadouts(){
     $.djStatus.textContent=text;
   }
   updateDjNextPreview();
+  updateDjTransitionOverlay();
 }
 function updateDjNextPreview(){
   if(!$.djNextTitle && !$.djNextMeta && !$.djNextReason) return;
   const preview=state.dj.enabled ? getDjPreviewState() : null;
-  if(!preview){
-    if($.djNextMode) $.djNextMode.textContent=state.dj.enabled ? 'WAIT' : 'OFF';
-    if($.djNextTitle) $.djNextTitle.textContent='--';
-    if($.djNextMeta) $.djNextMeta.textContent=state.dj.enabled ? 'Auto DJ 候補を待機中' : 'Auto DJ OFF';
-    if($.djNextReason) $.djNextReason.textContent='BPM / loudness / intro を見て次曲を決めます。';
+    if(!preview){
+      if($.djNextMode) $.djNextMode.textContent=state.dj.enabled ? 'WAIT' : 'OFF';
+      if($.djNextTitle) $.djNextTitle.textContent='--';
+      if($.djNextMeta) $.djNextMeta.textContent=state.dj.enabled ? 'Auto DJ 候補を待機中' : 'Auto DJ OFF';
+      if($.djNextReason) $.djNextReason.textContent='BPM / phrase / energy / loudness を見て次曲を決めます。';
     if($.djNextLock){
       $.djNextLock.disabled=true;
       $.djNextLock.textContent='固定';
@@ -1121,7 +1350,11 @@ function cleanupDjDeck(){
   const deck=state.dj.deck;
   state.dj.handoffPending=false;
   state.dj.handoffToken++;
-  if(!deck) return;
+  resetDjTransitionTelemetry();
+  if(!deck){
+    updateDjTransitionOverlay();
+    return;
+  }
   try{ deck.bufferSource?.stop?.(0) }catch(e){}
   try{ deck.hls?.destroy?.() }catch(e){}
   try{ deck.dash?.reset?.() }catch(e){}
@@ -1143,6 +1376,7 @@ function cleanupDjDeck(){
   }
   if(deck.objectUrl){ try{ URL.revokeObjectURL(deck.objectUrl) }catch(e){} }
   state.dj.deck=null;
+  updateDjTransitionOverlay();
 }
 function resetAutoDj(full=true, preserveDeck=false){
   setDjPhase('idle');
@@ -1157,6 +1391,7 @@ function resetAutoDj(full=true, preserveDeck=false){
   state.dj.syncPlan=null;
   state.dj.targetMul=1;
   state.dj.carryPrimed=false;
+  resetDjTransitionTelemetry();
   if(full) clearDjNextOverrides();
   if(!preserveDeck) cleanupDjDeck();
   if(full){
@@ -1417,10 +1652,11 @@ const state={
     modePref: store.get('pc.dj.modePref', 'auto'),
     candidateWindow: Math.max(2, Math.min(8, store.get('pc.dj.candidateWindow', 5))),
     repeatGuard: store.get('pc.dj.repeatGuard', true),
-    phase:'idle',
+    phase:'idle', phaseStartedAt:0,
     active:false, nextIndex:-1, currentBpm:0, nextBpm:0, targetMul:1,
     rateMul:1, carryPrimed:false, carryFrom:1, carryUntil:0,
-    handoffPending:false, handoffToken:0,
+    handoffPending:false, handoffToken:0, handoffRetries:0, handoffDelta:0, handoffNote:'', handoffStage:'',
+    mixProgress:0, visualProgress:0,
     currentKey:'', nextKey:'', keyShiftSemitones:0, keySyncActive:false, pitchRestore:null,
     manualNextItem:null, manualNextSource:'', rerollSourceItem:null, rerollSkipItems:[],
     syncPlan:null,
@@ -1973,13 +2209,21 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
   const worker=ensureAnalysisWorker();
   const source=payload.monoBuffer instanceof ArrayBuffer ? payload.monoBuffer : payload.monoBuffer.buffer;
   const fallbackMonoBuffer=source.slice(0);
+  const monoView=new Float32Array(source);
   const cloneForFallback=()=>{
     return new Float32Array(fallbackMonoBuffer.slice(0));
   };
-  const cueInResult=estimateDjCueInFromMonoDetailed(new Float32Array(source), payload.sampleRate);
-  const mixResult=estimateDjMixMetricsFromMonoDetailed(new Float32Array(source), payload.sampleRate);
+  const cueInResult=estimateDjCueInFromMonoDetailed(monoView, payload.sampleRate);
+  const mixResult=estimateDjMixMetricsFromMonoDetailed(monoView, payload.sampleRate);
   const mergeLocalAnalysis=(result={})=>{
     const bpmSeed=result?.bpmResult?.meterBpm || result?.bpmResult?.bpm || 0;
+    const phraseResult=estimateDjPhraseMetricsFromMonoDetailed(
+      cloneForFallback(),
+      payload.sampleRate,
+      bpmSeed,
+      result?.cueInResult?.cueIn || cueInResult?.cueIn || 0,
+      result?.mixResult || mixResult
+    );
     const beatAnchorResult=(payload.continuous===false)
       ? (result?.beatAnchorResult || { anchorSec:cueInResult?.cueIn || 0, confidence:0 })
       : estimateBeatAnchorFromMonoDetailed(cloneForFallback(), payload.sampleRate, bpmSeed, cueInResult?.cueIn || 0);
@@ -1987,6 +2231,7 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
       ...(result||{}),
       cueInResult:result?.cueInResult || cueInResult,
       mixResult:result?.mixResult || mixResult,
+      phraseResult:result?.phraseResult || phraseResult,
       beatAnchorResult:result?.beatAnchorResult || beatAnchorResult
     };
   };
@@ -2308,6 +2553,7 @@ async function analyzeDecodedBufferDetailed(audioBuffer){
       keyResult:{ key:'', confidence:0 },
       cueInResult:decodedCueInResult,
       mixResult:decodedMixResult,
+      phraseResult:estimateDjPhraseMetricsFromDecodedAudioDetailed(audioBuffer, 0, decodedCueInResult?.cueIn || 0, decodedMixResult),
       beatAnchorResult:{ anchorSec:decodedCueInResult?.cueIn || 0, confidence:0 }
     };
   }
@@ -2325,6 +2571,17 @@ async function analyzeDecodedBufferDetailed(audioBuffer){
     results={ ...(results||{}), mixResult:decodedMixResult };
   }
   results={ ...(results||{}), mixResult:results?.mixResult || decodedMixResult };
+  const decodedPhraseResult=estimateDjPhraseMetricsFromDecodedAudioDetailed(
+    audioBuffer,
+    results?.bpmResult?.meterBpm || results?.bpmResult?.bpm || 0,
+    results?.cueInResult?.cueIn || decodedCueInResult?.cueIn || 0,
+    results?.mixResult || decodedMixResult
+  );
+  if((decodedPhraseResult?.confidence || 0) > ((results?.phraseResult?.confidence || 0) + 0.04)){
+    results={ ...(results||{}), phraseResult:decodedPhraseResult };
+  }else{
+    results={ ...(results||{}), phraseResult:results?.phraseResult || decodedPhraseResult };
+  }
   const decodedBeatAnchorResult=estimateBeatAnchorFromDecodedAudioDetailed(
     audioBuffer,
     results?.bpmResult?.meterBpm || results?.bpmResult?.bpm || 0,
@@ -2906,6 +3163,101 @@ function estimateDjMixMetricsFromDecodedAudioDetailed(audioBuffer){
   );
   return { loudness:loudness.db, headDb:head.db, tailDb:tail.db, bodyDb:body.db, introQuietness, outroQuietness, confidence };
 }
+function normalizeDjEnergyRelativeDb(db, bodyDb){
+  if(!Number.isFinite(db) || !Number.isFinite(bodyDb) || bodyDb >= 0) return 0.5;
+  return clampValue((db-(bodyDb-12))/12, 0, 1);
+}
+function measureOnsetWindowLevel(onsetData, startSec=0, durationSec=0){
+  if(!onsetData?.smooth?.length || !Number.isFinite(startSec) || !Number.isFinite(durationSec) || durationSec<=0) return { mean:0, peak:0 };
+  const start=Math.max(0, Math.floor(startSec*onsetData.framesPerSec));
+  const end=Math.min(onsetData.smooth.length, Math.max(start+1, Math.ceil((startSec+durationSec)*onsetData.framesPerSec)));
+  let sum=0;
+  let peak=0;
+  let count=0;
+  for(let i=start;i<end;i++){
+    const v=+onsetData.smooth[i] || 0;
+    sum += v;
+    peak=Math.max(peak, v);
+    count++;
+  }
+  return count ? { mean:sum/count, peak } : { mean:0, peak:0 };
+}
+function estimateDjPhraseMetricsFromMonoDetailed(mono, sampleRate, bpm, cueInSec=0, mixResult=null){
+  const empty={ introBars:0, outroBars:0, entryEnergy:0.5, exitEnergy:0.5, energyDelta:0, confidence:0 };
+  if(!mono?.length || !sampleRate) return empty;
+  const baseMix=(mixResult && Number.isFinite(mixResult.bodyDb))
+    ? mixResult
+    : estimateDjMixMetricsFromMonoDetailed(mono, sampleRate);
+  const bodyDb=Number.isFinite(baseMix?.bodyDb) ? baseMix.bodyDb : -18;
+  const headDb=Number.isFinite(baseMix?.headDb) ? baseMix.headDb : bodyDb;
+  const tailDb=Number.isFinite(baseMix?.tailDb) ? baseMix.tailDb : bodyDb;
+  const entryEnergy=normalizeDjEnergyRelativeDb(headDb, bodyDb);
+  const exitEnergy=normalizeDjEnergyRelativeDb(tailDb, bodyDb);
+  const meterBpm=normalizeBpmRange(bpm, 45, 210);
+  let introBars=clampValue(Math.round((baseMix?.introQuietness || 0)*8), 0, 16);
+  let outroBars=clampValue(Math.round(((baseMix?.outroQuietness || 0)*7) + ((1-exitEnergy)*2)), 0, 16);
+  let confidence=clampValue((baseMix?.confidence || 0)*0.64 + (meterBpm ? 0.12 : 0), 0, 0.92);
+  if(meterBpm){
+    const barSec=meterBeatPeriodSec(meterBpm)*DJ_BEATS_PER_BAR;
+    const totalSec=Math.max(0.1, mono.length/sampleRate);
+    if(Number.isFinite(barSec) && barSec>=0.8 && barSec<=12){
+      const onsetData=buildOnsetAnalysisFromMono(mono, sampleRate);
+      const safeCue=clampValue(+cueInSec || 0, 0, Math.max(0, totalSec-(barSec*0.5)));
+      const refStart=Math.max(
+        safeCue + barSec*2,
+        Math.min(Math.max(0, totalSec-(barSec*4)), totalSec*0.36)
+      );
+      const refWindow=Math.min(barSec*2, Math.max(barSec, totalSec-refStart));
+      const refOnset=measureOnsetWindowLevel(onsetData, refStart, refWindow).mean;
+      const activeDbThreshold=bodyDb-2.35;
+      const activeOnsetThreshold=refOnset>0 ? refOnset*0.58 : 0;
+      let countedIntroBars=0;
+      const maxIntroBars=Math.max(1, Math.min(12, Math.floor(Math.max(barSec, totalSec-safeCue)/barSec)));
+      for(let bar=0; bar<maxIntroBars; bar++){
+        const startSec=safeCue + bar*barSec;
+        if(startSec>=totalSec) break;
+        const durationSec=Math.min(barSec, totalSec-startSec);
+        if(durationSec < barSec*0.42) break;
+        const winDb=measureMonoWindowDb(mono, Math.floor(startSec*sampleRate), Math.min(mono.length, Math.floor((startSec+durationSec)*sampleRate))).db;
+        const onsetLevel=measureOnsetWindowLevel(onsetData, startSec, durationSec).mean;
+        const quietDb=winDb < activeDbThreshold;
+        const quietOnset=activeOnsetThreshold>0 ? (onsetLevel < activeOnsetThreshold) : (winDb < bodyDb-1.75);
+        if(quietDb || quietOnset) countedIntroBars++;
+        else break;
+      }
+      introBars=clampValue(Math.max(introBars, countedIntroBars), 0, 16);
+      confidence=clampValue(confidence + (onsetData ? 0.14 : 0) + Math.min(0.08, introBars*0.016), 0, 0.97);
+    }
+  }
+  return {
+    introBars,
+    outroBars,
+    entryEnergy,
+    exitEnergy,
+    energyDelta:clampValue(exitEnergy-entryEnergy, -1, 1),
+    confidence
+  };
+}
+function estimateDjPhraseMetricsFromDecodedAudioDetailed(audioBuffer, bpm, cueInSec=0, mixResult=null){
+  const empty={ introBars:0, outroBars:0, entryEnergy:0.5, exitEnergy:0.5, energyDelta:0, confidence:0 };
+  if(!audioBuffer) return empty;
+  const mono=buildMonoMix(audioBuffer, 120);
+  if(!mono) return {
+    introBars:0,
+    outroBars:0,
+    entryEnergy:normalizeDjEnergyRelativeDb(mixResult?.headDb, mixResult?.bodyDb),
+    exitEnergy:normalizeDjEnergyRelativeDb(mixResult?.tailDb, mixResult?.bodyDb),
+    energyDelta:0,
+    confidence:mixResult?.confidence || 0
+  };
+  return estimateDjPhraseMetricsFromMonoDetailed(
+    mono.mono,
+    mono.sampleRate,
+    bpm,
+    cueInSec,
+    mixResult || estimateDjMixMetricsFromDecodedAudioDetailed(audioBuffer)
+  );
+}
 function estimateDjCueInFromMonoDetailed(mono, sampleRate, opts={}){
   if(!mono?.length || !sampleRate) return { cueIn:0, confidence:0 };
   const scanSeconds=clampValue(+opts.scanSeconds || 20, 8, 28);
@@ -3482,6 +3834,11 @@ async function analyzeItemBpm(item){
         item._djTailDb=0;
         item._djBodyDb=0;
         item._djMixConfidence=0;
+        item._djIntroBars=0;
+        item._djOutroBars=0;
+        item._djEntryEnergy=0.5;
+        item._djExitEnergy=0.5;
+        item._djPhraseConfidence=0;
         item._analysisDone=true;
         item._analysisUnsupported=true;
         if(state.list[state.cur]===item) updateDjReadouts();
@@ -3510,12 +3867,14 @@ async function analyzeItemBpm(item){
         keyResult,
         cueInResult,
         mixResult,
+        phraseResult,
         beatAnchorResult
       }=results || {
         bpmResult:{ bpm:0, confidence:0 },
         keyResult:{ key:'', confidence:0 },
         cueInResult:{ cueIn:0, confidence:0 },
         mixResult:{ loudness:0, headDb:0, tailDb:0, bodyDb:0, confidence:0 },
+        phraseResult:{ introBars:0, outroBars:0, entryEnergy:0.5, exitEnergy:0.5, confidence:0 },
         beatAnchorResult:{ anchorSec:0, confidence:0 }
       };
       item._bpm=bpmResult.bpm||0;
@@ -3533,6 +3892,11 @@ async function analyzeItemBpm(item){
       item._djTailDb=Number.isFinite(mixResult?.tailDb) ? mixResult.tailDb : 0;
       item._djBodyDb=Number.isFinite(mixResult?.bodyDb) ? mixResult.bodyDb : 0;
       item._djMixConfidence=mixResult?.confidence || 0;
+      item._djIntroBars=Number.isFinite(phraseResult?.introBars) ? phraseResult.introBars : 0;
+      item._djOutroBars=Number.isFinite(phraseResult?.outroBars) ? phraseResult.outroBars : 0;
+      item._djEntryEnergy=Number.isFinite(phraseResult?.entryEnergy) ? phraseResult.entryEnergy : 0.5;
+      item._djExitEnergy=Number.isFinite(phraseResult?.exitEnergy) ? phraseResult.exitEnergy : 0.5;
+      item._djPhraseConfidence=phraseResult?.confidence || 0;
       item._analysisDone=true;
       if(state.list[state.cur]===item) updateDjReadouts();
       return item._bpm;
@@ -3557,6 +3921,11 @@ async function analyzeItemBpm(item){
       item._djTailDb=0;
       item._djBodyDb=0;
       item._djMixConfidence=0;
+      item._djIntroBars=0;
+      item._djOutroBars=0;
+      item._djEntryEnergy=0.5;
+      item._djExitEnergy=0.5;
+      item._djPhraseConfidence=0;
       item._analysisDone=true;
       return 0;
     }finally{
@@ -3581,6 +3950,7 @@ function chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm){
   const nextCue=getItemDjCueIn(nextItem);
   const introQuietness=getItemDjQuietness(nextItem, 'head');
   const outroQuietness=getItemDjQuietness(currentItem, 'tail');
+  const phraseMetrics=getDjPhraseTransitionMetrics(currentItem, nextItem);
   const currentLoudness=getItemDjLoudness(currentItem);
   const nextLoudness=getItemDjLoudness(nextItem);
   const loudnessDeltaDb=(currentLoudness!=null && nextLoudness!=null)
@@ -3595,30 +3965,72 @@ function chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm){
     profileId=state.dj.modePref;
   }else if(itemLooksLikeVideoMedia(currentItem) || itemLooksLikeVideoMedia(nextItem)){
     profileId='videoSafe';
-  }else if(nextCue>=0.8 || introQuietness>=0.42){
+  }else if(nextCue>=0.8 || introQuietness>=0.42 || phraseMetrics.introBars>=6){
     profileId='late';
-  }else if(outroQuietness>=0.42 || bpmDelta>=0.065 || Math.abs(loudnessDeltaDb)>=2.8){
+  }else if(
+    outroQuietness>=0.42 ||
+    bpmDelta>=0.065 ||
+    Math.abs(loudnessDeltaDb)>=2.8 ||
+    phraseMetrics.energyGap>=0.42 ||
+    (phraseMetrics.outroBars>=4 && phraseMetrics.introBars>=4)
+  ){
     profileId='smooth';
-  }else if(state.dj.transitionSec<=8 || (nextCue<0.2 && introQuietness<0.18 && bpmDelta<0.04)){
+  }else if(
+    state.dj.transitionSec<=8 ||
+    (nextCue<0.2 && introQuietness<0.18 && bpmDelta<0.04 && phraseMetrics.energyGap<0.24 && phraseMetrics.introBars<=1)
+  ){
     profileId='tight';
   }
-  if(analysisConfidence<0.2 && profileId==='tight' && state.dj.modePref==='auto') profileId='balanced';
+  if(analysisConfidence<0.2 && phraseMetrics.confidence<0.22 && profileId==='tight' && state.dj.modePref==='auto') profileId='balanced';
   const mixProfile=getDjProfilePreset(profileId);
+  const tunedMixProfile={ ...mixProfile };
+  let primeAtProgress=mixProfile.primeAtProgress;
+  let launchAtProgress=mixProfile.launchAtProgress;
+  const overlapBars=Math.max(0, Math.min(phraseMetrics.introBars, phraseMetrics.outroBars));
+  if(overlapBars>=4 || phraseMetrics.introBars>=6){
+    const bias=clampValue(Math.max((overlapBars-2)/4, (phraseMetrics.introBars-4)/4), 0, 1);
+    primeAtProgress-=0.04*bias;
+    launchAtProgress-=0.07*bias;
+    tunedMixProfile.mixDelay=Math.max(0, tunedMixProfile.mixDelay-(0.04*bias));
+    tunedMixProfile.mixSpan=clampValue(tunedMixProfile.mixSpan+(0.08*bias), 0.62, 0.96);
+    tunedMixProfile.visualDelay=Math.max(0, tunedMixProfile.visualDelay-(0.02*bias));
+    tunedMixProfile.visualSpan=clampValue(tunedMixProfile.visualSpan+(0.06*bias), 0.54, 0.88);
+  }else if(phraseMetrics.introBars<=1 && phraseMetrics.outroBars<=1 && phraseMetrics.energyGap<0.24){
+    const bias=clampValue((1-Math.max(phraseMetrics.introBars, phraseMetrics.outroBars))*0.75 + ((0.24-phraseMetrics.energyGap)/0.24)*0.25, 0, 1);
+    primeAtProgress+=0.02*bias;
+    launchAtProgress+=0.035*bias;
+    tunedMixProfile.mixDelay=Math.min(0.16, tunedMixProfile.mixDelay+(0.025*bias));
+    tunedMixProfile.mixSpan=clampValue(tunedMixProfile.mixSpan-(0.06*bias), 0.58, 0.92);
+  }
+  if(phraseMetrics.energyGap>=0.42){
+    const stretch=clampValue((phraseMetrics.energyGap-0.42)/0.38, 0, 1);
+    tunedMixProfile.currentSpan=clampValue(tunedMixProfile.currentSpan+(0.06*stretch), 0.76, 1.04);
+    tunedMixProfile.nextSpan=clampValue(tunedMixProfile.nextSpan+(0.08*stretch), 0.66, 0.96);
+    tunedMixProfile.mixSpan=clampValue(tunedMixProfile.mixSpan+(0.08*stretch), 0.62, 0.98);
+  }
   const deckGainMul=clampValue(dbToGain(loudnessDeltaDb*0.38), 0.84, 1.18);
   const currentGainMul=clampValue(dbToGain(-loudnessDeltaDb*0.12), 0.92, 1.08);
   return {
     rateMul:bpmTarget,
     bpmTarget,
     profileId,
-    mixProfile,
+    mixProfile:tunedMixProfile,
     statusLabel:mixProfile.statusLabel,
-    primeAtProgress:mixProfile.primeAtProgress,
-    launchAtProgress:mixProfile.launchAtProgress,
+    primeAtProgress:clampValue(primeAtProgress, 0.06, 0.34),
+    launchAtProgress:clampValue(launchAtProgress, 0.14, 0.52),
     deckGainMul,
     currentGainMul,
     loudnessDeltaDb,
     introQuietness,
     outroQuietness,
+    introBars:phraseMetrics.introBars,
+    outroBars:phraseMetrics.outroBars,
+    entryEnergy:phraseMetrics.entryEnergy,
+    exitEnergy:phraseMetrics.exitEnergy,
+    energyGap:phraseMetrics.energyGap,
+    phraseScore:phraseMetrics.score,
+    phraseConfidence:phraseMetrics.confidence,
+    overlapBars,
     nextCue,
     analysisConfidence
   };
@@ -3842,6 +4254,7 @@ async function startDjDeckPlayback(nextIndex, opts={}){
       deck.bufferSource=src;
       src.start(0, startAt);
       deck.started=true;
+      state.dj.handoffNote='次の deck を起動しました。';
       return true;
     }catch(e){
       return false;
@@ -3863,6 +4276,7 @@ async function startDjDeckPlayback(nextIndex, opts={}){
       await deck.media.play();
       if(deck.video) deck.video.classList.add('active');
       deck.started=true;
+      state.dj.handoffNote='次の deck を起動しました。';
       return true;
     }catch(e){
       return false;
@@ -3899,6 +4313,8 @@ function applyDjMixVolumes(progress){
   const baseVol=Math.max(0, Math.min(1, +($.vol?.value || 0)));
   const deck=state.dj.deck;
   if(!deck?.started){
+    state.dj.mixProgress=0;
+    state.dj.visualProgress=0;
     $.v.volume=baseVol;
     if(state.extAudio) state.extAudio.volume=baseVol;
     applyDjDeckVideoVisual(0);
@@ -3910,6 +4326,13 @@ function applyDjMixVolumes(progress){
   const currentGainMul=clampValue(syncPlan?.currentGainMul || 1, 0.9, 1.08);
   const deckGainMul=clampValue(syncPlan?.deckGainMul || 1, 0.84, 1.18);
   deck.mixProgress=profile.mixProgress;
+  state.dj.mixProgress=profile.mixProgress;
+  state.dj.visualProgress=profile.visualProgress;
+  if(state.dj.active && !state.dj.handoffPending){
+    state.dj.handoffNote=itemLooksLikeVideoMedia(deck?.item)
+      ? '音声に合わせて映像をクロスフェードしています。'
+      : '音声クロスフェードを進行中です。';
+  }
   $.v.volume=clampValue(baseVol*profile.currentMul*currentGainMul, 0, 1);
   if(state.extAudio) state.extAudio.volume=clampValue(baseVol*profile.currentMul*currentGainMul, 0, 1);
   if(deck.gainNode){
@@ -3935,6 +4358,10 @@ function beginDjDeckHandoff(deck, label){
   setDjPhase('handoff');
   const token = ++state.dj.handoffToken;
   state.dj.handoffPending = true;
+  state.dj.handoffRetries = 0;
+  state.dj.handoffDelta = 0;
+  state.dj.handoffStage = 'handoff';
+  state.dj.handoffNote = 'deck から本体へ引き継ぎを開始します。';
   applyDjDeckVideoVisual(Math.max(deck.mixProgress || 0, 0.92));
   const minReadyState = deck.video ? 3 : 2;
   const settleDelta = deck.video ? 0.14 : 0.22;
@@ -3975,6 +4402,8 @@ function beginDjDeckHandoff(deck, label){
     if(state.dj.handoffToken !== token) return;
     clearReadyWatch();
     state.dj.handoffPending = false;
+    state.dj.handoffStage = 'settle';
+    state.dj.handoffNote = 'handoff を確定しています。';
     try{ $.v.currentTime = clampTargetTime(djDeckCurrentTime(deck)); }catch(e){}
     applyCurrentMediaTunables();
     try{
@@ -4030,11 +4459,19 @@ function beginDjDeckHandoff(deck, label){
       const current = +($.v.currentTime || 0);
       const ready = !$.v.paused && (+($.v.readyState || 0) >= minReadyState);
       const delta = Math.abs(current - target);
+      state.dj.handoffDelta = delta;
       try{ $.v.volume = Math.max(0.02, Math.min(0.18, +($.vol?.value || 0)*0.16)); }catch(e){}
       if(ready && delta <= settleDelta){
         stableHits++;
+        state.dj.handoffStage = 'settle';
+        state.dj.handoffNote = `追従確認 ${stableHits}/3`;
+        setDjPhase('settle');
       }else{
         stableHits=0;
+        state.dj.handoffStage = 'handoff';
+        state.dj.handoffNote = !ready
+          ? '本体の再生準備を待っています。'
+          : (delta > reseekDelta ? '本体を deck の位置へ再同期しています。' : 'deck と本体の差を詰めています。');
       }
       if(stableHits >= 3){
         finalizeHandoff();
@@ -4045,15 +4482,19 @@ function beginDjDeckHandoff(deck, label){
       }
       if(!ready && !retriedPlay){
         retriedPlay = true;
+        state.dj.handoffNote = '本体の再生を再要求しています。';
         requestPlayImmediate(label).catch(()=>{});
       }
       const elapsed = performance.now() - cycleStartedAt;
       if(elapsed >= hardTimeoutMs){
         if(delta <= Math.max(settleDelta*1.6, deck.video ? 0.28 : 0.36)){
+          state.dj.handoffNote = '追従誤差が許容範囲に入ったため確定します。';
           finalizeHandoff();
           return;
         }
         if(restartCycles >= maxRestartCycles){
+          state.dj.handoffStage = 'settle';
+          state.dj.handoffNote = '追従上限に達したため現在位置で確定します。';
           try{ $.v.currentTime = target; }catch(e){}
           try{
             const baseVol=Math.max(0, Math.min(1, +($.vol?.value || 0)));
@@ -4064,6 +4505,9 @@ function beginDjDeckHandoff(deck, label){
           return;
         }
         restartCycles++;
+        state.dj.handoffRetries = restartCycles;
+        state.dj.handoffStage = 'handoff';
+        state.dj.handoffNote = `再同期をやり直します ${restartCycles}/${maxRestartCycles}`;
         cycleStartedAt = performance.now();
         retriedPlay = false;
         stableHits = 0;
@@ -4078,6 +4522,8 @@ function beginDjDeckHandoff(deck, label){
   const playAfterSeek = ()=>{
     if(state.dj.handoffToken !== token) return;
     syncStarted = true;
+    state.dj.handoffStage = 'handoff';
+    state.dj.handoffNote = 'seek 完了後の再生を開始します。';
     try{ $.v.volume = Math.max(0.02, Math.min(0.18, +($.vol?.value || 0)*0.16)); }catch(e){}
     try{ ensureAudioOn(); }catch(e){}
     requestPlayImmediate(label).catch(()=>{});
@@ -4086,6 +4532,7 @@ function beginDjDeckHandoff(deck, label){
   function syncFromDeck(){
     if(state.dj.handoffToken !== token || syncStarted) return;
     const target = ensureMainNearDeck();
+    state.dj.handoffNote = 'deck の時刻へ main を合わせています。';
     let settled = false;
     let seekTimer = 0;
     const finishSeek = ()=>{
@@ -4133,10 +4580,13 @@ function beginDjDeckHandoff(deck, label){
     if(state.dj.handoffToken === token){
       clearReadyWatch();
       state.dj.handoffPending = false;
+      state.dj.handoffStage = 'handoff';
+      state.dj.handoffNote = '本体側でエラーが出たため handoff を中断しました。';
       if($.v){
         $.v.style.opacity='1';
         $.v.style.filter='';
       }
+      updateDjReadouts();
     }
   }, { once:true });
   return true;
@@ -4881,6 +5331,10 @@ function updateAutoDjState(){
       setDjPhase('idle');
     }
   }
+  if(state.dj.handoffPending){
+    updateDjTransitionOverlay();
+    return;
+  }
   if(!state.dj.enabled || state.mediaKind!=='html5' || mediaPaused() || !state.contPlay || state.list.length<2){
     if(state.dj.active) resetAutoDj(true);
     else setDjPhase('idle');
@@ -4894,13 +5348,13 @@ function updateAutoDjState(){
     else setDjPhase('idle');
     return;
   }
-  const transition=state.dj.transitionSec;
+  const transitionLead=Math.min(20, Math.max(state.dj.transitionSec, (state.dj.syncPlan?.effectiveTransitionSec || 0), state.dj.transitionSec + 3.5));
   const left=duration-current;
   if(left<=0.45 && state.dj.active){
     state.dj.carryPrimed=true;
     state.dj.carryFrom=state.dj.targetMul || state.dj.rateMul || 1;
   }
-  if(left>transition){
+  if(left>transitionLead){
     if(state.dj.active){
       state.dj.active=false;
       state.dj.nextIndex=-1;
@@ -4916,11 +5370,14 @@ function updateAutoDjState(){
     return;
   }
   const currentBpm=getCurrentTrackBpm();
+  const currentMeterBpm=getCurrentTrackMeterBpm() || currentBpm;
   const currentItem=state.list[state.cur];
   const nextItem=state.list[nextIndex];
   const nextBpm=getTrackBpmInfo(nextItem).bpm || 0;
+  const nextMeterBpm=getTrackMeterBpmInfo(nextItem).bpm || nextBpm || 0;
   if(!currentBpm || !nextBpm){
     setDjPhase('scan');
+    state.dj.handoffNote='解析待ちのため次曲候補をスキャンしています。';
     if(!shouldHoldBpmKeyAnalysis()){
       if(currentItem && !currentBpm && !currentItem._bpm && !currentItem._bpmPromise) scheduleItemAnalysis(currentItem, 80, { priority:3 });
       if(nextItem && !nextItem._bpm && !nextItem._bpmPromise) scheduleItemAnalysis(nextItem, 520, { priority:2 });
@@ -4941,20 +5398,22 @@ function updateAutoDjState(){
   state.dj.nextIndex=nextIndex;
   state.dj.currentBpm=currentBpm;
   state.dj.nextBpm=nextBpm;
-  const p=clampValue(1-(left/transition),0,1);
   if(state.dj.syncPlan && (state.dj.syncPlan.currentIndex!==state.cur || state.dj.syncPlan.nextIndex!==nextIndex)){
     state.dj.syncPlan=null;
   }
   let syncPlan=state.dj.syncPlan;
   if(!syncPlan){
-    const freshPlan=chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm);
-    if(p>=0.08 || state.dj.deck?.started){
-      syncPlan={ ...freshPlan, currentIndex:state.cur, nextIndex, lockedAt:performance.now() };
+      const freshPlan=chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm);
+      if(p>=0.08 || state.dj.deck?.started){
+      syncPlan={ ...freshPlan, currentIndex:state.cur, nextIndex, currentMeterBpm, nextMeterBpm, lockedAt:performance.now() };
       state.dj.syncPlan=syncPlan;
     }else{
-      syncPlan=freshPlan;
+      syncPlan={ ...freshPlan, currentMeterBpm, nextMeterBpm };
     }
   }
+  const effectiveTransition=getDjEffectiveTransitionSec(state.dj.transitionSec, syncPlan);
+  syncPlan.effectiveTransitionSec=effectiveTransition;
+  const p=clampValue(1-(left/effectiveTransition),0,1);
   state.dj.currentKey='';
   state.dj.nextKey='';
   state.dj.keyShiftSemitones=0;
@@ -4965,6 +5424,9 @@ function updateAutoDjState(){
   if(state.dj.deck?.started) setDjPhase('mix');
   else if(p>=primeAtProgress) setDjPhase('armed');
   else setDjPhase('prepare');
+  if(state.dj.phase==='prepare') state.dj.handoffNote='次の deck を先読みしています。';
+  else if(state.dj.phase==='armed') state.dj.handoffNote='小節境界を見て deck を起動します。';
+  else if(state.dj.phase==='mix') state.dj.handoffNote='クロスフェードと位相合わせを継続中です。';
   const eased=getDjRateEase(p);
   applyDjRateMul(1 + (state.dj.targetMul-1)*eased);
   syncDjPitchPolicy();
@@ -4972,8 +5434,8 @@ function updateAutoDjState(){
     primeDjDeck(nextIndex);
   }
   if(p>=launchAtProgress && !state.dj.deck?.started){
-    if(shouldLaunchDjDeckOnBeat(current, currentBpm, left, p, currentItem)){
-      const startAtSec=getDjDeckStartOffset(current, currentBpm, nextBpm, nextItem, currentItem);
+    if(shouldLaunchDjDeckOnBeat(current, currentMeterBpm || currentBpm, left, p, currentItem, syncPlan)){
+      const startAtSec=getDjDeckStartOffset(current, currentMeterBpm || currentBpm, nextMeterBpm || nextBpm, nextItem, currentItem, syncPlan);
       startDjDeckPlayback(nextIndex, { startAtSec }).then(started=>{
         if(started) return;
         markDjCandidatePlaybackFailure(nextItem, itemLooksLikeVideoMedia(nextItem) ? 240000 : 120000);
@@ -4995,6 +5457,7 @@ function updateAutoDjState(){
     }
   }
   applyDjMixVolumes(p);
+  updateDjTransitionOverlay();
 }
 
 /* ========= thumbs & seek ========= */
