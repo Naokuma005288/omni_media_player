@@ -7,6 +7,13 @@ function foldBpm(bpm){
   while(v>180) v/=2;
   return Math.round(v*10)/10;
 }
+function normalizeBpmRange(bpm, min=45, max=210){
+  let v=+bpm||0;
+  if(!Number.isFinite(v) || v<=0) return 0;
+  while(v<min) v*=2;
+  while(v>max) v/=2;
+  return Math.round(v*10)/10;
+}
 
 function summarizeWeightedVotes(votes, fallbackValue=0){
   let total=0, bestValue=fallbackValue, bestScore=0, secondScore=0;
@@ -28,8 +35,8 @@ function summarizeWeightedVotes(votes, fallbackValue=0){
   };
 }
 
-function estimateBpmFromMonoDetailed(mono, sampleRate){
-  if(!mono?.length || !sampleRate) return { bpm:0, confidence:0 };
+function buildOnsetAnalysisFromMono(mono, sampleRate){
+  if(!mono?.length || !sampleRate) return null;
   const hop=512;
   const win=1024;
   const env=[];
@@ -50,7 +57,7 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     env.push(onset);
     prevFrameEnergy=energy;
   }
-  if(env.length<48) return { bpm:0, confidence:0 };
+  if(env.length<48) return null;
   const smooth=new Float32Array(env.length);
   for(let i=0;i<env.length;i++){
     let local=0,count=0;
@@ -75,7 +82,124 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     const threshold=mean + Math.sqrt(variance)*0.45;
     if(v>Math.max(0.008, threshold)) peakIdx.push(i);
   }
-  const framesPerSec=sampleRate/hop;
+  const rankedPeakIdx=peakIdx.slice().sort((a,b)=>(smooth[b]||0)-(smooth[a]||0)).slice(0, 96);
+  return {
+    smooth,
+    peakIdx,
+    rankedPeakIdx,
+    framesPerSec:sampleRate/hop
+  };
+}
+function getInterpolatedSeriesValue(series, index){
+  if(!series?.length) return 0;
+  if(index<=0) return +series[0] || 0;
+  const maxIndex=series.length-1;
+  if(index>=maxIndex) return +series[maxIndex] || 0;
+  const base=Math.floor(index);
+  const frac=index-base;
+  const a=+series[base] || 0;
+  const b=+series[Math.min(maxIndex, base+1)] || 0;
+  return a + ((b-a)*frac);
+}
+function getNormalizedLagCorrelation(series, lag){
+  if(!series?.length || !Number.isFinite(lag) || lag<1) return 0;
+  const maxIndex=series.length-1;
+  const end=Math.floor(maxIndex-lag);
+  if(end<2) return 0;
+  let num=0, denA=0, denB=0;
+  for(let i=0;i<=end;i++){
+    const a=+series[i] || 0;
+    const b=getInterpolatedSeriesValue(series, i+lag);
+    num += a*b;
+    denA += a*a;
+    denB += b*b;
+  }
+  if(denA<=1e-9 || denB<=1e-9) return 0;
+  return clampValue(num/Math.sqrt(denA*denB), 0, 1);
+}
+function estimateBeatAnchorFromOnsetData(onsetData, bpm){
+  if(!onsetData?.smooth?.length || !bpm) return { confidence:0, fitScore:0 };
+  const periodFrames=onsetData.framesPerSec*60/Math.max(1, +bpm || 0);
+  if(!Number.isFinite(periodFrames) || periodFrames<2) return { confidence:0, fitScore:0 };
+  const tolerance=Math.max(1.6, periodFrames*0.13);
+  const peaks=onsetData.rankedPeakIdx?.length ? onsetData.rankedPeakIdx : onsetData.peakIdx || [];
+  const phases=[];
+  const phaseKeys=new Set();
+  const pushPhase=(frame)=>{
+    const phase=((frame%periodFrames)+periodFrames)%periodFrames;
+    const key=Math.round(phase*4);
+    if(phaseKeys.has(key)) return;
+    phaseKeys.add(key);
+    phases.push(phase);
+  };
+  peaks.slice(0, 28).forEach(pushPhase);
+  if(!phases.length) phases.push(0);
+  const modDistance=(value, period)=>{
+    const pos=((value%period)+period)%period;
+    return Math.min(pos, period-pos);
+  };
+  let bestScore=0;
+  let secondScore=0;
+  let bestMatchRatio=0;
+  for(const phase of phases){
+    let weightedScore=0;
+    let weightedTotal=0;
+    let matchedWeight=0;
+    for(const idx of peaks.slice(0, 64)){
+      const weight=+onsetData.smooth[idx] || 0;
+      if(weight<=0) continue;
+      const dist=modDistance(idx-phase, periodFrames);
+      const closeness=Math.max(0, 1-(dist/tolerance));
+      weightedScore += weight*closeness;
+      weightedTotal += weight;
+      if(closeness>=0.72) matchedWeight += weight;
+    }
+    const phaseScore=weightedTotal>0 ? (weightedScore/weightedTotal) : 0;
+    if(phaseScore>bestScore){
+      secondScore=bestScore;
+      bestScore=phaseScore;
+      bestMatchRatio=weightedTotal>0 ? (matchedWeight/weightedTotal) : 0;
+    }else if(phaseScore>secondScore){
+      secondScore=phaseScore;
+    }
+  }
+  const corr1=getNormalizedLagCorrelation(onsetData.smooth, periodFrames);
+  const corr2=getNormalizedLagCorrelation(onsetData.smooth, periodFrames*2)*0.78;
+  const fitScore=clampValue((bestScore*0.72) + (corr1*0.22) + (corr2*0.06), 0, 1);
+  const separation=bestScore>0 ? (bestScore-secondScore)/bestScore : 0;
+  const confidence=clampValue((fitScore*0.68) + (separation*0.18) + Math.min(0.14, bestMatchRatio*0.14), 0, 0.98);
+  return { confidence, fitScore };
+}
+function resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence=0){
+  const base=Math.round(normalizeBpmRange(djBpm, 45, 210));
+  if(!base || !onsetData) return { bpm:0, confidence:0 };
+  const candidateSet=new Set([base]);
+  if(base>=96) candidateSet.add(Math.round(base/2));
+  if(base<=104) candidateSet.add(Math.round(base*2));
+  const scored=[...candidateSet]
+    .filter(candidate=>candidate>=45 && candidate<=210)
+    .map(candidate=>({ bpm:candidate, ...estimateBeatAnchorFromOnsetData(onsetData, candidate) }))
+    .sort((a,b)=>b.fitScore-a.fitScore);
+  const baseEntry=scored.find(entry=>entry.bpm===base) || scored[0] || { bpm:base, confidence:0, fitScore:0 };
+  const halfEntry=scored.find(entry=>entry.bpm===Math.round(base/2));
+  const doubleEntry=scored.find(entry=>entry.bpm===Math.round(base*2));
+  let best=baseEntry;
+  if(halfEntry && (halfEntry.fitScore >= (baseEntry.fitScore*0.9) || (base>=128 && halfEntry.fitScore >= (baseEntry.fitScore*0.82)))){
+    best=halfEntry;
+  }else if(doubleEntry && doubleEntry.fitScore > (baseEntry.fitScore*1.16)){
+    best=doubleEntry;
+  }else if(scored[0] && scored[0].fitScore > (baseEntry.fitScore*1.12)){
+    best=scored[0];
+  }
+  return {
+    bpm:best?.bpm || base,
+    confidence:clampValue(Math.max((+djConfidence || 0)*0.72, best?.confidence || 0), 0, 0.99)
+  };
+}
+function estimateBpmFromMonoDetailed(mono, sampleRate){
+  const onsetData=buildOnsetAnalysisFromMono(mono, sampleRate);
+  if(!onsetData) return { bpm:0, meterBpm:0, confidence:0, meterConfidence:0 };
+  const { smooth, peakIdx, framesPerSec }=onsetData;
   const scores=new Map();
   for(let i=0;i<peakIdx.length;i++){
     for(let j=i+1;j<Math.min(peakIdx.length, i+6);j++){
@@ -109,9 +233,14 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     scores.set(bpm, (scores.get(bpm)||0) + score*0.35);
   });
   const summary=summarizeWeightedVotes(scores, bestLag ? Math.round(foldBpm((60*framesPerSec)/bestLag)) : 0);
+  const djBpm=summary.value||0;
+  const djConfidence=djBpm ? clampValue(summary.confidence + (peakIdx.length>10 ? 0.08 : 0), 0, 0.98) : 0;
+  const meterResult=resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence);
   return {
-    bpm:summary.value||0,
-    confidence:summary.value ? clampValue(summary.confidence + (peakIdx.length>10 ? 0.08 : 0), 0, 0.98) : 0
+    bpm:djBpm,
+    meterBpm:meterResult.bpm || djBpm || 0,
+    confidence:djConfidence,
+    meterConfidence:meterResult.confidence || djConfidence || 0
   };
 }
 
@@ -119,6 +248,7 @@ function estimateBpmFromPreparedMono(mono, sampleRate){
   const segmentSec=30;
   const segmentLen=Math.floor(sampleRate*segmentSec);
   const votes=new Map();
+  const meterVotes=new Map();
   const starts=[0];
   if(mono.length > segmentLen*1.5){
     starts.push(Math.max(0, Math.floor((mono.length-segmentLen)/2)));
@@ -131,20 +261,34 @@ function estimateBpmFromPreparedMono(mono, sampleRate){
   const uniqueStarts=[...new Set(starts)].filter(start=>start+Math.floor(sampleRate*16) < mono.length);
   uniqueStarts.forEach(start=>{
     const slice=mono.subarray(start, Math.min(mono.length, start+segmentLen));
-    const { bpm, confidence }=estimateBpmFromMonoDetailed(slice, sampleRate);
+    const { bpm, meterBpm, confidence, meterConfidence }=estimateBpmFromMonoDetailed(slice, sampleRate);
     if(!bpm) return;
     const weight=Math.max(0.2, confidence || 0.2);
     votes.set(bpm, (votes.get(bpm)||0) + weight);
     for(const alt of [bpm-1,bpm+1]){
       if(alt>70 && alt<181) votes.set(alt, (votes.get(alt)||0) + weight*0.18);
     }
+    if(meterBpm){
+      const meter=Math.round(normalizeBpmRange(meterBpm, 45, 210));
+      const meterWeight=Math.max(0.2, meterConfidence || confidence || 0.2);
+      meterVotes.set(meter, (meterVotes.get(meter)||0) + meterWeight);
+      for(const alt of [meter-1,meter+1]){
+        if(alt>=45 && alt<=210) meterVotes.set(alt, (meterVotes.get(alt)||0) + meterWeight*0.18);
+      }
+    }
   });
   if(!votes.size) return estimateBpmFromMonoDetailed(mono, sampleRate);
   const fallback=estimateBpmFromMonoDetailed(mono, sampleRate);
   const summary=summarizeWeightedVotes(votes, fallback.bpm);
+  const meterSummary=meterVotes.size
+    ? summarizeWeightedVotes(meterVotes, fallback.meterBpm || fallback.bpm)
+    : null;
   return {
+    ...fallback,
     bpm:summary.value || fallback.bpm || 0,
-    confidence:clampValue(Math.max(fallback.confidence*0.72, summary.confidence), 0, 0.99)
+    confidence:clampValue(Math.max(fallback.confidence*0.72, summary.confidence), 0, 0.99),
+    meterBpm:meterSummary?.value || fallback.meterBpm || fallback.bpm || 0,
+    meterConfidence:clampValue(Math.max((fallback.meterConfidence||0)*0.72, meterSummary?.confidence || 0), 0, 0.99)
   };
 }
 

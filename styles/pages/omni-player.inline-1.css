@@ -581,7 +581,12 @@ html,body{height:100%}
   }
   .control-dock::before{width:240px;height:240px;left:-18px;bottom:-122px}
   .control-dock::after{width:280px;height:200px;right:-14px;top:-108px;opacity:.16}
-  .control-dock .status-canvas{display:none;pointer-events:none}
+  .control-dock .status-canvas{
+    display:block;pointer-events:none;margin-bottom:.46rem;height:108px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.08),
+      0 14px 34px rgba(0,0,0,.16)
+  }
   .ctrl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
   .ctrl.ctrl-dock{
     position:relative;inset:auto;padding:.44rem .72rem;

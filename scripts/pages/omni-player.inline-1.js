@@ -34,7 +34,7 @@ const $={
   settings:qs('#settings'), btnSettings:qs('#btnSettings'), btnSettingsClose:qs('#btnSettingsClose'), btnSettingsCloseTop:qs('#btnSettingsCloseTop'),
   portraitSettingsDock:qs('#portraitSettingsDock'), portraitControlsSection:qs('#portraitControlsSection'),
   specMode:qs('#specMode'), specOverlay:qs('#specOverlay'), specSens:qs('#specSens'), specBins:qs('#specBins'),
-  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), metroEnable:qs('#metroEnable'), metroVolume:qs('#metroVolume'), metroRead:qs('#metroRead'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'),
+  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), metroEnable:qs('#metroEnable'), metroVolume:qs('#metroVolume'), metroRead:qs('#metroRead'), metroSubdivision:qs('#metroSubdivision'), metroVisual:qs('#metroVisual'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'),
   hueLow:qs('#hueLow'), hueHigh:qs('#hueHigh'), sat:qs('#sat'), light:qs('#light'),
   rainbowSpeed:qs('#rainbowSpeed'), rainbowPhase:qs('#rainbowPhase'),
   subSearch:qs('#subSearch'), btnSubSearch:qs('#btnSubSearch'), subHits:qs('#subHits'),
@@ -141,12 +141,12 @@ function updateMetronomeReadout(){
     $.metroRead.textContent='OFF';
     return;
   }
-  const bpm=getCurrentTrackBpm();
+  const bpm=getCurrentTrackMeterBpm() || getCurrentTrackBpm();
   if(!bpm){
     $.metroRead.textContent='WAIT';
     return;
   }
-  $.metroRead.textContent=`${mediaPaused() ? 'READY' : 'ON'} ${bpm}`;
+  $.metroRead.textContent=`${mediaPaused() ? 'READY' : 'ON'} ${bpm} · ${getMetronomeSubdivisionLabel()}`;
 }
 function setDjPhase(nextPhase='idle'){
   const phase=String(nextPhase||'idle');
@@ -255,6 +255,17 @@ function foldBpm(bpm){
   while(v>180) v/=2;
   return Math.round(v*10)/10;
 }
+function normalizeBpmRange(bpm, min=45, max=210){
+  let v=+bpm||0;
+  if(!Number.isFinite(v) || v<=0) return 0;
+  while(v<min) v*=2;
+  while(v>max) v/=2;
+  return Math.round(v*10)/10;
+}
+function meterBeatPeriodSec(bpm){
+  const normalized=normalizeBpmRange(bpm, 45, 210);
+  return normalized ? (60/normalized) : 0;
+}
 function beatPeriodSec(bpm){
   const folded=foldBpm(bpm);
   return folded ? (60/folded) : 0;
@@ -336,6 +347,21 @@ function getItemDjCueIn(item){
   if(cue>maxCue) return 0;
   if(confidence<0.26 && cue>1.2) return 0;
   return clampValue(cue, 0, maxCue);
+}
+function getItemMeterBpm(item){
+  const meter=Math.round(+item?._meterBpm || 0);
+  if(meter) return meter;
+  return Math.round(+item?._bpm || 0) || 0;
+}
+function getItemBeatAnchorSec(item){
+  const meterBpm=getItemMeterBpm(item);
+  const rawAnchor=+item?._beatAnchorSec;
+  const confidence=+item?._beatAnchorConfidence || 0;
+  const period=meterBeatPeriodSec(meterBpm);
+  if(period && Number.isFinite(rawAnchor) && rawAnchor>=0 && confidence>=0.18){
+    return rawAnchor;
+  }
+  return getItemDjCueIn(item);
 }
 function dbToGain(db){
   return Math.pow(10, (+db||0)/20);
@@ -514,9 +540,82 @@ function getTrackBpmInfo(item, opts={}){
   if(analyzedBpm) return { bpm:analyzedBpm, confidence:analyzedConfidence, source:'analysis' };
   return { bpm:0, confidence:0, source:'none' };
 }
+function getTrackMeterBpmInfo(item){
+  if(!hasCompletedTrackAnalysis(item)) return { bpm:0, confidence:0, source:'none' };
+  const analyzedBpm=Math.round(item?._meterBpm || item?._bpm || 0);
+  const analyzedConfidence=+(item?._meterBpmConfidence ?? item?._bpmConfidence ?? 0);
+  if(analyzedBpm) return { bpm:analyzedBpm, confidence:analyzedConfidence, source:'analysis' };
+  return { bpm:0, confidence:0, source:'none' };
+}
 function getCurrentTrackBpm(){
   const item=state.list[state.cur];
   return getTrackBpmInfo(item).bpm || 0;
+}
+function getCurrentTrackMeterBpm(){
+  const item=state.list[state.cur];
+  return getTrackMeterBpmInfo(item).bpm || 0;
+}
+function getCurrentTrackBeatAnchor(){
+  return getItemBeatAnchorSec(state.list[state.cur]);
+}
+function getMetronomeSubdivisionDivisor(value=state.metronome?.subdivision){
+  return value==='eighth' ? 2 : 1;
+}
+function getMetronomeSubdivisionLabel(value=state.metronome?.subdivision){
+  return value==='eighth' ? '8分' : '4分';
+}
+function getCurrentBeatGridSnapshot(timeSec=mediaCurrent(), item=state.list[state.cur]){
+  const bpm=getItemMeterBpm(item) || Math.round(+item?._bpm || 0) || 0;
+  const period=meterBeatPeriodSec(bpm);
+  if(!item || !bpm || !period) return null;
+  const anchorSec=getItemBeatAnchorSec(item);
+  const beatFloat=(Math.max(0, +timeSec || 0)-anchorSec)/period;
+  const beatIndex=Math.floor(beatFloat);
+  const beatPhase=beatFloat-beatIndex;
+  const beatInBar=((beatIndex % DJ_BEATS_PER_BAR) + DJ_BEATS_PER_BAR) % DJ_BEATS_PER_BAR;
+  const barIndex=Math.floor(Math.max(0, beatIndex)/DJ_BEATS_PER_BAR);
+  return {
+    bpm,
+    period,
+    anchorSec,
+    beatFloat,
+    beatIndex,
+    beatPhase:clampValue(beatPhase, 0, 1),
+    beatInBar,
+    barIndex,
+    meterConfidence:+(item?._meterBpmConfidence || item?._bpmConfidence || 0),
+    anchorConfidence:+(item?._beatAnchorConfidence || 0)
+  };
+}
+function queueMetronomeFlash(when, level=1){
+  if(!state.metronome.visual) return;
+  if(!Number.isFinite(when)) return;
+  state.metronome.flashQueue.push({
+    when,
+    until:when + (level>=2 ? 0.11 : 0.085),
+    level:Math.max(0, level|0)
+  });
+  if(state.metronome.flashQueue.length>18){
+    state.metronome.flashQueue.splice(0, state.metronome.flashQueue.length-18);
+  }
+}
+function getActiveMetronomeFlash(){
+  if(!state.metronome.visual) return null;
+  const ac=state.audioCtx;
+  if(!ac || !state.metronome.flashQueue.length) return null;
+  const now=ac.currentTime;
+  state.metronome.flashQueue=state.metronome.flashQueue.filter(entry=>(entry.until||0) >= (now-0.02));
+  let active=null;
+  for(const entry of state.metronome.flashQueue){
+    if(now < entry.when || now > entry.until) continue;
+    const span=Math.max(0.02, (entry.until-entry.when) || 0.08);
+    const progress=clampValue((now-entry.when)/span, 0, 1);
+    const strength=(1-progress) * (entry.level>=2 ? 1 : 0.72);
+    if(!active || strength>active.strength){
+      active={ level:entry.level, strength };
+    }
+  }
+  return active;
 }
 function getCurrentTrackKey(){
   const item=state.list[state.cur];
@@ -635,9 +734,14 @@ function syncDjPitchPolicy(){
 function updateDjReadouts(){
   const item=state.list[state.cur];
   const analysisDone=hasCompletedTrackAnalysis(item);
-  const bpmConfidence=Math.round((item?._bpmConfidence || 0)*100);
-  const bpmText = getCurrentTrackBpm()
-    ? `${getCurrentTrackBpm()} BPM${bpmConfidence ? ` · ${bpmConfidence}%` : ''}`
+  const djBpm=getCurrentTrackBpm();
+  const meterBpm=getCurrentTrackMeterBpm() || djBpm;
+  const bpmConfidence=Math.round(Math.max((item?._bpmConfidence || 0), (item?._meterBpmConfidence || 0))*100);
+  const bpmLabel=(meterBpm && djBpm && Math.abs(meterBpm-djBpm)>=8)
+    ? `${meterBpm} BPM / DJ ${djBpm}`
+    : `${djBpm || meterBpm} BPM`;
+  const bpmText = (djBpm || meterBpm)
+    ? `${bpmLabel}${bpmConfidence ? ` · ${bpmConfidence}%` : ''}`
     : '--';
   if($.bpmRead){
     $.bpmRead.textContent=bpmText;
@@ -996,7 +1100,9 @@ const state={
   metronome:{
     enabled: store.get('pc.metro.enabled', false),
     volume: clampValue(+(store.get('pc.metro.volume', 0.24) || 0.24), 0, 1),
-    gainNode:null, nextBeatIndex:null, trackSig:''
+    subdivision: store.get('pc.metro.subdivision', 'quarter')==='eighth' ? 'eighth' : 'quarter',
+    visual: store.get('pc.metro.visual', true)!==false,
+    gainNode:null, nextBeatIndex:null, trackSig:'', flashQueue:[]
   },
   dj:{
     enabled: store.get('pc.dj.enabled', true),
@@ -1113,6 +1219,8 @@ function drawStatusHud(t){
   const rate=Math.max(0.25, Math.min(2, +($.rate?.value||1)));
   const master=Math.max(0, Math.min(2, +($.master?.value||1)));
   const pulse=mediaPaused() ? 0.18 : 0.34 + Math.sin(t/420)*0.08;
+  const beatGrid=getCurrentBeatGridSnapshot();
+  const metroFlash=getActiveMetronomeFlash();
 
   const glowA=ctx.createRadialGradient(w*0.18,h*0.5,8,w*0.18,h*0.5,w*0.22);
   glowA.addColorStop(0,`rgba(110,196,255,${0.18 + vol*0.16})`);
@@ -1131,6 +1239,16 @@ function drawStatusHud(t){
   glowC.addColorStop(1,'rgba(163,218,255,0)');
   ctx.fillStyle=glowC;
   ctx.fillRect(0,0,w,h);
+
+  if(metroFlash){
+    const flashAlpha=clampValue(metroFlash.strength*0.2, 0, 0.22);
+    const flashGrad=ctx.createLinearGradient(0,0,w,0);
+    flashGrad.addColorStop(0,`rgba(126,214,255,${flashAlpha*0.35})`);
+    flashGrad.addColorStop(.5,`rgba(126,214,255,${flashAlpha})`);
+    flashGrad.addColorStop(1,`rgba(126,214,255,${flashAlpha*0.35})`);
+    ctx.fillStyle=flashGrad;
+    ctx.fillRect(0,0,w,h);
+  }
 
   ctx.lineWidth=1;
   ctx.strokeStyle='rgba(255,255,255,.08)';
@@ -1151,6 +1269,84 @@ function drawStatusHud(t){
   }
   ctx.stroke();
   ctx.shadowBlur=0;
+
+  const gridX=24;
+  const gridW=w-48;
+  const gridY=Math.max(34, h-58);
+  const gridH=26;
+  const gridR=13;
+  ctx.fillStyle='rgba(6,12,20,.38)';
+  ctx.strokeStyle='rgba(255,255,255,.08)';
+  ctx.beginPath();
+  ctx.roundRect(gridX, gridY, gridW, gridH, gridR);
+  ctx.fill();
+  ctx.stroke();
+
+  if(!beatGrid){
+    ctx.fillStyle='rgba(220,236,255,.58)';
+    ctx.font='600 11px system-ui, sans-serif';
+    ctx.fillText('BPM 解析後に beat grid を表示します', gridX+14, gridY+16);
+    return;
+  }
+
+  const slots=8;
+  const slotGap=6;
+  const innerPad=10;
+  const slotW=(gridW-(innerPad*2)-((slots-1)*slotGap))/slots;
+  const slotH=gridH-10;
+  const currentBeatBase=Math.floor(beatGrid.beatFloat);
+  const centerBias=2;
+  const startBeat=currentBeatBase-centerBias;
+  const beatPulse=1-beatGrid.beatPhase;
+  for(let i=0;i<slots;i++){
+    const beatNumber=startBeat+i;
+    const x=gridX+innerPad + i*(slotW+slotGap);
+    const y=gridY+5;
+    const isCurrent=beatNumber===currentBeatBase;
+    const barEdge=((beatNumber % DJ_BEATS_PER_BAR)+DJ_BEATS_PER_BAR)%DJ_BEATS_PER_BAR===0;
+    const baseAlpha=barEdge ? 0.18 : 0.08;
+    const fillAlpha=isCurrent ? (0.22 + beatPulse*0.28) : baseAlpha;
+    const glowAlpha=isCurrent ? (0.18 + beatPulse*0.24) : 0;
+    const fill=ctx.createLinearGradient(x,y,x,y+slotH);
+    fill.addColorStop(0,`rgba(133,224,255,${fillAlpha + (barEdge?0.06:0)})`);
+    fill.addColorStop(1,`rgba(60,124,255,${fillAlpha*0.48})`);
+    ctx.fillStyle=fill;
+    ctx.beginPath();
+    ctx.roundRect(x,y,slotW,slotH, Math.min(10, slotW*0.26));
+    ctx.fill();
+    if(glowAlpha>0){
+      ctx.shadowBlur=16;
+      ctx.shadowColor=`rgba(118,214,255,${glowAlpha})`;
+      ctx.strokeStyle=`rgba(166,234,255,${0.26 + beatPulse*0.46})`;
+      ctx.lineWidth=1.2;
+      ctx.stroke();
+      ctx.shadowBlur=0;
+    }
+    ctx.fillStyle=barEdge ? 'rgba(230,244,255,.9)' : 'rgba(230,244,255,.58)';
+    ctx.font='700 10px system-ui, sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(String((((beatNumber % DJ_BEATS_PER_BAR)+DJ_BEATS_PER_BAR)%DJ_BEATS_PER_BAR)+1), x+(slotW/2), y+slotH-6);
+  }
+
+  const playheadX=gridX+innerPad + ((centerBias+beatGrid.beatPhase)*(slotW+slotGap)) - (slotGap*0.5);
+  ctx.strokeStyle='rgba(255,255,255,.88)';
+  ctx.lineWidth=1.4;
+  ctx.beginPath();
+  ctx.moveTo(playheadX, gridY-4);
+  ctx.lineTo(playheadX, gridY+gridH+4);
+  ctx.stroke();
+
+  const labelY=24;
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(236,246,255,.9)';
+  ctx.font='700 11px system-ui, sans-serif';
+  ctx.fillText(`BAR ${Math.max(1, beatGrid.barIndex+1)}  BEAT ${beatGrid.beatInBar+1}`, 24, labelY);
+  ctx.fillStyle='rgba(192,224,255,.72)';
+  ctx.font='600 10px system-ui, sans-serif';
+  const meterConfidence=Math.round((beatGrid.meterConfidence||0)*100);
+  const anchorConfidence=Math.round((beatGrid.anchorConfidence||0)*100);
+  const confidenceText=`${beatGrid.bpm} BPM · Grid ${anchorConfidence||meterConfidence||0}%`;
+  ctx.fillText(confidenceText, Math.max(24, w-ctx.measureText(confidenceText).width-26), labelY);
 }
 function initCanvasHud(){
   let raf=0;
@@ -1510,14 +1706,24 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
   };
   const cueInResult=estimateDjCueInFromMonoDetailed(new Float32Array(source), payload.sampleRate);
   const mixResult=estimateDjMixMetricsFromMonoDetailed(new Float32Array(source), payload.sampleRate);
+  const mergeLocalAnalysis=(result={})=>{
+    const bpmSeed=result?.bpmResult?.meterBpm || result?.bpmResult?.bpm || 0;
+    const beatAnchorResult=(payload.continuous===false)
+      ? (result?.beatAnchorResult || { anchorSec:cueInResult?.cueIn || 0, confidence:0 })
+      : estimateBeatAnchorFromMonoDetailed(cloneForFallback(), payload.sampleRate, bpmSeed, cueInResult?.cueIn || 0);
+    return {
+      ...(result||{}),
+      cueInResult:result?.cueInResult || cueInResult,
+      mixResult:result?.mixResult || mixResult,
+      beatAnchorResult:result?.beatAnchorResult || beatAnchorResult
+    };
+  };
   if(!worker){
     const mono=cloneForFallback();
-    return {
-      bpmResult:estimateBpmFromPreparedMono(mono, payload.sampleRate),
-      keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate),
-      cueInResult,
-      mixResult
-    };
+    return mergeLocalAnalysis({
+      bpmResult:estimateBpmFromMonoDetailed(mono, payload.sampleRate),
+      keyResult:estimateKeyFromMonoDetailed(mono, payload.sampleRate)
+    });
   }
   const id=++analysisWorkerReq;
   return await new Promise((resolve,reject)=>{
@@ -1536,16 +1742,10 @@ async function runAnalysisWorkerDetailedFromPayload(payload){
   }).catch(()=>{
     const mono=cloneForFallback();
     return {
-      bpmResult:estimateBpmFromPreparedMono(mono, payload.sampleRate),
-      keyResult:estimateKeyFromPreparedMono(mono, payload.sampleRate),
-      cueInResult,
-      mixResult
+      bpmResult:estimateBpmFromMonoDetailed(mono, payload.sampleRate),
+      keyResult:estimateKeyFromMonoDetailed(mono, payload.sampleRate)
     };
-  }).then(result=>({
-    ...(result||{}),
-    cueInResult:result?.cueInResult || cueInResult,
-    mixResult:result?.mixResult || mixResult
-  }));
+  }).then(result=>mergeLocalAnalysis(result));
 }
 async function extractMonoWithFfmpeg(item, maxSeconds=72, sampleRate=16000, signal){
   const ffmpeg=await ensureFfmpegAnalysis();
@@ -1583,7 +1783,7 @@ async function extractMonoWithFfmpeg(item, maxSeconds=72, sampleRate=16000, sign
       for(let j=i;j<end;j++) mono[j]=view[j]/32768;
       if(end<sampleCount) await nextAnalysisTick();
     }
-    return { monoBuffer:mono.buffer, sampleRate, transfer:[mono.buffer] };
+    return { monoBuffer:mono.buffer, sampleRate, transfer:[mono.buffer], continuous:true };
   }catch(e){
     return null;
   }finally{
@@ -1824,7 +2024,7 @@ async function buildAnalysisMonoPayload(audioBuffer, maxSeconds=60, targetRate=1
     if(outIndex<outputLength) await nextAnalysisTick();
   }
   const trimmed=(outIndex===mono.length) ? mono : mono.slice(0, outIndex);
-  return { monoBuffer:trimmed.buffer, sampleRate:outputRate, transfer:[trimmed.buffer] };
+  return { monoBuffer:trimmed.buffer, sampleRate:outputRate, transfer:[trimmed.buffer], continuous:false };
 }
 async function analyzeDecodedBufferDetailed(audioBuffer){
   const decodedCueInResult=estimateDjCueInFromDecodedAudioDetailed(audioBuffer);
@@ -1835,12 +2035,13 @@ async function analyzeDecodedBufferDetailed(audioBuffer){
       bpmResult:{ bpm:0, confidence:0 },
       keyResult:{ key:'', confidence:0 },
       cueInResult:decodedCueInResult,
-      mixResult:decodedMixResult
+      mixResult:decodedMixResult,
+      beatAnchorResult:{ anchorSec:decodedCueInResult?.cueIn || 0, confidence:0 }
     };
   }
-  const results=await runAnalysisWorkerDetailedFromPayload(payload);
+  let results=await runAnalysisWorkerDetailedFromPayload(payload);
   if((decodedCueInResult?.confidence || 0) > ((results?.cueInResult?.confidence || 0) + 0.04)){
-    return {
+    results={
       ...(results||{}),
       cueInResult:decodedCueInResult,
       mixResult:((decodedMixResult?.confidence || 0) >= ((results?.mixResult?.confidence || 0) - 0.02))
@@ -1849,9 +2050,18 @@ async function analyzeDecodedBufferDetailed(audioBuffer){
     };
   }
   if((decodedMixResult?.confidence || 0) > ((results?.mixResult?.confidence || 0) + 0.04)){
-    return { ...(results||{}), mixResult:decodedMixResult };
+    results={ ...(results||{}), mixResult:decodedMixResult };
   }
-  return { ...(results||{}), mixResult:results?.mixResult || decodedMixResult };
+  results={ ...(results||{}), mixResult:results?.mixResult || decodedMixResult };
+  const decodedBeatAnchorResult=estimateBeatAnchorFromDecodedAudioDetailed(
+    audioBuffer,
+    results?.bpmResult?.meterBpm || results?.bpmResult?.bpm || 0,
+    results?.cueInResult?.cueIn || decodedCueInResult?.cueIn || 0
+  );
+  if((decodedBeatAnchorResult?.confidence || 0) > ((results?.beatAnchorResult?.confidence || 0) + 0.04)){
+    return { ...(results||{}), beatAnchorResult:decodedBeatAnchorResult };
+  }
+  return { ...(results||{}), beatAnchorResult:results?.beatAnchorResult || decodedBeatAnchorResult };
 }
 function hideAnalysisLoader(opts={}){
   try{
@@ -1979,27 +2189,30 @@ function ensureMetronomeGraph(){
 function resetMetronomeSchedule(){
   state.metronome.nextBeatIndex=null;
   state.metronome.trackSig='';
+  state.metronome.flashQueue.length=0;
 }
-function scheduleMetronomeClick(when, accent=false){
+function scheduleMetronomeClick(when, level=1){
   const ac=state.audioCtx;
   const bus=ensureMetronomeGraph();
   if(!ac || !bus || !state.metronome.enabled) return;
-  const peak=clampValue((state.metronome.volume||0.24) * (accent ? 1.12 : 0.84), 0.001, 0.92);
-  const duration=accent ? 0.05 : 0.036;
+  const accentLevel=Math.max(0, level|0);
+  const peak=clampValue((state.metronome.volume||0.24) * (accentLevel>=2 ? 1.12 : (accentLevel===1 ? 0.84 : 0.54)), 0.001, 0.92);
+  const duration=accentLevel>=2 ? 0.05 : (accentLevel===1 ? 0.036 : 0.026);
   const osc=ac.createOscillator();
   const filter=ac.createBiquadFilter();
   const gain=ac.createGain();
   filter.type='highpass';
-  filter.frequency.value=accent ? 920 : 760;
-  osc.type=accent ? 'triangle' : 'square';
-  osc.frequency.setValueAtTime(accent ? 1760 : 1320, when);
-  osc.frequency.exponentialRampToValueAtTime(accent ? 1280 : 980, when+duration);
+  filter.frequency.value=accentLevel>=2 ? 920 : (accentLevel===1 ? 760 : 640);
+  osc.type=accentLevel>=2 ? 'triangle' : (accentLevel===1 ? 'square' : 'sine');
+  osc.frequency.setValueAtTime(accentLevel>=2 ? 1760 : (accentLevel===1 ? 1320 : 1040), when);
+  osc.frequency.exponentialRampToValueAtTime(accentLevel>=2 ? 1280 : (accentLevel===1 ? 980 : 760), when+duration);
   gain.gain.setValueAtTime(0.0001, when);
   gain.gain.exponentialRampToValueAtTime(peak, when+0.0025);
   gain.gain.exponentialRampToValueAtTime(0.0001, when+duration);
   osc.connect(filter);
   filter.connect(gain);
   gain.connect(bus);
+  queueMetronomeFlash(when, accentLevel);
   osc.start(when);
   osc.stop(when+duration+0.012);
   osc.onended=()=>{
@@ -2013,7 +2226,7 @@ function updateMetronomeScheduler(){
     resetMetronomeSchedule();
     return;
   }
-  const bpm=getCurrentTrackBpm();
+  const bpm=getCurrentTrackMeterBpm() || getCurrentTrackBpm();
   if(!bpm || mediaPaused()){
     resetMetronomeSchedule();
     return;
@@ -2023,14 +2236,16 @@ function updateMetronomeScheduler(){
   const bus=ensureMetronomeGraph();
   if(!ac || !bus || ac.state!=='running') return;
   const currentItem=state.list[state.cur];
-  const period=beatPeriodSec(bpm);
+  const period=meterBeatPeriodSec(bpm);
   if(!period) return;
-  const anchorSec=getItemDjCueIn(currentItem);
+  const anchorSec=getItemBeatAnchorSec(currentItem);
   const mediaNow=Math.max(0, mediaCurrent());
   const mediaRate=Math.max(0.25, currentEffectiveRate());
-  const beatFloat=(mediaNow-anchorSec)/period;
+  const division=getMetronomeSubdivisionDivisor();
+  const stepPeriod=period/division;
+  const beatFloat=(mediaNow-anchorSec)/stepPeriod;
   const desiredNext=Math.max(0, Math.floor(beatFloat+0.02)+1);
-  const trackSig=`${state.cur}|${Math.round(bpm*10)}|${anchorSec.toFixed(3)}`;
+  const trackSig=`${state.cur}|${Math.round(bpm*10)}|${anchorSec.toFixed(3)}|${division}`;
   if(
     state.metronome.trackSig!==trackSig ||
     !Number.isFinite(state.metronome.nextBeatIndex) ||
@@ -2043,11 +2258,14 @@ function updateMetronomeScheduler(){
   const lookAheadCtx=0.16;
   const mediaLookAhead=lookAheadCtx*mediaRate;
   const nowCtx=ac.currentTime;
-  while((anchorSec + (state.metronome.nextBeatIndex*period)) <= (mediaNow + mediaLookAhead)){
-    const beatMediaTime=anchorSec + (state.metronome.nextBeatIndex*period);
+  while((anchorSec + (state.metronome.nextBeatIndex*stepPeriod)) <= (mediaNow + mediaLookAhead)){
+    const beatMediaTime=anchorSec + (state.metronome.nextBeatIndex*stepPeriod);
     const deltaMedia=beatMediaTime-mediaNow;
     const when=nowCtx + Math.max(0, deltaMedia/mediaRate);
-    scheduleMetronomeClick(when, (state.metronome.nextBeatIndex % DJ_BEATS_PER_BAR)===0);
+    const stepIndex=state.metronome.nextBeatIndex;
+    const barStepLength=DJ_BEATS_PER_BAR*division;
+    const level=(stepIndex % barStepLength)===0 ? 2 : ((stepIndex % division)===0 ? 1 : 0);
+    scheduleMetronomeClick(when, level);
     state.metronome.nextBeatIndex++;
   }
 }
@@ -2285,16 +2503,17 @@ function estimateBpmFromOnsets(onsets){
   return { bpm:bestBpm, confidence:bestScore/total };
 }
 function updateEstimatedBeatPulse(nowMs){
-  const bpmValue=getCurrentTrackBpm();
+  const bpmValue=getCurrentTrackMeterBpm() || getCurrentTrackBpm();
   state.bpm.current=bpmValue || 0;
-  state.bpm.confidence=+(state.list[state.cur]?._bpmConfidence || 0);
+  state.bpm.confidence=Math.max(+(state.list[state.cur]?._bpmConfidence || 0), +(state.list[state.cur]?._meterBpmConfidence || 0));
   if(!bpmValue || mediaPaused()){
     state.bpm.pulse=0;
     return;
   }
   const period=60000/Math.max(1, bpmValue);
   const mediaMs=Math.max(0, mediaCurrent()*1000);
-  const phase=((mediaMs%period)+period)%period/period;
+  const anchorMs=Math.max(0, getCurrentTrackBeatAnchor()*1000);
+  const phase=((((mediaMs-anchorMs)%period)+period)%period)/period;
   state.bpm.pulse=Math.pow(Math.max(0, 1-phase), 4.5);
 }
 function buildMonoMix(audioBuffer, maxSeconds=180){
@@ -2512,8 +2731,8 @@ function estimateBpmFromMono(mono, sampleRate){
   if(!mono?.length || !sampleRate) return 0;
   return estimateBpmFromMonoDetailed(mono, sampleRate).bpm;
 }
-function estimateBpmFromMonoDetailed(mono, sampleRate){
-  if(!mono?.length || !sampleRate) return { bpm:0, confidence:0 };
+function buildOnsetAnalysisFromMono(mono, sampleRate){
+  if(!mono?.length || !sampleRate) return null;
   const hop=512;
   const win=1024;
   const env=[];
@@ -2534,7 +2753,7 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     env.push(onset);
     prevFrameEnergy=energy;
   }
-  if(env.length<48) return { bpm:0, confidence:0 };
+  if(env.length<48) return null;
   const smooth=new Float32Array(env.length);
   for(let i=0;i<env.length;i++){
     let local=0,count=0;
@@ -2554,7 +2773,162 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     const threshold=mean + Math.sqrt(variance)*0.45;
     if(v>Math.max(0.008, threshold)) peakIdx.push(i);
   }
-  const framesPerSec=sampleRate/hop;
+  const rankedPeakIdx=peakIdx.slice().sort((a,b)=>(smooth[b]||0)-(smooth[a]||0)).slice(0, 96);
+  return {
+    hop,
+    win,
+    smooth,
+    peakIdx,
+    rankedPeakIdx,
+    framesPerSec:sampleRate/hop
+  };
+}
+function getInterpolatedSeriesValue(series, index){
+  if(!series?.length) return 0;
+  if(index<=0) return +series[0] || 0;
+  const maxIndex=series.length-1;
+  if(index>=maxIndex) return +series[maxIndex] || 0;
+  const base=Math.floor(index);
+  const frac=index-base;
+  const a=+series[base] || 0;
+  const b=+series[Math.min(maxIndex, base+1)] || 0;
+  return a + ((b-a)*frac);
+}
+function getNormalizedLagCorrelation(series, lag){
+  if(!series?.length || !Number.isFinite(lag) || lag<1) return 0;
+  const maxIndex=series.length-1;
+  const end=Math.floor(maxIndex-lag);
+  if(end<2) return 0;
+  let num=0, denA=0, denB=0;
+  for(let i=0;i<=end;i++){
+    const a=+series[i] || 0;
+    const b=getInterpolatedSeriesValue(series, i+lag);
+    num += a*b;
+    denA += a*a;
+    denB += b*b;
+  }
+  if(denA<=1e-9 || denB<=1e-9) return 0;
+  return clampValue(num/Math.sqrt(denA*denB), 0, 1);
+}
+function estimateBeatAnchorFromOnsetData(onsetData, bpm, cueInSec=0){
+  if(!onsetData?.smooth?.length || !bpm) return { anchorSec:Math.max(0, +cueInSec || 0), confidence:0, fitScore:0 };
+  const periodFrames=onsetData.framesPerSec*60/Math.max(1, +bpm || 0);
+  if(!Number.isFinite(periodFrames) || periodFrames<2) return { anchorSec:Math.max(0, +cueInSec || 0), confidence:0, fitScore:0 };
+  const cueFrame=Math.max(0, (+cueInSec || 0) * onsetData.framesPerSec);
+  const tolerance=Math.max(1.6, periodFrames*0.13);
+  const peaks=(onsetData.rankedPeakIdx?.length ? onsetData.rankedPeakIdx : onsetData.peakIdx || []).filter(idx=>idx>=Math.max(0, cueFrame-(periodFrames*0.9)));
+  const phases=[];
+  const phaseKeys=new Set();
+  const pushPhase=(frame)=>{
+    const phase=((frame%periodFrames)+periodFrames)%periodFrames;
+    const key=Math.round(phase*4);
+    if(phaseKeys.has(key)) return;
+    phaseKeys.add(key);
+    phases.push(phase);
+  };
+  if(cueFrame>0) pushPhase(cueFrame);
+  peaks.slice(0, 28).forEach(pushPhase);
+  if(!phases.length) phases.push(0);
+  const modDistance=(value, period)=>{
+    const pos=((value%period)+period)%period;
+    return Math.min(pos, period-pos);
+  };
+  let bestPhase=phases[0] || 0;
+  let bestScore=0;
+  let secondScore=0;
+  let bestMatchRatio=0;
+  for(const phase of phases){
+    let weightedScore=0;
+    let weightedTotal=0;
+    let matchedWeight=0;
+    for(const idx of peaks.slice(0, 64)){
+      const weight=+onsetData.smooth[idx] || 0;
+      if(weight<=0) continue;
+      const dist=modDistance(idx-phase, periodFrames);
+      const closeness=Math.max(0, 1-(dist/tolerance));
+      weightedScore += weight*closeness;
+      weightedTotal += weight;
+      if(closeness>=0.72) matchedWeight += weight;
+    }
+    let phaseScore=weightedTotal>0 ? (weightedScore/weightedTotal) : 0;
+    if(cueFrame>0){
+      const cueDist=modDistance(cueFrame-phase, periodFrames);
+      const cueBias=Math.max(0, 1-(cueDist/Math.max(1.6, periodFrames*0.22)));
+      phaseScore=(phaseScore*0.88) + (cueBias*0.12);
+    }
+    if(phaseScore>bestScore){
+      secondScore=bestScore;
+      bestScore=phaseScore;
+      bestPhase=phase;
+      bestMatchRatio=weightedTotal>0 ? (matchedWeight/weightedTotal) : 0;
+    }else if(phaseScore>secondScore){
+      secondScore=phaseScore;
+    }
+  }
+  let anchorFrame=bestPhase;
+  if(cueFrame>0){
+    const approxIndex=Math.floor((cueFrame-bestPhase + (periodFrames*0.22))/periodFrames);
+    anchorFrame=bestPhase + Math.max(0, approxIndex)*periodFrames;
+    while(anchorFrame + (periodFrames*0.22) < cueFrame) anchorFrame += periodFrames;
+    while(anchorFrame - (periodFrames*0.78) > cueFrame) anchorFrame -= periodFrames;
+  }
+  const corr1=getNormalizedLagCorrelation(onsetData.smooth, periodFrames);
+  const corr2=getNormalizedLagCorrelation(onsetData.smooth, periodFrames*2)*0.78;
+  const fitScore=clampValue((bestScore*0.72) + (corr1*0.22) + (corr2*0.06), 0, 1);
+  const separation=bestScore>0 ? (bestScore-secondScore)/bestScore : 0;
+  const confidence=clampValue((fitScore*0.68) + (separation*0.18) + Math.min(0.14, bestMatchRatio*0.14), 0, 0.98);
+  return {
+    anchorSec:Math.max(0, anchorFrame/onsetData.framesPerSec),
+    confidence,
+    fitScore
+  };
+}
+function resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence=0){
+  const base=Math.round(normalizeBpmRange(djBpm, 45, 210));
+  if(!base || !onsetData) return { bpm:0, confidence:0 };
+  const candidateSet=new Set([base]);
+  if(base>=96) candidateSet.add(Math.round(base/2));
+  if(base<=104) candidateSet.add(Math.round(base*2));
+  const scored=[...candidateSet]
+    .filter(candidate=>candidate>=45 && candidate<=210)
+    .map(candidate=>{
+      const anchor=estimateBeatAnchorFromOnsetData(onsetData, candidate, 0);
+      return { bpm:candidate, ...anchor };
+    })
+    .sort((a,b)=>b.fitScore-a.fitScore);
+  const baseEntry=scored.find(entry=>entry.bpm===base) || scored[0] || { bpm:base, confidence:0, fitScore:0 };
+  const halfEntry=scored.find(entry=>entry.bpm===Math.round(base/2));
+  const doubleEntry=scored.find(entry=>entry.bpm===Math.round(base*2));
+  let best=baseEntry;
+  if(halfEntry && (halfEntry.fitScore >= (baseEntry.fitScore*0.9) || (base>=128 && halfEntry.fitScore >= (baseEntry.fitScore*0.82)))){
+    best=halfEntry;
+  }else if(doubleEntry && doubleEntry.fitScore > (baseEntry.fitScore*1.16)){
+    best=doubleEntry;
+  }else if(scored[0] && scored[0].fitScore > (baseEntry.fitScore*1.12)){
+    best=scored[0];
+  }
+  return {
+    bpm:best?.bpm || base,
+    confidence:clampValue(Math.max((+djConfidence || 0)*0.72, best?.confidence || 0), 0, 0.99),
+    fitScore:best?.fitScore || 0
+  };
+}
+function estimateBeatAnchorFromMonoDetailed(mono, sampleRate, bpm, cueInSec=0){
+  if(!mono?.length || !sampleRate || !bpm) return { anchorSec:Math.max(0, +cueInSec || 0), confidence:0 };
+  const onsetData=buildOnsetAnalysisFromMono(mono, sampleRate);
+  if(!onsetData) return { anchorSec:Math.max(0, +cueInSec || 0), confidence:0 };
+  return estimateBeatAnchorFromOnsetData(onsetData, bpm, cueInSec);
+}
+function estimateBeatAnchorFromDecodedAudioDetailed(audioBuffer, bpm, cueInSec=0){
+  if(!audioBuffer || !bpm) return { anchorSec:Math.max(0, +cueInSec || 0), confidence:0 };
+  const mix=buildMonoMix(audioBuffer, 72);
+  if(!mix) return { anchorSec:Math.max(0, +cueInSec || 0), confidence:0 };
+  return estimateBeatAnchorFromMonoDetailed(mix.mono, mix.sampleRate, bpm, cueInSec);
+}
+function estimateBpmFromMonoDetailed(mono, sampleRate){
+  const onsetData=buildOnsetAnalysisFromMono(mono, sampleRate);
+  if(!onsetData) return { bpm:0, meterBpm:0, confidence:0, meterConfidence:0, beatAnchorSec:0, beatAnchorConfidence:0 };
+  const { smooth, peakIdx, framesPerSec }=onsetData;
   const scores=new Map();
   for(let i=0;i<peakIdx.length;i++){
     for(let j=i+1;j<Math.min(peakIdx.length, i+6);j++){
@@ -2584,9 +2958,17 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     scores.set(bpm, (scores.get(bpm)||0) + score*0.35);
   });
   const summary=summarizeWeightedVotes(scores, bestLag ? Math.round(foldBpm((60*framesPerSec)/bestLag)) : 0);
+  const djBpm=summary.value||0;
+  const djConfidence=djBpm ? clampValue(summary.confidence + (peakIdx.length>10 ? 0.08 : 0), 0, 0.98) : 0;
+  const meterResult=resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence);
+  const beatAnchorResult=estimateBeatAnchorFromOnsetData(onsetData, meterResult.bpm || djBpm, 0);
   return {
-    bpm:summary.value||0,
-    confidence:summary.value ? clampValue(summary.confidence + (peakIdx.length>10 ? 0.08 : 0), 0, 0.98) : 0
+    bpm:djBpm,
+    meterBpm:meterResult.bpm || djBpm || 0,
+    confidence:djConfidence,
+    meterConfidence:meterResult.confidence || djConfidence || 0,
+    beatAnchorSec:beatAnchorResult.anchorSec || 0,
+    beatAnchorConfidence:beatAnchorResult.confidence || 0
   };
 }
 function estimateBpmFromDecodedAudio(audioBuffer){
@@ -2595,11 +2977,12 @@ function estimateBpmFromDecodedAudio(audioBuffer){
 }
 function estimateBpmFromDecodedAudioDetailed(audioBuffer){
   const mix=buildMonoMix(audioBuffer, 180);
-  if(!mix) return { bpm:0, confidence:0 };
+  if(!mix) return { bpm:0, meterBpm:0, confidence:0, meterConfidence:0, beatAnchorSec:0, beatAnchorConfidence:0 };
   const { mono, sampleRate } = mix;
   const segmentSec=30;
   const segmentLen=Math.floor(sampleRate*segmentSec);
   const votes=new Map();
+  const meterVotes=new Map();
   const starts=[0];
   if(mono.length > segmentLen*1.5){
     starts.push(Math.max(0, Math.floor((mono.length-segmentLen)/2)));
@@ -2612,20 +2995,34 @@ function estimateBpmFromDecodedAudioDetailed(audioBuffer){
   const uniqueStarts=[...new Set(starts)].filter(start=>start+Math.floor(sampleRate*16) < mono.length);
   uniqueStarts.forEach(start=>{
     const slice=mono.subarray(start, Math.min(mono.length, start+segmentLen));
-    const { bpm, confidence }=estimateBpmFromMonoDetailed(slice, sampleRate);
+    const { bpm, meterBpm, confidence, meterConfidence }=estimateBpmFromMonoDetailed(slice, sampleRate);
     if(!bpm) return;
     const weight=Math.max(0.2, confidence || 0.2);
     votes.set(bpm, (votes.get(bpm)||0) + weight);
     for(const alt of [bpm-1,bpm+1]){
       if(alt>70 && alt<181) votes.set(alt, (votes.get(alt)||0) + weight*0.18);
     }
+    if(meterBpm){
+      const meter=Math.round(normalizeBpmRange(meterBpm, 45, 210));
+      const meterWeight=Math.max(0.2, meterConfidence || confidence || 0.2);
+      meterVotes.set(meter, (meterVotes.get(meter)||0) + meterWeight);
+      for(const alt of [meter-1,meter+1]){
+        if(alt>=45 && alt<=210) meterVotes.set(alt, (meterVotes.get(alt)||0) + meterWeight*0.18);
+      }
+    }
   });
   if(!votes.size) return estimateBpmFromMonoDetailed(mono, sampleRate);
   const fallback=estimateBpmFromMonoDetailed(mono, sampleRate);
   const summary=summarizeWeightedVotes(votes, fallback.bpm);
+  const meterSummary=meterVotes.size
+    ? summarizeWeightedVotes(meterVotes, fallback.meterBpm || fallback.bpm)
+    : null;
   return {
+    ...fallback,
     bpm:summary.value || fallback.bpm || 0,
-    confidence:clampValue(Math.max(fallback.confidence*0.72, summary.confidence), 0, 0.99)
+    confidence:clampValue(Math.max(fallback.confidence*0.72, summary.confidence), 0, 0.99),
+    meterBpm:meterSummary?.value || fallback.meterBpm || fallback.bpm || 0,
+    meterConfidence:clampValue(Math.max((fallback.meterConfidence||0)*0.72, meterSummary?.confidence || 0), 0, 0.99)
   };
 }
 function goertzelEnergy(frame, freq, sampleRate){
@@ -2802,11 +3199,15 @@ async function analyzeItemBpm(item){
     try{
       if(!canAnalyzeTrackItem(item)){
         item._bpm=0;
+        item._meterBpm=0;
         item._key='';
         item._bpmConfidence=0;
+        item._meterBpmConfidence=0;
         item._keyConfidence=0;
         item._djCueIn=0;
         item._djCueInConfidence=0;
+        item._beatAnchorSec=0;
+        item._beatAnchorConfidence=0;
         item._djLoudness=0;
         item._djHeadDb=0;
         item._djTailDb=0;
@@ -2839,19 +3240,25 @@ async function analyzeItemBpm(item){
         bpmResult,
         keyResult,
         cueInResult,
-        mixResult
+        mixResult,
+        beatAnchorResult
       }=results || {
         bpmResult:{ bpm:0, confidence:0 },
         keyResult:{ key:'', confidence:0 },
         cueInResult:{ cueIn:0, confidence:0 },
-        mixResult:{ loudness:0, headDb:0, tailDb:0, bodyDb:0, confidence:0 }
+        mixResult:{ loudness:0, headDb:0, tailDb:0, bodyDb:0, confidence:0 },
+        beatAnchorResult:{ anchorSec:0, confidence:0 }
       };
       item._bpm=bpmResult.bpm||0;
+      item._meterBpm=bpmResult.meterBpm||bpmResult.bpm||0;
       item._bpmConfidence=bpmResult.confidence||0;
+      item._meterBpmConfidence=bpmResult.meterConfidence||bpmResult.confidence||0;
       item._key=keyResult.key||'';
       item._keyConfidence=keyResult.confidence||0;
       item._djCueIn=cueInResult?.cueIn || 0;
       item._djCueInConfidence=cueInResult?.confidence || 0;
+      item._beatAnchorSec=beatAnchorResult?.anchorSec || 0;
+      item._beatAnchorConfidence=beatAnchorResult?.confidence || 0;
       item._djLoudness=Number.isFinite(mixResult?.loudness) ? mixResult.loudness : 0;
       item._djHeadDb=Number.isFinite(mixResult?.headDb) ? mixResult.headDb : 0;
       item._djTailDb=Number.isFinite(mixResult?.tailDb) ? mixResult.tailDb : 0;
@@ -2867,11 +3274,15 @@ async function analyzeItemBpm(item){
         return 0;
       }
       item._bpm=0;
+      item._meterBpm=0;
       item._key='';
       item._bpmConfidence=0;
+      item._meterBpmConfidence=0;
       item._keyConfidence=0;
       item._djCueIn=0;
       item._djCueInConfidence=0;
+      item._beatAnchorSec=0;
+      item._beatAnchorConfidence=0;
       item._djLoudness=0;
       item._djHeadDb=0;
       item._djTailDb=0;
@@ -4779,6 +5190,8 @@ function applySpecControlsToState(){
   state.dj.enabled=!!$.autoDj?.checked;
   state.metronome.enabled=!!$.metroEnable?.checked;
   state.metronome.volume=clampValue(+(($.metroVolume?.value)||0.24), 0, 1);
+  state.metronome.subdivision=($.metroSubdivision?.value==='eighth') ? 'eighth' : 'quarter';
+  state.metronome.visual=$.metroVisual ? !!$.metroVisual.checked : true;
   state.dj.transitionSec=clampValue(+(($.djTransition?.value)||12), 6, 20);
   state.dj.modePref=($.djMode?.value && DJ_MODE_LABELS[$.djMode.value]) ? $.djMode.value : 'auto';
   state.dj.candidateWindow=clampValue(+(($.djCandidateWindow?.value)||5), 2, 8);
@@ -4788,10 +5201,13 @@ function applySpecControlsToState(){
   store.set('pc.dj.enabled', state.dj.enabled);
   store.set('pc.metro.enabled', state.metronome.enabled);
   store.set('pc.metro.volume', state.metronome.volume);
+  store.set('pc.metro.subdivision', state.metronome.subdivision);
+  store.set('pc.metro.visual', state.metronome.visual);
   store.set('pc.dj.transitionSec', state.dj.transitionSec);
   store.set('pc.dj.modePref', state.dj.modePref);
   store.set('pc.dj.candidateWindow', state.dj.candidateWindow);
   store.set('pc.dj.repeatGuard', state.dj.repeatGuard);
+  if(!state.metronome.visual) state.metronome.flashQueue.length=0;
   if(state.metronome.enabled){
     try{ ensureAudioOn(); }catch(e){}
     ensureAudioGraph();
@@ -4807,6 +5223,8 @@ function initSpecControlsFromState(){
   if($.autoDj) $.autoDj.checked=!!state.dj.enabled;
   if($.metroEnable) $.metroEnable.checked=!!state.metronome.enabled;
   if($.metroVolume) $.metroVolume.value=String(state.metronome.volume);
+  if($.metroSubdivision) $.metroSubdivision.value=state.metronome.subdivision || 'quarter';
+  if($.metroVisual) $.metroVisual.checked=!!state.metronome.visual;
   if($.djTransition) $.djTransition.value=String(state.dj.transitionSec);
   if($.djMode) $.djMode.value=state.dj.modePref || 'auto';
   if($.djCandidateWindow) $.djCandidateWindow.value=String(state.dj.candidateWindow);
@@ -4814,7 +5232,7 @@ function initSpecControlsFromState(){
   updateDjReadouts();
 }
 initSpecControlsFromState();
-[$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.metroEnable,$.metroVolume,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
+[$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.metroEnable,$.metroVolume,$.metroSubdivision,$.metroVisual,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
   el.addEventListener('change',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
   el.addEventListener('input',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
 });
