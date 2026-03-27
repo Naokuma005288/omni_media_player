@@ -5429,7 +5429,7 @@ function updateAutoDjState(){
       });
     }
   }
-  applyDjMixVolumes(p);
+  applyDjMixVolumes(mixProgress);
   updateDjTransitionOverlay();
 }
 

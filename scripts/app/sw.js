@@ -1,5 +1,5 @@
-/* OmniMedia SW v2.7 */
-const VERSION = 'v5.0.0';
+/* OmniMedia SW v2.9 */
+const VERSION = 'v5.0.0-sw2';
 const CORE = [
   './',
   './index.html',
@@ -40,7 +40,6 @@ const CORE = [
   './scripts/plugins/chapters.plugin.legacy.js',
   './scripts/plugins/intro-outro-skip.plugin.js',
   './scripts/plugins/sub-offset.plugin.js',
-  './scripts/plugins/history.plugin.js',
   './scripts/plugins/bg-audio.policy.plugin.js',
   './scripts/plugins/webshare.plugin.js',
   './scripts/plugins/rate-pitch.plugin.js',
@@ -60,9 +59,52 @@ const CORE = [
   './scripts/omni-boost.classic.js'
 ];
 
+async function putIfOk(cache, request, response){
+  if(!response || !response.ok) return response;
+  await cache.put(request, response.clone());
+  return response;
+}
+
+async function networkFirst(request){
+  try{
+    const response = await fetch(request);
+    const cache = await caches.open(VERSION);
+    return await putIfOk(cache, request, response);
+  }catch(_error){
+    return caches.match(request);
+  }
+}
+
+async function staleWhileRevalidate(request){
+  const cached = await caches.match(request);
+  const networkFetch = fetch(request).then(async response => {
+    const cache = await caches.open(VERSION);
+    return putIfOk(cache, request, response);
+  }).catch(() => cached);
+  if(cached) return { response:cached, background:networkFetch };
+  return { response:await networkFetch, background:null };
+}
+
+async function precacheCoreAssets(){
+  const cache = await caches.open(VERSION);
+  const results = await Promise.allSettled(
+    CORE.map(async (asset) => {
+      const response = await fetch(asset, { cache:'no-cache' });
+      if(!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      await cache.put(asset, response.clone());
+    })
+  );
+  const failed = results
+    .map((result, index) => result.status === 'rejected' ? `${CORE[index]}: ${result.reason?.message || result.reason}` : '')
+    .filter(Boolean);
+  if(failed.length){
+    console.warn('[OmniMedia SW] precache skipped assets', failed);
+  }
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(VERSION).then(c => c.addAll(CORE)).then(()=> self.skipWaiting())
+    precacheCoreAssets().then(()=> self.skipWaiting())
   );
 });
 
@@ -80,30 +122,18 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== location.origin) return; // ignore cross-origin
 
   const isDocument = e.request.mode === 'navigate' || e.request.destination === 'document';
+  const isVersionFile = url.pathname.endsWith('/version.json');
+  const isCodeAsset = /\.(?:js|css|webmanifest)$/i.test(url.pathname);
 
-  if (url.pathname.endsWith('/version.json') || isDocument) {
-    e.respondWith(
-      fetch(e.request).then(r => {
-        const copy = r.clone();
-        caches.open(VERSION).then(c => c.put(e.request, copy));
-        return r;
-      }).catch(()=> caches.match(e.request))
-    );
+  if (isVersionFile || isDocument || isCodeAsset) {
+    e.respondWith(networkFirst(e.request));
     return;
   }
 
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const networkFetch = fetch(e.request).then(r => {
-        const copy = r.clone();
-        caches.open(VERSION).then(c => c.put(e.request, copy));
-        return r;
-      }).catch(() => cached);
-      if (cached) {
-        e.waitUntil(networkFetch);
-        return cached;
-      }
-      return networkFetch;
+    staleWhileRevalidate(e.request).then(({ response, background }) => {
+      if (background) e.waitUntil(background);
+      return response;
     })
   );
 });
