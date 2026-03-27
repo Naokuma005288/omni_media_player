@@ -1814,47 +1814,18 @@ function drawStatusHud(t){
   ctx.stroke();
   ctx.shadowBlur=0;
 
-  const beatBoxW=Math.min(168, Math.max(128, w*0.2));
-  const beatBoxH=44;
-  const beatBoxX=w-beatBoxW-24;
-  const beatBoxY=h-beatBoxH-18;
-  ctx.fillStyle='rgba(6,12,20,.4)';
-  ctx.strokeStyle='rgba(255,255,255,.08)';
-  ctx.beginPath();
-  ctx.roundRect(beatBoxX, beatBoxY, beatBoxW, beatBoxH, 16);
-  ctx.fill();
-  ctx.stroke();
-  ctx.textAlign='left';
-  ctx.fillStyle='rgba(236,246,255,.92)';
+  ctx.textAlign='right';
+  ctx.textBaseline='alphabetic';
   ctx.font='700 11px system-ui, sans-serif';
   if(!beatGrid){
-    ctx.fillText('BEAT --', beatBoxX+14, beatBoxY+18);
+    ctx.fillStyle='rgba(236,246,255,.72)';
+    ctx.fillText('BEAT --', w-24, h-22);
     return;
   }
   const currentBeat=(beatGrid.beatInBar % DJ_BEATS_PER_BAR) + 1;
   const beatPulse=1-beatGrid.beatPhase;
-  ctx.fillText(`BEAT ${currentBeat}`, beatBoxX+14, beatBoxY+18);
-  const dotY=beatBoxY+28;
-  const dotGap=9;
-  const dotW=(beatBoxW-28-(dotGap*(DJ_BEATS_PER_BAR-1)))/DJ_BEATS_PER_BAR;
-  const dotH=8;
-  for(let i=0;i<DJ_BEATS_PER_BAR;i++){
-    const x=beatBoxX+14 + i*(dotW+dotGap);
-    const isCurrent=i===(currentBeat-1);
-    const fill=ctx.createLinearGradient(x,dotY,x,dotY+dotH);
-    const activeAlpha=isCurrent ? (0.3 + beatPulse*0.34) : 0.08;
-    fill.addColorStop(0, `rgba(140,230,255,${activeAlpha + (isCurrent ? 0.16 : 0)})`);
-    fill.addColorStop(1, `rgba(62,126,255,${activeAlpha*0.7})`);
-    ctx.fillStyle=fill;
-    ctx.beginPath();
-    ctx.roundRect(x, dotY, dotW, dotH, 999);
-    ctx.fill();
-    if(isCurrent){
-      ctx.strokeStyle=`rgba(196,242,255,${0.28 + beatPulse*0.34})`;
-      ctx.lineWidth=1.1;
-      ctx.stroke();
-    }
-  }
+  ctx.fillStyle=`rgba(236,246,255,${0.76 + beatPulse*0.22})`;
+  ctx.fillText(`BEAT ${currentBeat}`, w-24, h-22);
 }
 function initCanvasHud(){
   let raf=0;
