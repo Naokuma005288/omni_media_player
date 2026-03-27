@@ -2,7 +2,7 @@
   "id": "../../omni-player-mini.html",
   "name": "Omni Player mini",
   "short_name": "Omni mini",
-  "description": "Omni Player mini v4.7.0 - mobile-first media player for phones and tablets with background playback and lock screen controls.",
+  "description": "Omni Player mini v4.8.0 - mobile-first media player for phones and tablets with background playback and lock screen controls.",
   "start_url": "../../omni-player-mini.html?source=pwa",
   "scope": "../../",
   "display": "standalone",

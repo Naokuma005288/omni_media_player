@@ -176,7 +176,7 @@
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" id="pwaBadge" hidden>PWA</span>
-    <span class="badge" title="version">v4.7.0</span>
+    <span class="badge" title="version">v4.8.0</span>
   </header>
 
   <aside>
@@ -369,6 +369,23 @@
               <button class="btn ghost" id="setB" title="B点">B</button>
               <button class="btn ghost" id="clearAB" title="A-B解除">×</button>
               <button class="btn ghost" id="toggleABLoop" title="A-Bループ">Loop</button>
+            </div>
+          </section>
+          <section class="control-module next-module" aria-label="Auto DJ next preview">
+            <div class="module-head">
+              <div class="module-kicker">NEXT</div>
+              <span class="badge readout" id="djNextMode">AUTO</span>
+              <span class="module-chip" aria-hidden="true">↦</span>
+            </div>
+            <div class="next-preview-card">
+              <div class="next-preview-title" id="djNextTitle">--</div>
+              <div class="next-preview-meta" id="djNextMeta">Auto DJ 候補を待機中</div>
+              <div class="next-preview-reason" id="djNextReason">BPM / loudness / intro を見て次曲を決めます。</div>
+            </div>
+            <div class="next-preview-actions">
+              <button class="btn ghost" id="djNextLock" type="button">固定</button>
+              <button class="btn ghost" id="djNextReroll" type="button">選び直し</button>
+              <button class="btn ghost" id="djNextClear" type="button">解除</button>
             </div>
           </section>
         </div>

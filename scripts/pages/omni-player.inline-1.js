@@ -34,7 +34,7 @@ const $={
   settings:qs('#settings'), btnSettings:qs('#btnSettings'), btnSettingsClose:qs('#btnSettingsClose'), btnSettingsCloseTop:qs('#btnSettingsCloseTop'),
   portraitSettingsDock:qs('#portraitSettingsDock'), portraitControlsSection:qs('#portraitControlsSection'),
   specMode:qs('#specMode'), specOverlay:qs('#specOverlay'), specSens:qs('#specSens'), specBins:qs('#specBins'),
-  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), metroEnable:qs('#metroEnable'), metroVolume:qs('#metroVolume'), metroRead:qs('#metroRead'), metroSubdivision:qs('#metroSubdivision'), metroVisual:qs('#metroVisual'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'),
+  bpmRead:qs('#bpmRead'), bpmDock:qs('#bpmDock'), keyRead:qs('#keyRead'), beatSync:qs('#beatSync'), autoDj:qs('#autoDj'), metroEnable:qs('#metroEnable'), metroVolume:qs('#metroVolume'), metroRead:qs('#metroRead'), metroSubdivision:qs('#metroSubdivision'), metroVisual:qs('#metroVisual'), djTransition:qs('#djTransition'), djTransitionRead:qs('#djTransitionRead'), djStatus:qs('#djStatus'), djMode:qs('#djMode'), djCandidateWindow:qs('#djCandidateWindow'), djCandidateRead:qs('#djCandidateRead'), djRepeatGuard:qs('#djRepeatGuard'), djNextMode:qs('#djNextMode'), djNextTitle:qs('#djNextTitle'), djNextMeta:qs('#djNextMeta'), djNextReason:qs('#djNextReason'), djNextLock:qs('#djNextLock'), djNextReroll:qs('#djNextReroll'), djNextClear:qs('#djNextClear'),
   hueLow:qs('#hueLow'), hueHigh:qs('#hueHigh'), sat:qs('#sat'), light:qs('#light'),
   rainbowSpeed:qs('#rainbowSpeed'), rainbowPhase:qs('#rainbowPhase'),
   subSearch:qs('#subSearch'), btnSubSearch:qs('#btnSubSearch'), subHits:qs('#subHits'),
@@ -406,13 +406,74 @@ function getDjCandidateIndices(fromIndex=state.cur, windowSize=state.dj.candidat
   }
   return out;
 }
+function getDjManualNextIndex(currentIndex=state.cur){
+  const item=state.dj.manualNextItem;
+  if(!item) return -1;
+  const index=state.list.indexOf(item);
+  if(index<0 || index===currentIndex){
+    state.dj.manualNextItem=null;
+    state.dj.manualNextSource='';
+    return -1;
+  }
+  return index;
+}
+function getDjRerollSkipIndices(currentIndex=state.cur){
+  const sourceItem=state.list[currentIndex];
+  if(!sourceItem || state.dj.rerollSourceItem!==sourceItem){
+    state.dj.rerollSourceItem=null;
+    state.dj.rerollSkipItems.length=0;
+    return [];
+  }
+  const indices=state.dj.rerollSkipItems
+    .map(item=>state.list.indexOf(item))
+    .filter(index=>index>=0 && index!==currentIndex);
+  state.dj.rerollSkipItems=indices.map(index=>state.list[index]);
+  return indices;
+}
+function clearDjNextOverrides(opts={}){
+  const keepReroll=!!opts.keepReroll;
+  state.dj.manualNextItem=null;
+  state.dj.manualNextSource='';
+  if(!keepReroll){
+    state.dj.rerollSourceItem=null;
+    state.dj.rerollSkipItems.length=0;
+  }
+}
+function canAdjustDjNextCandidate(){
+  return !state.dj.deck?.started && !state.dj.handoffPending && state.dj.phase!=='handoff';
+}
+function setDjManualNextIndex(index, source='manual'){
+  if(index<0 || index>=state.list.length || index===state.cur) return false;
+  if(!canAdjustDjNextCandidate()){
+    toast('現在のミックス中は次曲を固定できません','warn',2600);
+    return false;
+  }
+  state.dj.manualNextItem=state.list[index];
+  state.dj.manualNextSource=String(source||'manual');
+  state.dj.rerollSourceItem=state.list[state.cur] || null;
+  state.dj.rerollSkipItems.length=0;
+  state.dj.nextIndex=-1;
+  state.dj.syncPlan=null;
+  if(!state.dj.deck?.started) cleanupDjDeck();
+  const nextItem=state.list[index];
+  if(nextItem && !nextItem._analysisDone && !nextItem._bpmPromise){
+    scheduleItemAnalysis(nextItem, 60, { priority:3 });
+  }
+  updateDjReadouts();
+  renderPlaylist();
+  return true;
+}
 function getDjAdvanceIndex(){
   if(
     state.dj.enabled &&
     state.dj.nextIndex>=0 &&
     state.dj.nextIndex!==state.cur &&
-    (state.dj.active || !!state.dj.syncPlan || !!state.dj.deck?.started)
+    (state.dj.deck?.started || state.dj.handoffPending)
   ) return state.dj.nextIndex;
+  const manualIndex=getDjManualNextIndex();
+  if(state.dj.enabled && manualIndex>=0){
+    return manualIndex;
+  }
   if(state.dj.enabled && state.cur>=0 && state.list.length>1){
     return chooseAutoDjNextIndex(state.cur);
   }
@@ -447,6 +508,7 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
     Math.max(+currentItem?._bpmConfidence || 0, getItemDjMixConfidence(currentItem)),
     Math.max(+candidateItem?._bpmConfidence || 0, getItemDjMixConfidence(candidateItem))
   );
+  const loudnessDeltaDb=(currentLoudness!=null && nextLoudness!=null) ? (currentLoudness-nextLoudness) : 0;
   const recentAgeMs=Date.now() - (+candidateItem?._djLastAutoPickedAt || 0);
   const repeatPenalty=(state.dj.repeatGuard && candidateItem?._djLastAutoPickedAt && recentAgeMs<1800000)
     ? clampValue((1800000-recentAgeMs)/1800000, 0, 1)*0.28
@@ -466,11 +528,17 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
     item:candidateItem,
     score,
     distance,
+    candidateBpm,
+    bpmKnown,
+    bpmRatio,
     bpmScore,
     loudnessScore,
+    loudnessDeltaDb,
     introQuietness,
     outroQuietness,
     analysisConfidence,
+    cueIn,
+    sameVisualClass,
     isAnalyzed:!!(candidateItem?._bpm && candidateItem?._analysisDone)
   };
 }
@@ -478,29 +546,149 @@ function markDjCandidatePlaybackFailure(item, cooldownMs=180000){
   if(!item) return;
   item._djAutoDjFailedUntil=Date.now()+Math.max(15000, +cooldownMs || 180000);
 }
-function chooseAutoDjNextIndex(currentIndex=state.cur){
+function getDjCandidatePool(currentIndex=state.cur, opts={}){
   const currentItem=state.list[currentIndex];
-  if(!currentItem || state.list.length<2) return -1;
-  const fallback=(currentIndex+1)%state.list.length;
+  if(!currentItem || state.list.length<2) return { currentItem:null, fallbackIndex:-1, scored:[], analyzed:[], best:null };
+  const skipSet=new Set((opts.skipIndices || getDjRerollSkipIndices(currentIndex)).filter(index=>index>=0 && index!==currentIndex));
+  const fallbackIndices=getDjCandidateIndices(currentIndex, opts.windowSize || state.dj.candidateWindow).filter(index=>!skipSet.has(index));
+  const fallback=fallbackIndices[0] ?? ((currentIndex+1)%state.list.length);
   const currentBpm=getTrackBpmInfo(currentItem).bpm || 0;
-  const candidates=getDjCandidateIndices(currentIndex, 5);
-  if(!candidates.length) return fallback;
+  const candidates=getDjCandidateIndices(currentIndex, opts.windowSize || state.dj.candidateWindow);
   const scored=candidates
+    .filter(index=>!skipSet.has(index))
     .map(index=>scoreDjCandidate(currentIndex, index, currentItem, state.list[index], currentBpm))
     .filter(Boolean);
   const analyzed=scored.filter(entry=>entry.isAnalyzed);
-  if(!analyzed.length) return fallback;
-  analyzed.sort((a,b)=>b.score-a.score);
-  const best=analyzed[0];
+  const pool=analyzed.length ? analyzed : scored;
+  pool.sort((a,b)=>b.score-a.score);
+  return {
+    currentItem,
+    currentBpm,
+    fallbackIndex:fallback,
+    scored,
+    analyzed,
+    best:pool[0] || null
+  };
+}
+function chooseAutoDjNextIndex(currentIndex=state.cur, opts={}){
+  const currentItem=state.list[currentIndex];
+  if(!currentItem || state.list.length<2) return -1;
+  const { fallbackIndex, scored, analyzed, best }=getDjCandidatePool(currentIndex, opts);
+  const fallback=fallbackIndex;
+  if(!scored.length) return fallback;
+  const effectivePool=analyzed.length ? analyzed : scored;
+  if(!effectivePool.length) return fallback;
+  effectivePool.sort((a,b)=>b.score-a.score);
+  const picked=best || effectivePool[0];
   const nextDefault=fallback;
-  if(!best) return nextDefault;
-  if(best.index!==nextDefault){
+  if(!picked) return nextDefault;
+  if(picked.index!==nextDefault){
     const nextDefaultScore=scored.find(entry=>entry.index===nextDefault)?.score ?? -Infinity;
-    if(best.score < nextDefaultScore + 0.09){
+    if(picked.score < nextDefaultScore + 0.09){
       return nextDefault;
     }
   }
-  return best.index;
+  return picked.index;
+}
+function describeDjCandidateMedia(item){
+  return itemLooksLikeVideoMedia(item) ? 'VIDEO' : 'AUDIO';
+}
+function getDjPreviewState(currentIndex=state.cur){
+  const currentItem=state.list[currentIndex];
+  if(!currentItem || state.list.length<2) return null;
+  const manualIndex=getDjManualNextIndex(currentIndex);
+  const skipIndices=getDjRerollSkipIndices(currentIndex);
+  const pool=getDjCandidatePool(currentIndex, { skipIndices });
+  let entry=pool.best;
+  let mode='auto';
+  const frozenIndex=(
+    state.dj.nextIndex>=0 &&
+    state.dj.nextIndex!==currentIndex &&
+    (state.dj.deck?.started || state.dj.handoffPending || !!state.dj.syncPlan)
+  ) ? state.dj.nextIndex : -1;
+  if(manualIndex>=0){
+    entry=scoreDjCandidate(currentIndex, manualIndex, currentItem, state.list[manualIndex], pool.currentBpm || 0) || {
+      index:manualIndex,
+      item:state.list[manualIndex],
+      score:0,
+      distance:forwardPlaylistDistance(currentIndex, manualIndex, state.list.length),
+      candidateBpm:Math.round(state.list[manualIndex]?._bpm || 0),
+      bpmKnown:false,
+      bpmRatio:1,
+      loudnessDeltaDb:0,
+      introQuietness:getItemDjQuietness(state.list[manualIndex], 'head'),
+      outroQuietness:getItemDjQuietness(currentItem, 'tail'),
+      analysisConfidence:0,
+      cueIn:getItemDjCueIn(state.list[manualIndex]),
+      sameVisualClass:itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(state.list[manualIndex]),
+      isAnalyzed:!!(state.list[manualIndex]?._analysisDone)
+    };
+    mode='locked';
+  }else if(frozenIndex>=0){
+    entry=scoreDjCandidate(currentIndex, frozenIndex, currentItem, state.list[frozenIndex], pool.currentBpm || 0) || {
+      index:frozenIndex,
+      item:state.list[frozenIndex],
+      score:0,
+      distance:forwardPlaylistDistance(currentIndex, frozenIndex, state.list.length),
+      candidateBpm:Math.round(state.list[frozenIndex]?._bpm || 0),
+      bpmKnown:false,
+      bpmRatio:1,
+      loudnessDeltaDb:0,
+      introQuietness:getItemDjQuietness(state.list[frozenIndex], 'head'),
+      outroQuietness:getItemDjQuietness(currentItem, 'tail'),
+      analysisConfidence:0,
+      cueIn:getItemDjCueIn(state.list[frozenIndex]),
+      sameVisualClass:itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(state.list[frozenIndex]),
+      isAnalyzed:!!(state.list[frozenIndex]?._analysisDone)
+    };
+    mode='armed';
+  }
+  const nextIndex=entry?.index ?? (manualIndex>=0 ? manualIndex : pool.fallbackIndex);
+  const nextItem=nextIndex>=0 ? state.list[nextIndex] : null;
+  if(!nextItem) return null;
+  const bpm=Math.round(nextItem?._bpm || nextItem?._meterBpm || 0);
+  const distance=entry?.distance ?? forwardPlaylistDistance(currentIndex, nextIndex, state.list.length);
+  const bpmDeltaPct=(entry?.bpmKnown && Number.isFinite(entry?.bpmRatio)) ? ((entry.bpmRatio-1)*100) : null;
+  const loudnessText=Number.isFinite(entry?.loudnessDeltaDb) ? `${entry.loudnessDeltaDb>0?'+':''}${entry.loudnessDeltaDb.toFixed(1)}dB` : '--';
+  const reasonParts=[
+    bpm ? `${bpm} BPM${bpmDeltaPct!=null ? ` ${bpmDeltaPct>=0?'+':''}${bpmDeltaPct.toFixed(1)}%` : ''}` : 'BPM scan',
+    `Intro ${Math.round((entry?.introQuietness || 0)*100)}%`,
+    `Loud ${loudnessText}`
+  ];
+  if(entry?.analysisConfidence>0) reasonParts.push(`Conf ${Math.round(entry.analysisConfidence*100)}%`);
+  return {
+    index:nextIndex,
+    item:nextItem,
+    mode,
+    title:nextItem.title || nextItem.file?.name || nextItem.url || 'Next item',
+    modeLabel:mode==='locked' ? 'LOCK' : (mode==='armed' ? 'LIVE' : 'AUTO'),
+    meta:`P${Math.max(1, distance)} · ${describeDjCandidateMedia(nextItem)}${entry?.isAnalyzed ? ' · READY' : ' · SCAN'}`,
+    reason:reasonParts.join(' · '),
+    canLock:mode==='auto' && canAdjustDjNextCandidate(),
+    canReroll:state.dj.enabled && state.list.length>2 && canAdjustDjNextCandidate(),
+    canClear:mode==='locked' || skipIndices.length>0
+  };
+}
+function rerollDjNextCandidate(){
+  if(!canAdjustDjNextCandidate()){
+    toast('現在のミックス中は候補を選び直せません','warn',2600);
+    return false;
+  }
+  const preview=getDjPreviewState();
+  const currentItem=state.list[state.cur];
+  if(!preview || !currentItem) return false;
+  clearDjNextOverrides({ keepReroll:true });
+  state.dj.rerollSourceItem=currentItem;
+  if(preview.item && !state.dj.rerollSkipItems.includes(preview.item)){
+    state.dj.rerollSkipItems.push(preview.item);
+  }
+  state.dj.nextIndex=-1;
+  state.dj.syncPlan=null;
+  cleanupDjDeck();
+  queueDjCandidateAnalysis(state.cur, state.dj.candidateWindow);
+  updateDjReadouts();
+  renderPlaylist();
+  return true;
 }
 function queueDjCandidateAnalysis(index=state.cur, windowSize=state.dj.candidateWindow){
   const indices=getDjCandidateIndices(index, windowSize);
@@ -790,6 +978,34 @@ function updateDjReadouts(){
     }
     $.djStatus.textContent=text;
   }
+  updateDjNextPreview();
+}
+function updateDjNextPreview(){
+  if(!$.djNextTitle && !$.djNextMeta && !$.djNextReason) return;
+  const preview=state.dj.enabled ? getDjPreviewState() : null;
+  if(!preview){
+    if($.djNextMode) $.djNextMode.textContent=state.dj.enabled ? 'WAIT' : 'OFF';
+    if($.djNextTitle) $.djNextTitle.textContent='--';
+    if($.djNextMeta) $.djNextMeta.textContent=state.dj.enabled ? 'Auto DJ 候補を待機中' : 'Auto DJ OFF';
+    if($.djNextReason) $.djNextReason.textContent='BPM / loudness / intro を見て次曲を決めます。';
+    if($.djNextLock){
+      $.djNextLock.disabled=true;
+      $.djNextLock.textContent='固定';
+    }
+    if($.djNextReroll) $.djNextReroll.disabled=true;
+    if($.djNextClear) $.djNextClear.disabled=true;
+    return;
+  }
+  if($.djNextMode) $.djNextMode.textContent=preview.modeLabel;
+  if($.djNextTitle) $.djNextTitle.textContent=preview.title;
+  if($.djNextMeta) $.djNextMeta.textContent=preview.meta;
+  if($.djNextReason) $.djNextReason.textContent=preview.reason;
+  if($.djNextLock){
+    $.djNextLock.disabled=!preview.canLock;
+    $.djNextLock.textContent=preview.canLock ? '固定' : '固定中';
+  }
+  if($.djNextReroll) $.djNextReroll.disabled=!preview.canReroll;
+  if($.djNextClear) $.djNextClear.disabled=!preview.canClear;
 }
 function applyDjRateMul(nextMul){
   const clamped=clampValue(nextMul||1, 0.88, 1.12);
@@ -851,6 +1067,7 @@ function resetAutoDj(full=true, preserveDeck=false){
   state.dj.syncPlan=null;
   state.dj.targetMul=1;
   state.dj.carryPrimed=false;
+  if(full) clearDjNextOverrides();
   if(!preserveDeck) cleanupDjDeck();
   if(full){
     state.dj.carryFrom=1;
@@ -1115,6 +1332,7 @@ const state={
     rateMul:1, carryPrimed:false, carryFrom:1, carryUntil:0,
     handoffPending:false, handoffToken:0,
     currentKey:'', nextKey:'', keyShiftSemitones:0, keySyncActive:false, pitchRestore:null,
+    manualNextItem:null, manualNextSource:'', rerollSourceItem:null, rerollSkipItems:[],
     syncPlan:null,
     deck:null
   },
@@ -4987,15 +5205,45 @@ $.settings?.addEventListener('click',(e)=>{ if(e.target===$.settings) $.settings
 /* ========= playlist ========= */
 function renderPlaylist(){
   $.playlist.innerHTML='';
+  const preview=getDjPreviewState();
+  const previewIndex=preview?.index ?? -1;
+  const manualIndex=getDjManualNextIndex();
   state.list.forEach((it,i)=>{
     const el=document.createElement('div'); el.className='pl-item'; el.draggable=true; el.dataset.i=String(i);
     el.setAttribute('aria-current',String(i===state.cur));
     el.style.cssText='display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;border-bottom:1px solid color-mix(in oklab, var(--panel-2), #000 10%)';
     const fallbackThumb = it.url ? makeIconDataURL('video') : makeIconDataURL(fileLooksLikeAudio(it.file) ? 'audio' : 'video');
     const thumb = getItemThumb(it) || fallbackThumb;
-    el.innerHTML='<span class="drag">☰</span><div class="pl-thumb" style="width:38px;height:38px;border-radius:10px;overflow:hidden;flex:0 0 auto;background:#0b1017;border:1px solid rgba(255,255,255,.08)"><img alt="" src="'+thumb+'" style="width:100%;height:100%;object-fit:cover;display:block"></div><div class="meta" style="flex:1;min-width:0"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.title||it.url||(it.file?it.file.name:'Item'))+'</div><div class="s" style="color:var(--muted);font-size:12px">'+(it.url?'URL':(it.file?'FILE':'?'))+'</div></div><button class="btn ghost play">▶</button><button class="btn ghost rm">×</button>';
+    const rowFlags=[];
+    if(i===state.cur) rowFlags.push('NOW');
+    else if(i===manualIndex) rowFlags.push('LOCK');
+    else if(i===previewIndex && state.dj.enabled) rowFlags.push('NEXT');
+    const kindLabel=it.url?'URL':(it.file?'FILE':'?');
+    const subLabel=[kindLabel].concat(rowFlags).join(' · ');
+    const nextButtonLabel=(i===manualIndex) ? 'LOCK' : ((i===previewIndex && state.dj.enabled) ? 'NEXT' : '＋');
+    const nextButtonTitle=(i===manualIndex) ? '固定中の次曲を解除' : 'この曲を次に回す';
+    const nextButtonDisabled=i===state.cur || !state.dj.enabled;
+    el.innerHTML='<span class="drag">☰</span><div class="pl-thumb" style="width:38px;height:38px;border-radius:10px;overflow:hidden;flex:0 0 auto;background:#0b1017;border:1px solid rgba(255,255,255,.08)"><img alt="" src="'+thumb+'" style="width:100%;height:100%;object-fit:cover;display:block"></div><div class="meta" style="flex:1;min-width:0"><div class="t" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(it.title||it.url||(it.file?it.file.name:'Item'))+'</div><div class="s" style="color:var(--muted);font-size:12px">'+subLabel+'</div></div><button class="btn ghost qnext" title="'+nextButtonTitle+'"'+(nextButtonDisabled?' disabled':'')+'>'+nextButtonLabel+'</button><button class="btn ghost play">▶</button><button class="btn ghost rm">×</button>';
+    el.querySelector('.qnext').onclick=()=>{
+      if(i===state.cur) return;
+      if(i===manualIndex){
+        clearDjNextOverrides();
+        state.dj.nextIndex=-1;
+        state.dj.syncPlan=null;
+        cleanupDjDeck();
+        updateDjReadouts();
+        renderPlaylist();
+        return;
+      }
+      if(setDjManualNextIndex(i, 'playlist')){
+        toast('次曲を固定しました','ok',2200);
+      }
+    };
     el.querySelector('.play').onclick=()=>{ markUserGesture(); selectIndex(i) };
     el.querySelector('.rm').onclick=()=>{
+      if(state.list[i]===state.dj.manualNextItem || state.list[i]===state.dj.rerollSourceItem || state.dj.rerollSkipItems.includes(state.list[i])){
+        clearDjNextOverrides();
+      }
       state.list.splice(i,1);
       if(i===state.cur){
         state.cur=-1;
@@ -5110,6 +5358,7 @@ async function selectIndex(i, opts={}){
     it._djLastAutoPickedAt=Date.now();
   }
   debugLog('selectIndex', `${i} ${it.file?.name || it.url || '-'}`);
+  clearDjNextOverrides();
   const handoffDeck = opts.fromDjDeck && state.dj.deck?.item===it ? state.dj.deck : null;
   const shouldCarry = !!opts.keepDjCarry && !handoffDeck;
   resetBeatTracking();
@@ -5235,6 +5484,27 @@ initSpecControlsFromState();
 [$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.metroEnable,$.metroVolume,$.metroSubdivision,$.metroVisual,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
   el.addEventListener('change',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
   el.addEventListener('input',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
+});
+$.djNextLock?.addEventListener('click',()=>{
+  const preview=getDjPreviewState();
+  if(!preview) return;
+  if(setDjManualNextIndex(preview.index, 'preview')){
+    toast('次曲候補を固定しました','ok',2200);
+  }
+});
+$.djNextReroll?.addEventListener('click',()=>{
+  if(rerollDjNextCandidate()){
+    toast('次曲候補を選び直しました','ok',2200);
+  }
+});
+$.djNextClear?.addEventListener('click',()=>{
+  clearDjNextOverrides();
+  state.dj.nextIndex=-1;
+  state.dj.syncPlan=null;
+  cleanupDjDeck();
+  updateDjReadouts();
+  renderPlaylist();
+  toast('次曲の手動介入を解除しました','ok',2200);
 });
 
 /* ========= HTML5 handlers ========= */
@@ -5558,7 +5828,7 @@ async function loadUrl(url, opts={}){
   $.file.addEventListener('change',(e)=>{ markUserGesture(); const files=Array.from(e.target.files||[]); setFileMeta($.fileMeta, files, 'ファイル未選択'); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
   document.addEventListener('dragover',(e)=>{e.preventDefault()});
   document.addEventListener('drop',(e)=>{ e.preventDefault(); markUserGesture(); const files=Array.from(e.dataTransfer.files||[]); if(!files.length) return; const replace=$.dropMode.checked; addToPlaylist(files.map(f=>({ file:f, title:f.name })),replace); if(state.cur===-1) selectIndex(0); savePlaylistAuto() });
-  $.btnClear.addEventListener('click',()=>{ state.list=[]; state.cur=-1; renderPlaylist(); resetUiForHTML5(); resetHtml5Video(); clearAudioMeta(); savePlaylistAuto() });
+  $.btnClear.addEventListener('click',()=>{ clearDjNextOverrides(); state.list=[]; state.cur=-1; renderPlaylist(); resetUiForHTML5(); resetHtml5Video(); clearAudioMeta(); savePlaylistAuto() });
   $.btnShuffle.addEventListener('click',()=>{ state.list.sort(()=>Math.random()-0.5); renderPlaylist(); refreshPriorityAnalysisForCurrent(180); savePlaylistAuto() });
   $.saveList.addEventListener('click',savePlaylistManual);
   $.loadList.addEventListener('click',loadPlaylist);
