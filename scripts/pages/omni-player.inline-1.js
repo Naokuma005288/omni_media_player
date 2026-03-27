@@ -59,6 +59,22 @@ function toast(msg,type='ok',timeout=3400){const d=document.createElement('div')
 function debugLog(stage, detail=''){}
 const fmt=s=>{if(s==null||isNaN(s))return '-';const sec=Math.floor(s%60).toString().padStart(2,'0');const m=Math.floor(s/60);return `${m}:${sec}`};
 function pct(v){ return `${Math.round((+v||0)*100)}%` }
+function roundBpmValue(bpm, digits=1){
+  const value=+bpm||0;
+  if(!Number.isFinite(value) || value<=0) return 0;
+  const precision=Math.max(0, digits|0);
+  const scale=10**precision;
+  return Math.round(value*scale)/scale;
+}
+function formatBpmValue(bpm, digits=1){
+  const rounded=roundBpmValue(bpm, digits);
+  if(!rounded) return '--';
+  const precision=Math.max(0, digits|0);
+  const scale=10**precision;
+  return Math.abs(rounded-Math.round(rounded)) < (0.5/scale)
+    ? String(Math.round(rounded))
+    : rounded.toFixed(precision);
+}
 const OPPlayback = window.OmniPlaybackCore || {};
 const OPPlatform = OPPlayback.detectPlatform ? OPPlayback.detectPlatform() : {
   isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''),
@@ -121,6 +137,29 @@ function currentDeckRate(){
   const baseRate=clampValue(+($.rate?.value || 1), 0.25, 2);
   return clampValue(baseRate * currentManualKeyRate(), 0.25, 2);
 }
+function currentMediaAllowsDjTempoMatch(){
+  if(state.mediaKind!=='html5' || state.usingYouTube || state.usingIframe) return false;
+  const currentItem=state.list[state.cur];
+  if(currentItem) return !itemLooksLikeVideoMedia(currentItem);
+  return currentHtml5IsAudio();
+}
+function currentMainPlaybackRate(){
+  const baseRate=(state.mediaKind==='youtube')
+    ? clampValue(+($.rate?.value || 1), 0.25, 2)
+    : currentDeckRate();
+  return clampValue(baseRate * (currentMediaAllowsDjTempoMatch() ? (state.dj.rateMul || 1) : 1), 0.25, 2);
+}
+function getDjVirtualCurrentBpm(){
+  const currentBpm=getCurrentTrackBpm();
+  return currentBpm ? roundBpmValue(currentBpm*(state.dj.rateMul || 1), 2) : 0;
+}
+function getDjRateStatusText(){
+  if(!currentMediaAllowsDjTempoMatch()){
+    const virtualBpm=getDjVirtualCurrentBpm();
+    if(virtualBpm) return `${formatBpmValue(virtualBpm, 1)} BPM`;
+  }
+  return `${Math.round((state.dj.rateMul||1)*100)}%`;
+}
 function describeManualKeyShift(){
   const shift=currentManualKeyShift();
   const baseKey=parseTrackKey(getCurrentTrackKey());
@@ -146,7 +185,7 @@ function updateMetronomeReadout(){
     $.metroRead.textContent='WAIT';
     return;
   }
-  $.metroRead.textContent=`${mediaPaused() ? 'READY' : 'ON'} ${bpm} · ${getMetronomeSubdivisionLabel()}`;
+  $.metroRead.textContent=`${mediaPaused() ? 'READY' : 'ON'} ${formatBpmValue(bpm, 1)} · ${getMetronomeSubdivisionLabel()}`;
 }
 function setDjPhase(nextPhase='idle'){
   const phase=String(nextPhase||'idle');
@@ -262,6 +301,55 @@ function normalizeBpmRange(bpm, min=45, max=210){
   while(v>max) v/=2;
   return Math.round(v*10)/10;
 }
+function bucketBpm(bpm){
+  const value=+bpm||0;
+  if(!Number.isFinite(value) || value<=0) return 0;
+  return Math.round(value*10)/10;
+}
+function addBpmVote(votes, bpm, weight){
+  const bucket=bucketBpm(bpm);
+  if(!bucket || !Number.isFinite(weight) || weight<=0) return;
+  votes.set(bucket, (votes.get(bucket)||0) + weight);
+}
+function refineBpmFromVotes(votes, seed, radius=1.2){
+  const center=bucketBpm(seed);
+  if(!center || !votes?.size) return center;
+  let total=0;
+  let weighted=0;
+  votes.forEach((score, value)=>{
+    const bpm=+value||0;
+    if(!bpm || Math.abs(bpm-center)>radius) return;
+    total += score;
+    weighted += bpm*score;
+  });
+  return total>0 ? bucketBpm(weighted/total) : center;
+}
+function collectMeterBpmCandidates(base){
+  const candidateSet=new Set();
+  const pushBand=(center, offsets)=>{
+    offsets.forEach(offset=>{
+      const candidate=bucketBpm(center+offset);
+      if(candidate>=45 && candidate<=210) candidateSet.add(candidate);
+    });
+  };
+  pushBand(base, [0, -0.6, -0.3, 0.3, 0.6]);
+  if(base>=96) pushBand(base/2, [0, -0.4, 0.4]);
+  if(base<=104) pushBand(base*2, [0, -0.6, 0.6]);
+  return [...candidateSet];
+}
+function findClosestBpmEntry(entries, target){
+  if(!entries?.length || !target) return null;
+  let best=null;
+  let bestDist=Infinity;
+  for(const entry of entries){
+    const dist=Math.abs((+entry?.bpm || 0)-target);
+    if(dist<bestDist){
+      best=entry;
+      bestDist=dist;
+    }
+  }
+  return best;
+}
 function meterBeatPeriodSec(bpm){
   const normalized=normalizeBpmRange(bpm, 45, 210);
   return normalized ? (60/normalized) : 0;
@@ -349,9 +437,9 @@ function getItemDjCueIn(item){
   return clampValue(cue, 0, maxCue);
 }
 function getItemMeterBpm(item){
-  const meter=Math.round(+item?._meterBpm || 0);
+  const meter=roundBpmValue(+item?._meterBpm || 0, 2);
   if(meter) return meter;
-  return Math.round(+item?._bpm || 0) || 0;
+  return roundBpmValue(+item?._bpm || 0, 2) || 0;
 }
 function getItemBeatAnchorSec(item){
   const meterBpm=getItemMeterBpm(item);
@@ -489,7 +577,7 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
   const proximityScore=clampValue(1-((Math.max(1, distance)-1)*0.16), 0.18, 1);
   const sameVisualClass=itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(candidateItem);
   const typeScore=sameVisualClass ? 1 : 0.72;
-  const candidateBpm=Math.round(candidateItem?._bpm || 0);
+  const candidateBpm=getTrackBpmInfo(candidateItem).bpm || getTrackMeterBpmInfo(candidateItem).bpm || 0;
   const bpmKnown=!!(currentBpm && candidateBpm);
   const bpmRatio=bpmKnown ? clampValue(candidateBpm/Math.max(1, currentBpm), 0.82, 1.18) : 1;
   const bpmDelta=bpmKnown ? Math.abs(1-bpmRatio) : 0.07;
@@ -612,7 +700,7 @@ function getDjPreviewState(currentIndex=state.cur){
       item:state.list[manualIndex],
       score:0,
       distance:forwardPlaylistDistance(currentIndex, manualIndex, state.list.length),
-      candidateBpm:Math.round(state.list[manualIndex]?._bpm || 0),
+      candidateBpm:getTrackBpmInfo(state.list[manualIndex]).bpm || getTrackMeterBpmInfo(state.list[manualIndex]).bpm || 0,
       bpmKnown:false,
       bpmRatio:1,
       loudnessDeltaDb:0,
@@ -630,7 +718,7 @@ function getDjPreviewState(currentIndex=state.cur){
       item:state.list[frozenIndex],
       score:0,
       distance:forwardPlaylistDistance(currentIndex, frozenIndex, state.list.length),
-      candidateBpm:Math.round(state.list[frozenIndex]?._bpm || 0),
+      candidateBpm:getTrackBpmInfo(state.list[frozenIndex]).bpm || getTrackMeterBpmInfo(state.list[frozenIndex]).bpm || 0,
       bpmKnown:false,
       bpmRatio:1,
       loudnessDeltaDb:0,
@@ -646,12 +734,12 @@ function getDjPreviewState(currentIndex=state.cur){
   const nextIndex=entry?.index ?? (manualIndex>=0 ? manualIndex : pool.fallbackIndex);
   const nextItem=nextIndex>=0 ? state.list[nextIndex] : null;
   if(!nextItem) return null;
-  const bpm=Math.round(nextItem?._bpm || nextItem?._meterBpm || 0);
+  const bpm=entry?.candidateBpm || getTrackBpmInfo(nextItem).bpm || getTrackMeterBpmInfo(nextItem).bpm || 0;
   const distance=entry?.distance ?? forwardPlaylistDistance(currentIndex, nextIndex, state.list.length);
   const bpmDeltaPct=(entry?.bpmKnown && Number.isFinite(entry?.bpmRatio)) ? ((entry.bpmRatio-1)*100) : null;
   const loudnessText=Number.isFinite(entry?.loudnessDeltaDb) ? `${entry.loudnessDeltaDb>0?'+':''}${entry.loudnessDeltaDb.toFixed(1)}dB` : '--';
   const reasonParts=[
-    bpm ? `${bpm} BPM${bpmDeltaPct!=null ? ` ${bpmDeltaPct>=0?'+':''}${bpmDeltaPct.toFixed(1)}%` : ''}` : 'BPM scan',
+    bpm ? `${formatBpmValue(bpm, 1)} BPM${bpmDeltaPct!=null ? ` ${bpmDeltaPct>=0?'+':''}${bpmDeltaPct.toFixed(1)}%` : ''}` : 'BPM scan',
     `Intro ${Math.round((entry?.introQuietness || 0)*100)}%`,
     `Loud ${loudnessText}`
   ];
@@ -723,14 +811,14 @@ function hasCompletedTrackAnalysis(item){
 }
 function getTrackBpmInfo(item, opts={}){
   if(!hasCompletedTrackAnalysis(item)) return { bpm:0, confidence:0, source:'none' };
-  const analyzedBpm=Math.round(item?._bpm || 0);
+  const analyzedBpm=roundBpmValue(item?._bpm || 0, 2);
   const analyzedConfidence=+(item?._bpmConfidence || 0);
   if(analyzedBpm) return { bpm:analyzedBpm, confidence:analyzedConfidence, source:'analysis' };
   return { bpm:0, confidence:0, source:'none' };
 }
 function getTrackMeterBpmInfo(item){
   if(!hasCompletedTrackAnalysis(item)) return { bpm:0, confidence:0, source:'none' };
-  const analyzedBpm=Math.round(item?._meterBpm || item?._bpm || 0);
+  const analyzedBpm=roundBpmValue(item?._meterBpm || item?._bpm || 0, 2);
   const analyzedConfidence=+(item?._meterBpmConfidence ?? item?._bpmConfidence ?? 0);
   if(analyzedBpm) return { bpm:analyzedBpm, confidence:analyzedConfidence, source:'analysis' };
   return { bpm:0, confidence:0, source:'none' };
@@ -753,7 +841,7 @@ function getMetronomeSubdivisionLabel(value=state.metronome?.subdivision){
   return value==='eighth' ? '8分' : '4分';
 }
 function getCurrentBeatGridSnapshot(timeSec=mediaCurrent(), item=state.list[state.cur]){
-  const bpm=getItemMeterBpm(item) || Math.round(+item?._bpm || 0) || 0;
+  const bpm=getItemMeterBpm(item) || roundBpmValue(+item?._bpm || 0, 2) || 0;
   const period=meterBeatPeriodSec(bpm);
   if(!item || !bpm || !period) return null;
   const anchorSec=getItemBeatAnchorSec(item);
@@ -880,7 +968,7 @@ function setMediaPreservePitch(media, on){
   if(prop) media[prop]=!!on;
 }
 function currentEffectiveRate(){
-  return clampValue(currentDeckRate() * (state.dj.rateMul || 1), 0.25, 2);
+  return currentMainPlaybackRate();
 }
 function setDjDeckBufferRate(deck, nextRate){
   if(!deck?.bufferSource || !state.audioCtx) return;
@@ -926,8 +1014,8 @@ function updateDjReadouts(){
   const meterBpm=getCurrentTrackMeterBpm() || djBpm;
   const bpmConfidence=Math.round(Math.max((item?._bpmConfidence || 0), (item?._meterBpmConfidence || 0))*100);
   const bpmLabel=(meterBpm && djBpm && Math.abs(meterBpm-djBpm)>=8)
-    ? `${meterBpm} BPM / DJ ${djBpm}`
-    : `${djBpm || meterBpm} BPM`;
+    ? `${formatBpmValue(meterBpm, 1)} BPM / DJ ${formatBpmValue(djBpm, 1)}`
+    : `${formatBpmValue(djBpm || meterBpm, 1)} BPM`;
   const bpmText = (djBpm || meterBpm)
     ? `${bpmLabel}${bpmConfidence ? ` · ${bpmConfidence}%` : ''}`
     : '--';
@@ -946,7 +1034,9 @@ function updateDjReadouts(){
   updateMetronomeReadout();
   if($.djTransitionRead){
     const targetText=state.bpm.beatSync ? 'BPM と小節' : 'BPM';
-    $.djTransitionRead.textContent=`${state.dj.transitionSec}秒・${getDjModeLabel()} / 次の曲の ${targetText} を寄せます。`;
+    $.djTransitionRead.textContent=(!currentMediaAllowsDjTempoMatch() && itemLooksLikeVideoMedia(item))
+      ? `${state.dj.transitionSec}秒・${getDjModeLabel()} / 映像は等速のまま、${targetText} 基準でつなぎます。`
+      : `${state.dj.transitionSec}秒・${getDjModeLabel()} / 次の曲の ${targetText} を寄せます。`;
   }
   if($.djCandidateRead){
     $.djCandidateRead.textContent=`先の${state.dj.candidateWindow}曲から候補選択${state.dj.repeatGuard ? ' · 再登場回避' : ''}`;
@@ -956,14 +1046,14 @@ function updateDjReadouts(){
     if(state.dj.enabled){
       const syncPlan=state.dj.syncPlan;
       if(state.dj.active){
-        const rateText=`${Math.round((state.dj.rateMul||1)*100)}%`;
+        const rateText=getDjRateStatusText();
         const gainDb=syncPlan ? gainToDb(syncPlan.deckGainMul || 1) : 0;
         const gainText=Math.abs(gainDb)>=0.4 ? ` ${gainDb>0?'+':''}${gainDb.toFixed(1)}dB` : '';
         const hopText=(state.dj.nextIndex>=0 && state.dj.nextIndex!==((state.cur+1)%Math.max(1,state.list.length))) ? ` P${forwardPlaylistDistance(state.cur, state.dj.nextIndex, state.list.length)}` : '';
         const phaseLabel=state.dj.phase==='armed' ? 'ARM' : (state.dj.phase==='prepare' ? 'PREP' : (syncPlan?.statusLabel || 'MATCH'));
         text=`${phaseLabel} ${rateText}${gainText}${hopText}`;
       }else if(state.dj.carryUntil>performance.now()){
-        text=`HANDOFF ${Math.round((state.dj.rateMul||1)*100)}%`;
+        text=`HANDOFF ${getDjRateStatusText()}`;
       }else if(item?._analysisUnsupported){
         text='N/A';
       }else if(state.dj.phase==='scan'){
@@ -1488,83 +1578,47 @@ function drawStatusHud(t){
   ctx.stroke();
   ctx.shadowBlur=0;
 
-  const gridX=24;
-  const gridW=w-48;
-  const gridY=Math.max(34, h-58);
-  const gridH=26;
-  const gridR=13;
-  ctx.fillStyle='rgba(6,12,20,.38)';
+  const beatBoxW=Math.min(168, Math.max(128, w*0.2));
+  const beatBoxH=44;
+  const beatBoxX=w-beatBoxW-24;
+  const beatBoxY=h-beatBoxH-18;
+  ctx.fillStyle='rgba(6,12,20,.4)';
   ctx.strokeStyle='rgba(255,255,255,.08)';
   ctx.beginPath();
-  ctx.roundRect(gridX, gridY, gridW, gridH, gridR);
+  ctx.roundRect(beatBoxX, beatBoxY, beatBoxW, beatBoxH, 16);
   ctx.fill();
   ctx.stroke();
-
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(236,246,255,.92)';
+  ctx.font='700 11px system-ui, sans-serif';
   if(!beatGrid){
-    ctx.fillStyle='rgba(220,236,255,.58)';
-    ctx.font='600 11px system-ui, sans-serif';
-    ctx.fillText('BPM 解析後に beat grid を表示します', gridX+14, gridY+16);
+    ctx.fillText('BEAT --', beatBoxX+14, beatBoxY+18);
     return;
   }
-
-  const slots=8;
-  const slotGap=6;
-  const innerPad=10;
-  const slotW=(gridW-(innerPad*2)-((slots-1)*slotGap))/slots;
-  const slotH=gridH-10;
-  const currentBeatBase=Math.floor(beatGrid.beatFloat);
-  const centerBias=2;
-  const startBeat=currentBeatBase-centerBias;
+  const currentBeat=(beatGrid.beatInBar % DJ_BEATS_PER_BAR) + 1;
   const beatPulse=1-beatGrid.beatPhase;
-  for(let i=0;i<slots;i++){
-    const beatNumber=startBeat+i;
-    const x=gridX+innerPad + i*(slotW+slotGap);
-    const y=gridY+5;
-    const isCurrent=beatNumber===currentBeatBase;
-    const barEdge=((beatNumber % DJ_BEATS_PER_BAR)+DJ_BEATS_PER_BAR)%DJ_BEATS_PER_BAR===0;
-    const baseAlpha=barEdge ? 0.18 : 0.08;
-    const fillAlpha=isCurrent ? (0.22 + beatPulse*0.28) : baseAlpha;
-    const glowAlpha=isCurrent ? (0.18 + beatPulse*0.24) : 0;
-    const fill=ctx.createLinearGradient(x,y,x,y+slotH);
-    fill.addColorStop(0,`rgba(133,224,255,${fillAlpha + (barEdge?0.06:0)})`);
-    fill.addColorStop(1,`rgba(60,124,255,${fillAlpha*0.48})`);
+  ctx.fillText(`BEAT ${currentBeat}`, beatBoxX+14, beatBoxY+18);
+  const dotY=beatBoxY+28;
+  const dotGap=9;
+  const dotW=(beatBoxW-28-(dotGap*(DJ_BEATS_PER_BAR-1)))/DJ_BEATS_PER_BAR;
+  const dotH=8;
+  for(let i=0;i<DJ_BEATS_PER_BAR;i++){
+    const x=beatBoxX+14 + i*(dotW+dotGap);
+    const isCurrent=i===(currentBeat-1);
+    const fill=ctx.createLinearGradient(x,dotY,x,dotY+dotH);
+    const activeAlpha=isCurrent ? (0.3 + beatPulse*0.34) : 0.08;
+    fill.addColorStop(0, `rgba(140,230,255,${activeAlpha + (isCurrent ? 0.16 : 0)})`);
+    fill.addColorStop(1, `rgba(62,126,255,${activeAlpha*0.7})`);
     ctx.fillStyle=fill;
     ctx.beginPath();
-    ctx.roundRect(x,y,slotW,slotH, Math.min(10, slotW*0.26));
+    ctx.roundRect(x, dotY, dotW, dotH, 999);
     ctx.fill();
-    if(glowAlpha>0){
-      ctx.shadowBlur=16;
-      ctx.shadowColor=`rgba(118,214,255,${glowAlpha})`;
-      ctx.strokeStyle=`rgba(166,234,255,${0.26 + beatPulse*0.46})`;
-      ctx.lineWidth=1.2;
+    if(isCurrent){
+      ctx.strokeStyle=`rgba(196,242,255,${0.28 + beatPulse*0.34})`;
+      ctx.lineWidth=1.1;
       ctx.stroke();
-      ctx.shadowBlur=0;
     }
-    ctx.fillStyle=barEdge ? 'rgba(230,244,255,.9)' : 'rgba(230,244,255,.58)';
-    ctx.font='700 10px system-ui, sans-serif';
-    ctx.textAlign='center';
-    ctx.fillText(String((((beatNumber % DJ_BEATS_PER_BAR)+DJ_BEATS_PER_BAR)%DJ_BEATS_PER_BAR)+1), x+(slotW/2), y+slotH-6);
   }
-
-  const playheadX=gridX+innerPad + ((centerBias+beatGrid.beatPhase)*(slotW+slotGap)) - (slotGap*0.5);
-  ctx.strokeStyle='rgba(255,255,255,.88)';
-  ctx.lineWidth=1.4;
-  ctx.beginPath();
-  ctx.moveTo(playheadX, gridY-4);
-  ctx.lineTo(playheadX, gridY+gridH+4);
-  ctx.stroke();
-
-  const labelY=24;
-  ctx.textAlign='left';
-  ctx.fillStyle='rgba(236,246,255,.9)';
-  ctx.font='700 11px system-ui, sans-serif';
-  ctx.fillText(`BAR ${Math.max(1, beatGrid.barIndex+1)}  BEAT ${beatGrid.beatInBar+1}`, 24, labelY);
-  ctx.fillStyle='rgba(192,224,255,.72)';
-  ctx.font='600 10px system-ui, sans-serif';
-  const meterConfidence=Math.round((beatGrid.meterConfidence||0)*100);
-  const anchorConfidence=Math.round((beatGrid.anchorConfidence||0)*100);
-  const confidenceText=`${beatGrid.bpm} BPM · Grid ${anchorConfidence||meterConfidence||0}%`;
-  ctx.fillText(confidenceText, Math.max(24, w-ctx.measureText(confidenceText).width-26), labelY);
 }
 function initCanvasHud(){
   let raf=0;
@@ -2463,7 +2517,7 @@ function updateMetronomeScheduler(){
   const stepPeriod=period/division;
   const beatFloat=(mediaNow-anchorSec)/stepPeriod;
   const desiredNext=Math.max(0, Math.floor(beatFloat+0.02)+1);
-  const trackSig=`${state.cur}|${Math.round(bpm*10)}|${anchorSec.toFixed(3)}|${division}`;
+  const trackSig=`${state.cur}|${roundBpmValue(bpm, 2)}|${anchorSec.toFixed(3)}|${division}`;
   if(
     state.metronome.trackSig!==trackSig ||
     !Number.isFinite(state.metronome.nextBeatIndex) ||
@@ -2708,9 +2762,8 @@ function estimateBpmFromOnsets(onsets){
     if(dt<250 || dt>1500) continue;
     const bpm=foldBpm(60000/dt);
     if(!bpm) continue;
-    const rounded=Math.round(bpm);
     const weight=1 + i/onsets.length;
-    scores.set(rounded, (scores.get(rounded)||0) + weight);
+    addBpmVote(scores, bpm, weight);
     total += weight;
   }
   if(!scores.size || !total) return { bpm:0, confidence:0 };
@@ -2951,7 +3004,7 @@ function estimateBpmFromMono(mono, sampleRate){
 }
 function buildOnsetAnalysisFromMono(mono, sampleRate){
   if(!mono?.length || !sampleRate) return null;
-  const hop=512;
+  const hop=256;
   const win=1024;
   const env=[];
   let prevFrameEnergy=0;
@@ -3102,21 +3155,17 @@ function estimateBeatAnchorFromOnsetData(onsetData, bpm, cueInSec=0){
   };
 }
 function resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence=0){
-  const base=Math.round(normalizeBpmRange(djBpm, 45, 210));
+  const base=bucketBpm(normalizeBpmRange(djBpm, 45, 210));
   if(!base || !onsetData) return { bpm:0, confidence:0 };
-  const candidateSet=new Set([base]);
-  if(base>=96) candidateSet.add(Math.round(base/2));
-  if(base<=104) candidateSet.add(Math.round(base*2));
-  const scored=[...candidateSet]
-    .filter(candidate=>candidate>=45 && candidate<=210)
+  const scored=collectMeterBpmCandidates(base)
     .map(candidate=>{
       const anchor=estimateBeatAnchorFromOnsetData(onsetData, candidate, 0);
       return { bpm:candidate, ...anchor };
     })
     .sort((a,b)=>b.fitScore-a.fitScore);
-  const baseEntry=scored.find(entry=>entry.bpm===base) || scored[0] || { bpm:base, confidence:0, fitScore:0 };
-  const halfEntry=scored.find(entry=>entry.bpm===Math.round(base/2));
-  const doubleEntry=scored.find(entry=>entry.bpm===Math.round(base*2));
+  const baseEntry=findClosestBpmEntry(scored, base) || scored[0] || { bpm:base, confidence:0, fitScore:0 };
+  const halfEntry=base>=96 ? findClosestBpmEntry(scored, bucketBpm(base/2)) : null;
+  const doubleEntry=base<=104 ? findClosestBpmEntry(scored, bucketBpm(base*2)) : null;
   let best=baseEntry;
   if(halfEntry && (halfEntry.fitScore >= (baseEntry.fitScore*0.9) || (base>=128 && halfEntry.fitScore >= (baseEntry.fitScore*0.82)))){
     best=halfEntry;
@@ -3126,7 +3175,7 @@ function resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence=0){
     best=scored[0];
   }
   return {
-    bpm:best?.bpm || base,
+    bpm:bucketBpm(best?.bpm || base),
     confidence:clampValue(Math.max((+djConfidence || 0)*0.72, best?.confidence || 0), 0, 0.99),
     fitScore:best?.fitScore || 0
   };
@@ -3154,9 +3203,8 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
       if(dt<0.22 || dt>2.4) continue;
       const bpm=foldBpm(60/dt);
       if(!bpm) continue;
-      const rounded=Math.round(bpm);
       const weight=(6-(j-i)) * smooth[peakIdx[i]];
-      scores.set(rounded, (scores.get(rounded)||0) + weight);
+      addBpmVote(scores, bpm, weight);
     }
   }
   const corrScores=new Map();
@@ -3167,16 +3215,15 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     let score=0;
     for(let i=0;i<smooth.length-lag;i++) score += smooth[i]*smooth[i+lag];
     if(score>0){
-      const bpm=Math.round(foldBpm((60*framesPerSec)/lag));
-      corrScores.set(bpm, (corrScores.get(bpm)||0) + score);
+      addBpmVote(corrScores, foldBpm((60*framesPerSec)/lag), score);
     }
     if(score>corrBest){ corrBest=score; bestLag=lag; }
   }
   corrScores.forEach((score,bpm)=>{
-    scores.set(bpm, (scores.get(bpm)||0) + score*0.35);
+    addBpmVote(scores, bpm, score*0.35);
   });
-  const summary=summarizeWeightedVotes(scores, bestLag ? Math.round(foldBpm((60*framesPerSec)/bestLag)) : 0);
-  const djBpm=summary.value||0;
+  const summary=summarizeWeightedVotes(scores, bestLag ? bucketBpm(foldBpm((60*framesPerSec)/bestLag)) : 0);
+  const djBpm=refineBpmFromVotes(scores, summary.value || 0) || summary.value || 0;
   const djConfidence=djBpm ? clampValue(summary.confidence + (peakIdx.length>10 ? 0.08 : 0), 0, 0.98) : 0;
   const meterResult=resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence);
   const beatAnchorResult=estimateBeatAnchorFromOnsetData(onsetData, meterResult.bpm || djBpm, 0);
@@ -3216,16 +3263,16 @@ function estimateBpmFromDecodedAudioDetailed(audioBuffer){
     const { bpm, meterBpm, confidence, meterConfidence }=estimateBpmFromMonoDetailed(slice, sampleRate);
     if(!bpm) return;
     const weight=Math.max(0.2, confidence || 0.2);
-    votes.set(bpm, (votes.get(bpm)||0) + weight);
-    for(const alt of [bpm-1,bpm+1]){
-      if(alt>70 && alt<181) votes.set(alt, (votes.get(alt)||0) + weight*0.18);
+    addBpmVote(votes, bpm, weight);
+    for(const alt of [bpm-0.4, bpm-0.2, bpm+0.2, bpm+0.4]){
+      if(alt>70 && alt<181) addBpmVote(votes, alt, weight*(Math.abs(alt-bpm)<=0.2 ? 0.2 : 0.12));
     }
     if(meterBpm){
-      const meter=Math.round(normalizeBpmRange(meterBpm, 45, 210));
+      const meter=bucketBpm(normalizeBpmRange(meterBpm, 45, 210));
       const meterWeight=Math.max(0.2, meterConfidence || confidence || 0.2);
-      meterVotes.set(meter, (meterVotes.get(meter)||0) + meterWeight);
-      for(const alt of [meter-1,meter+1]){
-        if(alt>=45 && alt<=210) meterVotes.set(alt, (meterVotes.get(alt)||0) + meterWeight*0.18);
+      addBpmVote(meterVotes, meter, meterWeight);
+      for(const alt of [meter-0.4, meter-0.2, meter+0.2, meter+0.4]){
+        if(alt>=45 && alt<=210) addBpmVote(meterVotes, alt, meterWeight*(Math.abs(alt-meter)<=0.2 ? 0.2 : 0.12));
       }
     }
   });
@@ -3235,11 +3282,15 @@ function estimateBpmFromDecodedAudioDetailed(audioBuffer){
   const meterSummary=meterVotes.size
     ? summarizeWeightedVotes(meterVotes, fallback.meterBpm || fallback.bpm)
     : null;
+  const refinedBpm=refineBpmFromVotes(votes, summary.value || fallback.bpm, 1.2) || summary.value || fallback.bpm || 0;
+  const refinedMeterBpm=meterSummary
+    ? (refineBpmFromVotes(meterVotes, meterSummary.value || fallback.meterBpm || fallback.bpm, 1.2) || meterSummary.value || fallback.meterBpm || fallback.bpm || 0)
+    : (fallback.meterBpm || fallback.bpm || 0);
   return {
     ...fallback,
-    bpm:summary.value || fallback.bpm || 0,
+    bpm:refinedBpm,
     confidence:clampValue(Math.max(fallback.confidence*0.72, summary.confidence), 0, 0.99),
-    meterBpm:meterSummary?.value || fallback.meterBpm || fallback.bpm || 0,
+    meterBpm:refinedMeterBpm,
     meterConfidence:clampValue(Math.max((fallback.meterConfidence||0)*0.72, meterSummary?.confidence || 0), 0, 0.99)
   };
 }
@@ -4867,7 +4918,7 @@ function updateAutoDjState(){
   const currentBpm=getCurrentTrackBpm();
   const currentItem=state.list[state.cur];
   const nextItem=state.list[nextIndex];
-  const nextBpm=Math.round(nextItem?._bpm || 0);
+  const nextBpm=getTrackBpmInfo(nextItem).bpm || 0;
   if(!currentBpm || !nextBpm){
     setDjPhase('scan');
     if(!shouldHoldBpmKeyAnalysis()){

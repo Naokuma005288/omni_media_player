@@ -14,6 +14,55 @@ function normalizeBpmRange(bpm, min=45, max=210){
   while(v>max) v/=2;
   return Math.round(v*10)/10;
 }
+function bucketBpm(bpm){
+  const value=+bpm||0;
+  if(!Number.isFinite(value) || value<=0) return 0;
+  return Math.round(value*10)/10;
+}
+function addBpmVote(votes, bpm, weight){
+  const bucket=bucketBpm(bpm);
+  if(!bucket || !Number.isFinite(weight) || weight<=0) return;
+  votes.set(bucket, (votes.get(bucket)||0) + weight);
+}
+function refineBpmFromVotes(votes, seed, radius=1.2){
+  const center=bucketBpm(seed);
+  if(!center || !votes?.size) return center;
+  let total=0;
+  let weighted=0;
+  votes.forEach((score, value)=>{
+    const bpm=+value||0;
+    if(!bpm || Math.abs(bpm-center)>radius) return;
+    total += score;
+    weighted += bpm*score;
+  });
+  return total>0 ? bucketBpm(weighted/total) : center;
+}
+function collectMeterBpmCandidates(base){
+  const candidateSet=new Set();
+  const pushBand=(center, offsets)=>{
+    offsets.forEach(offset=>{
+      const candidate=bucketBpm(center+offset);
+      if(candidate>=45 && candidate<=210) candidateSet.add(candidate);
+    });
+  };
+  pushBand(base, [0, -0.6, -0.3, 0.3, 0.6]);
+  if(base>=96) pushBand(base/2, [0, -0.4, 0.4]);
+  if(base<=104) pushBand(base*2, [0, -0.6, 0.6]);
+  return [...candidateSet];
+}
+function findClosestBpmEntry(entries, target){
+  if(!entries?.length || !target) return null;
+  let best=null;
+  let bestDist=Infinity;
+  for(const entry of entries){
+    const dist=Math.abs((+entry?.bpm || 0)-target);
+    if(dist<bestDist){
+      best=entry;
+      bestDist=dist;
+    }
+  }
+  return best;
+}
 
 function summarizeWeightedVotes(votes, fallbackValue=0){
   let total=0, bestValue=fallbackValue, bestScore=0, secondScore=0;
@@ -37,7 +86,7 @@ function summarizeWeightedVotes(votes, fallbackValue=0){
 
 function buildOnsetAnalysisFromMono(mono, sampleRate){
   if(!mono?.length || !sampleRate) return null;
-  const hop=512;
+  const hop=256;
   const win=1024;
   const env=[];
   let prevFrameEnergy=0;
@@ -171,18 +220,14 @@ function estimateBeatAnchorFromOnsetData(onsetData, bpm){
   return { confidence, fitScore };
 }
 function resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence=0){
-  const base=Math.round(normalizeBpmRange(djBpm, 45, 210));
+  const base=bucketBpm(normalizeBpmRange(djBpm, 45, 210));
   if(!base || !onsetData) return { bpm:0, confidence:0 };
-  const candidateSet=new Set([base]);
-  if(base>=96) candidateSet.add(Math.round(base/2));
-  if(base<=104) candidateSet.add(Math.round(base*2));
-  const scored=[...candidateSet]
-    .filter(candidate=>candidate>=45 && candidate<=210)
+  const scored=collectMeterBpmCandidates(base)
     .map(candidate=>({ bpm:candidate, ...estimateBeatAnchorFromOnsetData(onsetData, candidate) }))
     .sort((a,b)=>b.fitScore-a.fitScore);
-  const baseEntry=scored.find(entry=>entry.bpm===base) || scored[0] || { bpm:base, confidence:0, fitScore:0 };
-  const halfEntry=scored.find(entry=>entry.bpm===Math.round(base/2));
-  const doubleEntry=scored.find(entry=>entry.bpm===Math.round(base*2));
+  const baseEntry=findClosestBpmEntry(scored, base) || scored[0] || { bpm:base, confidence:0, fitScore:0 };
+  const halfEntry=base>=96 ? findClosestBpmEntry(scored, bucketBpm(base/2)) : null;
+  const doubleEntry=base<=104 ? findClosestBpmEntry(scored, bucketBpm(base*2)) : null;
   let best=baseEntry;
   if(halfEntry && (halfEntry.fitScore >= (baseEntry.fitScore*0.9) || (base>=128 && halfEntry.fitScore >= (baseEntry.fitScore*0.82)))){
     best=halfEntry;
@@ -192,7 +237,7 @@ function resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence=0){
     best=scored[0];
   }
   return {
-    bpm:best?.bpm || base,
+    bpm:bucketBpm(best?.bpm || base),
     confidence:clampValue(Math.max((+djConfidence || 0)*0.72, best?.confidence || 0), 0, 0.99)
   };
 }
@@ -207,9 +252,8 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
       if(dt<0.22 || dt>2.4) continue;
       const bpm=foldBpm(60/dt);
       if(!bpm) continue;
-      const rounded=Math.round(bpm);
       const weight=(6-(j-i)) * smooth[peakIdx[i]];
-      scores.set(rounded, (scores.get(rounded)||0) + weight);
+      addBpmVote(scores, bpm, weight);
     }
   }
   const corrScores=new Map();
@@ -221,8 +265,7 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     let score=0;
     for(let i=0;i<smooth.length-lag;i++) score += smooth[i]*smooth[i+lag];
     if(score>0){
-      const bpm=Math.round(foldBpm((60*framesPerSec)/lag));
-      corrScores.set(bpm, (corrScores.get(bpm)||0) + score);
+      addBpmVote(corrScores, foldBpm((60*framesPerSec)/lag), score);
     }
     if(score>corrBest){
       corrBest=score;
@@ -230,10 +273,10 @@ function estimateBpmFromMonoDetailed(mono, sampleRate){
     }
   }
   corrScores.forEach((score,bpm)=>{
-    scores.set(bpm, (scores.get(bpm)||0) + score*0.35);
+    addBpmVote(scores, bpm, score*0.35);
   });
-  const summary=summarizeWeightedVotes(scores, bestLag ? Math.round(foldBpm((60*framesPerSec)/bestLag)) : 0);
-  const djBpm=summary.value||0;
+  const summary=summarizeWeightedVotes(scores, bestLag ? bucketBpm(foldBpm((60*framesPerSec)/bestLag)) : 0);
+  const djBpm=refineBpmFromVotes(scores, summary.value || 0) || summary.value || 0;
   const djConfidence=djBpm ? clampValue(summary.confidence + (peakIdx.length>10 ? 0.08 : 0), 0, 0.98) : 0;
   const meterResult=resolveMeterBpmFromOnsetData(onsetData, djBpm, djConfidence);
   return {
@@ -264,16 +307,16 @@ function estimateBpmFromPreparedMono(mono, sampleRate){
     const { bpm, meterBpm, confidence, meterConfidence }=estimateBpmFromMonoDetailed(slice, sampleRate);
     if(!bpm) return;
     const weight=Math.max(0.2, confidence || 0.2);
-    votes.set(bpm, (votes.get(bpm)||0) + weight);
-    for(const alt of [bpm-1,bpm+1]){
-      if(alt>70 && alt<181) votes.set(alt, (votes.get(alt)||0) + weight*0.18);
+    addBpmVote(votes, bpm, weight);
+    for(const alt of [bpm-0.4, bpm-0.2, bpm+0.2, bpm+0.4]){
+      if(alt>70 && alt<181) addBpmVote(votes, alt, weight*(Math.abs(alt-bpm)<=0.2 ? 0.2 : 0.12));
     }
     if(meterBpm){
-      const meter=Math.round(normalizeBpmRange(meterBpm, 45, 210));
+      const meter=bucketBpm(normalizeBpmRange(meterBpm, 45, 210));
       const meterWeight=Math.max(0.2, meterConfidence || confidence || 0.2);
-      meterVotes.set(meter, (meterVotes.get(meter)||0) + meterWeight);
-      for(const alt of [meter-1,meter+1]){
-        if(alt>=45 && alt<=210) meterVotes.set(alt, (meterVotes.get(alt)||0) + meterWeight*0.18);
+      addBpmVote(meterVotes, meter, meterWeight);
+      for(const alt of [meter-0.4, meter-0.2, meter+0.2, meter+0.4]){
+        if(alt>=45 && alt<=210) addBpmVote(meterVotes, alt, meterWeight*(Math.abs(alt-meter)<=0.2 ? 0.2 : 0.12));
       }
     }
   });
@@ -283,11 +326,15 @@ function estimateBpmFromPreparedMono(mono, sampleRate){
   const meterSummary=meterVotes.size
     ? summarizeWeightedVotes(meterVotes, fallback.meterBpm || fallback.bpm)
     : null;
+  const refinedBpm=refineBpmFromVotes(votes, summary.value || fallback.bpm, 1.2) || summary.value || fallback.bpm || 0;
+  const refinedMeterBpm=meterSummary
+    ? (refineBpmFromVotes(meterVotes, meterSummary.value || fallback.meterBpm || fallback.bpm, 1.2) || meterSummary.value || fallback.meterBpm || fallback.bpm || 0)
+    : (fallback.meterBpm || fallback.bpm || 0);
   return {
     ...fallback,
-    bpm:summary.value || fallback.bpm || 0,
+    bpm:refinedBpm,
     confidence:clampValue(Math.max(fallback.confidence*0.72, summary.confidence), 0, 0.99),
-    meterBpm:meterSummary?.value || fallback.meterBpm || fallback.bpm || 0,
+    meterBpm:refinedMeterBpm,
     meterConfidence:clampValue(Math.max((fallback.meterConfidence||0)*0.72, meterSummary?.confidence || 0), 0, 0.99)
   };
 }

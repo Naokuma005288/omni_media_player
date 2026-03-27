@@ -152,10 +152,10 @@ html,body{height:100%}
   body.app-ratio-wide .app{grid-template-columns:300px 1fr}
   body.app-ratio-wide aside .section{padding:.88rem}
   body.app-ratio-wide .player-shell{height:97%;max-height:97%}
-  body.app-ratio-wide .ctrl.ctrl-dock{grid-template-columns:minmax(220px,.88fr) minmax(350px,1.28fr) minmax(220px,.86fr) minmax(240px,.94fr)}
+  body.app-ratio-wide .ctrl.ctrl-dock{grid-template-columns:minmax(220px,.94fr) minmax(350px,1.3fr) minmax(220px,.88fr)}
   body.app-ratio-classic .app{grid-template-columns:300px 1fr}
   body.app-ratio-classic .player-shell{height:96%;max-height:96%}
-  body.app-ratio-classic .ctrl.ctrl-dock{grid-template-columns:minmax(220px,.94fr) minmax(320px,1.1fr) minmax(220px,.86fr) minmax(230px,.9fr)}
+  body.app-ratio-classic .ctrl.ctrl-dock{grid-template-columns:minmax(220px,.96fr) minmax(320px,1.14fr) minmax(220px,.88fr)}
   body.app-ratio-portrait .app{
     grid-template-columns:1fr;
     grid-template-rows:auto auto auto;
@@ -261,13 +261,12 @@ html,body{height:100%}
     height:97%;max-height:97%
   }
   body.app-bp-wide:not(.app-ratio-portrait) .ctrl.ctrl-dock{
-    grid-template-columns:minmax(230px,.84fr) minmax(390px,1.28fr) minmax(230px,.84fr) minmax(250px,.94fr)
+    grid-template-columns:minmax(230px,.9fr) minmax(390px,1.3fr) minmax(230px,.88fr)
   }
   body.app-bp-tablet:not(.app-ratio-portrait):not(.app-orient-portrait) .ctrl.ctrl-dock{
     grid-template-columns:minmax(250px,1fr) minmax(320px,1.18fr)
   }
-  body.app-bp-tablet:not(.app-ratio-portrait):not(.app-orient-portrait) .loop-module,
-  body.app-bp-tablet:not(.app-ratio-portrait):not(.app-orient-portrait) .next-module{grid-column:auto}
+  body.app-bp-tablet:not(.app-ratio-portrait):not(.app-orient-portrait) .loop-module{grid-column:auto}
   body.app-orient-portrait.app-bp-tablet:not(.app-ratio-portrait),
   body.app-bp-compact:not(.app-ratio-portrait){
     overflow-y:auto;
@@ -589,7 +588,7 @@ html,body{height:100%}
   .ctrl{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
   .ctrl.ctrl-dock{
     position:relative;inset:auto;padding:.44rem .72rem;
-    display:grid;grid-template-columns:minmax(220px,.94fr) minmax(360px,1.4fr) minmax(220px,.88fr) minmax(240px,.96fr);
+    display:grid;grid-template-columns:minmax(220px,.96fr) minmax(360px,1.44fr) minmax(220px,.9fr);
     gap:.5rem;align-items:stretch
   }
   .control-module{
@@ -657,8 +656,7 @@ html,body{height:100%}
   .transport-stack{display:grid;gap:.38rem;align-content:center}
   .transport-module .module-kicker,
   .mix-module .module-kicker,
-  .loop-module .module-kicker,
-  .next-module .module-kicker{margin-bottom:-.12rem}
+  .loop-module .module-kicker{margin-bottom:-.12rem}
   .play-main{
     width:58px;min-width:58px;height:58px;border-radius:19px;font-size:22px;
     background:
@@ -750,7 +748,6 @@ html,body{height:100%}
       transparent;
     color:color-mix(in oklab,var(--text),var(--accent) 18%)
   }
-  .next-module{grid-template-rows:auto 1fr auto;align-content:start}
   .next-preview-card{
     display:grid;gap:.32rem;min-height:68px;padding:.52rem .58rem;border-radius:14px;position:relative;z-index:1;
     background:
@@ -786,6 +783,16 @@ html,body{height:100%}
     border-color:color-mix(in oklab,var(--accent),rgba(255,255,255,.08) 70%)
   }
   .next-preview-actions .btn:disabled{opacity:.45;filter:saturate(.7)}
+  .next-side-panel{display:grid;gap:.5rem}
+  .next-preview-head{display:flex;align-items:center;justify-content:flex-start;gap:.4rem;margin:0}
+  .next-preview-head .readout{
+    min-width:58px;justify-content:center;text-align:center;font-variant-numeric:tabular-nums;
+    background:color-mix(in oklab,var(--accent),transparent 88%);
+    border-color:color-mix(in oklab,var(--accent),transparent 70%)
+  }
+  :root.light .next-preview-head .readout{background:rgba(32,86,200,.06)}
+  .next-side-section .next-preview-card{min-height:auto}
+  .next-side-section .next-preview-title{white-space:normal}
 
   .kbd-help,.settings,.ratio-alert{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
   .kbd-card,.settings-card{width:min(980px,92vw);max-height:80vh;overflow:auto;background:color-mix(in oklab,var(--panel-2),transparent 8%);border:1px solid #223142;border-radius:16px;padding:1rem;box-shadow:0 16px 70px var(--shadow);backdrop-filter:blur(10px) saturate(1.2)}
@@ -947,7 +954,7 @@ html,body{height:100%}
 
   @media (max-width: 1200px){
     .ctrl.ctrl-dock{grid-template-columns:minmax(260px,1fr) minmax(320px,1.2fr)}
-    .loop-module,.next-module{grid-column:auto}
+    .loop-module{grid-column:auto}
     .settings-card{width:min(1040px,94vw)}
   }
   @media (max-width: 960px){
