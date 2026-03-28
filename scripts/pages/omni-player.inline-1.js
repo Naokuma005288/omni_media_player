@@ -78,6 +78,10 @@ function formatBpmValue(bpm, digits=1){
     ? String(Math.round(rounded))
     : rounded.toFixed(precision);
 }
+const MANUAL_BPM_TAP_TARGET=10;
+const MANUAL_BPM_TAP_MAX=10;
+const MANUAL_BPM_TAP_RESET_MS=2600;
+const MANUAL_BPM_TAP_MIN_COUNT=4;
 const OPPlayback = window.OmniPlaybackCore || {};
 const OPPlatform = OPPlayback.detectPlatform ? OPPlayback.detectPlatform() : {
   isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''),
@@ -582,15 +586,23 @@ function getItemDjCueIn(item){
   return clampValue(cue, 0, maxCue);
 }
 function getItemMeterBpm(item){
+  const manualInfo=getItemManualBpmInfo(item);
+  if(manualInfo.meterBpm) return manualInfo.meterBpm;
   const meter=roundBpmValue(+item?._meterBpm || 0, 2);
   if(meter) return meter;
   return roundBpmValue(+item?._bpm || 0, 2) || 0;
 }
 function getItemBeatAnchorSec(item){
   const meterBpm=getItemMeterBpm(item);
+  const manualInfo=getItemManualBpmInfo(item);
+  const manualAnchor=+manualInfo.anchorSec;
+  const manualConfidence=+manualInfo.anchorConfidence || 0;
+  const period=meterBeatPeriodSec(meterBpm);
+  if(period && Number.isFinite(manualAnchor) && manualAnchor>=0 && manualConfidence>=0.18){
+    return manualAnchor;
+  }
   const rawAnchor=+item?._beatAnchorSec;
   const confidence=+item?._beatAnchorConfidence || 0;
-  const period=meterBeatPeriodSec(meterBpm);
   if(period && Number.isFinite(rawAnchor) && rawAnchor>=0 && confidence>=0.18){
     return rawAnchor;
   }
@@ -787,8 +799,8 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
   const cueScore=1-(cuePenalty*0.45);
   const phraseMetrics=getDjPhraseTransitionMetrics(currentItem, candidateItem);
   const analysisConfidence=Math.min(
-    Math.max(+currentItem?._bpmConfidence || 0, getItemDjMixConfidence(currentItem)),
-    Math.max(+candidateItem?._bpmConfidence || 0, getItemDjMixConfidence(candidateItem))
+    Math.max(getTrackBpmInfo(currentItem).confidence || 0, getItemDjMixConfidence(currentItem)),
+    Math.max(getTrackBpmInfo(candidateItem).confidence || 0, getItemDjMixConfidence(candidateItem))
   );
   const loudnessDeltaDb=(currentLoudness!=null && nextLoudness!=null) ? (currentLoudness-nextLoudness) : 0;
   const recentAgeMs=Date.now() - (+candidateItem?._djLastAutoPickedAt || 0);
@@ -829,7 +841,7 @@ function scoreDjCandidate(currentIndex, candidateIndex, currentItem, candidateIt
     analysisConfidence,
     cueIn,
     sameVisualClass,
-    isAnalyzed:!!(candidateItem?._bpm && candidateItem?._analysisDone)
+    isAnalyzed:hasTrackBpmReady(candidateItem)
   };
 }
 function markDjCandidatePlaybackFailure(item, cooldownMs=180000){
@@ -919,7 +931,7 @@ function getDjPreviewState(currentIndex=state.cur){
       analysisConfidence:0,
       cueIn:getItemDjCueIn(state.list[manualIndex]),
       sameVisualClass:itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(state.list[manualIndex]),
-      isAnalyzed:!!(state.list[manualIndex]?._analysisDone)
+      isAnalyzed:hasTrackBpmReady(state.list[manualIndex])
     };
     mode='locked';
   }else if(frozenIndex>=0){
@@ -945,7 +957,7 @@ function getDjPreviewState(currentIndex=state.cur){
       analysisConfidence:0,
       cueIn:getItemDjCueIn(state.list[frozenIndex]),
       sameVisualClass:itemLooksLikeVideoMedia(currentItem)===itemLooksLikeVideoMedia(state.list[frozenIndex]),
-      isAnalyzed:!!(state.list[frozenIndex]?._analysisDone)
+      isAnalyzed:hasTrackBpmReady(state.list[frozenIndex])
     };
     mode='armed';
   }
@@ -1027,12 +1039,172 @@ function getDjMixProfile(progress, syncPlan=null){
   const visualProgress=clampValue((p-(spec.visualDelay||0))/Math.max(0.24, spec.visualSpan||0.72), 0, 1);
   return { currentMul, nextMul, mixProgress, visualProgress };
 }
+function getItemManualBpmInfo(item){
+  if(!item) return { bpm:0, meterBpm:0, confidence:0, meterConfidence:0, tapCount:0, anchorSec:0, anchorConfidence:0, source:'none' };
+  const bpm=roundBpmValue(+item?._manualBpm || 0, 2);
+  if(!bpm) return { bpm:0, meterBpm:0, confidence:0, meterConfidence:0, tapCount:0, anchorSec:0, anchorConfidence:0, source:'none' };
+  const meterBpm=roundBpmValue(+item?._manualMeterBpm || bpm, 2) || bpm;
+  const confidence=clampValue(+(item?._manualBpmConfidence || 0), 0, 0.99);
+  const meterConfidence=clampValue(+(item?._manualMeterBpmConfidence ?? item?._manualBpmConfidence ?? confidence), 0, 0.99);
+  const anchorSec=Number.isFinite(+item?._manualBeatAnchorSec) ? Math.max(0, +item._manualBeatAnchorSec) : 0;
+  const anchorConfidence=clampValue(+(item?._manualBeatAnchorConfidence || 0), 0, 0.99);
+  const tapCount=Math.max(0, +item?._manualBpmTapCount || 0);
+  return { bpm, meterBpm, confidence, meterConfidence, tapCount, anchorSec, anchorConfidence, source:'manual' };
+}
+function getActiveManualTapSession(item=state.list[state.cur]){
+  const tap=state.bpm?.manualTap;
+  if(!item || !tap || tap.item!==item || !tap.stamps?.length) return null;
+  if((performance.now()-(tap.lastAt||0))>MANUAL_BPM_TAP_RESET_MS) return null;
+  return tap;
+}
+function resetManualBpmTapSession(){
+  const tap=state.bpm?.manualTap;
+  if(!tap) return;
+  tap.item=null;
+  tap.stamps.length=0;
+  tap.mediaTimes.length=0;
+  tap.previewBpm=0;
+  tap.lastAt=0;
+}
+function estimateManualTapBpm(stamps=[]){
+  const clean=(stamps||[]).filter(value=>Number.isFinite(value));
+  if(clean.length<2) return null;
+  const intervals=[];
+  for(let i=1;i<clean.length;i++){
+    const sec=(clean[i]-clean[i-1])/1000;
+    if(sec>=0.24 && sec<=2.4) intervals.push(sec);
+  }
+  if(intervals.length<2) return null;
+  const recent=intervals.slice(-(MANUAL_BPM_TAP_MAX-1));
+  const sorted=[...recent].sort((a,b)=>a-b);
+  const median=sorted[Math.floor(sorted.length/2)];
+  const tolerance=Math.max(0.05, median*0.18);
+  const filtered=recent.filter(sec=>Math.abs(sec-median)<=tolerance);
+  const active=(filtered.length>=Math.max(2, Math.ceil(recent.length*0.5))) ? filtered : recent;
+  const avg=active.reduce((sum, sec)=>sum+sec, 0)/Math.max(1, active.length);
+  const deviation=active.reduce((sum, sec)=>sum+Math.abs(sec-avg), 0)/Math.max(1, active.length);
+  const stability=avg>0 ? clampValue(1-(deviation/Math.max(0.06, avg*0.12)), 0, 1) : 0;
+  const bpm=roundBpmValue(normalizeBpmRange(60/Math.max(0.001, avg), 45, 210), 2);
+  const confidence=clampValue(0.42 + Math.min(0.34, ((active.length-1)/8)*0.34) + (stability*0.22), 0.42, 0.98);
+  return { bpm, confidence, intervalSec:avg, tapCount:clean.length };
+}
+function setItemManualBpm(item, info={}){
+  if(!item) return 0;
+  const bpm=roundBpmValue(+info.bpm || 0, 2);
+  if(!bpm) return 0;
+  const meterBpm=roundBpmValue(+info.meterBpm || bpm, 2) || bpm;
+  const confidence=clampValue(+(info.confidence || 0.72), 0.18, 0.99);
+  const meterConfidence=clampValue(+(info.meterConfidence ?? confidence), 0.18, 0.99);
+  const anchorSec=Number.isFinite(+info.anchorSec) ? Math.max(0, +info.anchorSec) : 0;
+  const anchorConfidence=clampValue(+(info.anchorConfidence ?? confidence), 0, 0.99);
+  item._manualBpm=bpm;
+  item._manualMeterBpm=meterBpm;
+  item._manualBpmConfidence=confidence;
+  item._manualMeterBpmConfidence=meterConfidence;
+  item._manualBeatAnchorSec=anchorSec;
+  item._manualBeatAnchorConfidence=anchorConfidence;
+  item._manualBpmTapCount=Math.max(0, +info.tapCount || 0);
+  item._manualBpmTappedAt=Date.now();
+  return bpm;
+}
+function clearItemManualBpm(item, opts={}){
+  if(!item) return false;
+  const hadManual=!!(+item?._manualBpm || +item?._manualMeterBpm || +item?._manualBeatAnchorConfidence || 0);
+  delete item._manualBpm;
+  delete item._manualMeterBpm;
+  delete item._manualBpmConfidence;
+  delete item._manualMeterBpmConfidence;
+  delete item._manualBeatAnchorSec;
+  delete item._manualBeatAnchorConfidence;
+  delete item._manualBpmTapCount;
+  delete item._manualBpmTappedAt;
+  if(state.bpm?.manualTap?.item===item) resetManualBpmTapSession();
+  if(state.list[state.cur]===item){
+    state.dj.syncPlan=null;
+    resetMetronomeSchedule();
+    updateDjReadouts();
+  }
+  if(hadManual && !opts.silent) toast('Manual BPM を解除しました','warn',2200);
+  return hadManual;
+}
+function commitManualBpmTap(item, tap){
+  const result=estimateManualTapBpm(tap.stamps);
+  tap.previewBpm=result?.bpm || 0;
+  if(!result || result.tapCount<MANUAL_BPM_TAP_MIN_COUNT){
+    if(state.list[state.cur]===item) updateDjReadouts();
+    return null;
+  }
+  const anchorSec=Number.isFinite(tap.mediaTimes[tap.mediaTimes.length-1]) ? tap.mediaTimes[tap.mediaTimes.length-1] : mediaCurrent();
+  const bpm=setItemManualBpm(item, {
+    bpm:result.bpm,
+    meterBpm:result.bpm,
+    confidence:result.confidence,
+    meterConfidence:result.confidence,
+    anchorSec,
+    anchorConfidence:Math.min(0.99, result.confidence+0.04),
+    tapCount:result.tapCount
+  });
+  if(state.list[state.cur]===item){
+    state.dj.syncPlan=null;
+    resetMetronomeSchedule();
+    updateDjReadouts();
+  }
+  return { bpm, tapCount:result.tapCount };
+}
+function handleManualBpmTap(event){
+  if(event && event.button!=null && event.button!==0) return;
+  const item=state.list[state.cur];
+  if(!item || state.mediaKind!=='html5' || state.usingYouTube || state.usingIframe){
+    toast('HTML5 再生中のみ manual BPM tap を使えます','warn',2200);
+    return;
+  }
+  if(mediaPaused()){
+    toast('曲を再生しながら BPM をタップしてください','warn',2200);
+    return;
+  }
+  const tap=state.bpm.manualTap;
+  const now=performance.now();
+  if(tap.item!==item || !tap.lastAt || (now-tap.lastAt)>MANUAL_BPM_TAP_RESET_MS){
+    resetManualBpmTapSession();
+    tap.item=item;
+  }
+  tap.item=item;
+  tap.lastAt=now;
+  tap.stamps.push(now);
+  tap.mediaTimes.push(mediaCurrent());
+  if(tap.stamps.length>MANUAL_BPM_TAP_MAX){
+    tap.stamps.splice(0, tap.stamps.length-MANUAL_BPM_TAP_MAX);
+    tap.mediaTimes.splice(0, tap.mediaTimes.length-MANUAL_BPM_TAP_MAX);
+  }
+  const applied=commitManualBpmTap(item, tap);
+  const tapCount=tap.stamps.length;
+  if(applied && (tapCount===MANUAL_BPM_TAP_MIN_COUNT || tapCount===MANUAL_BPM_TAP_TARGET || tapCount%2===0)){
+    toast(`Manual BPM ${formatBpmValue(applied.bpm, 1)} · TAP ${Math.min(tapCount, MANUAL_BPM_TAP_TARGET)}/${MANUAL_BPM_TAP_TARGET}`,'ok',1200);
+  }
+}
+function bindManualBpmTapControls(){
+  [$.bpmRead,$.bpmDock].filter(Boolean).forEach(el=>{
+    el.style.cursor='pointer';
+    el.title='左クリックで 10 回ほどタップして manual BPM を合わせる / 右クリックで解除';
+    el.addEventListener('click', handleManualBpmTap);
+    el.addEventListener('contextmenu', (event)=>{
+      event.preventDefault();
+      const item=state.list[state.cur];
+      if(item) clearItemManualBpm(item);
+    });
+  });
+}
+function hasTrackBpmReady(item){
+  return !!(getTrackBpmInfo(item).bpm || getTrackMeterBpmInfo(item).bpm);
+}
 function hasCompletedTrackAnalysis(item){
   if(!item) return false;
   if(item._analysisDone===true) return true;
   return !!(item._bpm && item._key);
 }
 function getTrackBpmInfo(item, opts={}){
+  const manualInfo=getItemManualBpmInfo(item);
+  if(manualInfo.bpm) return { bpm:manualInfo.bpm, confidence:manualInfo.confidence, source:'manual' };
   if(!hasCompletedTrackAnalysis(item)) return { bpm:0, confidence:0, source:'none' };
   const analyzedBpm=roundBpmValue(item?._bpm || 0, 2);
   const analyzedConfidence=+(item?._bpmConfidence || 0);
@@ -1040,6 +1212,8 @@ function getTrackBpmInfo(item, opts={}){
   return { bpm:0, confidence:0, source:'none' };
 }
 function getTrackMeterBpmInfo(item){
+  const manualInfo=getItemManualBpmInfo(item);
+  if(manualInfo.meterBpm) return { bpm:manualInfo.meterBpm, confidence:manualInfo.meterConfidence, source:'manual' };
   if(!hasCompletedTrackAnalysis(item)) return { bpm:0, confidence:0, source:'none' };
   const analyzedBpm=roundBpmValue(item?._meterBpm || item?._bpm || 0, 2);
   const analyzedConfidence=+(item?._meterBpmConfidence ?? item?._bpmConfidence ?? 0);
@@ -1064,7 +1238,9 @@ function getMetronomeSubdivisionLabel(value=state.metronome?.subdivision){
   return value==='eighth' ? '8分' : '4分';
 }
 function getCurrentBeatGridSnapshot(timeSec=mediaCurrent(), item=state.list[state.cur]){
-  const bpm=getItemMeterBpm(item) || roundBpmValue(+item?._bpm || 0, 2) || 0;
+  const meterInfo=getTrackMeterBpmInfo(item);
+  const manualInfo=getItemManualBpmInfo(item);
+  const bpm=meterInfo.bpm || roundBpmValue(+item?._bpm || 0, 2) || 0;
   const period=meterBeatPeriodSec(bpm);
   if(!item || !bpm || !period) return null;
   const anchorSec=getItemBeatAnchorSec(item);
@@ -1082,8 +1258,8 @@ function getCurrentBeatGridSnapshot(timeSec=mediaCurrent(), item=state.list[stat
     beatPhase:clampValue(beatPhase, 0, 1),
     beatInBar,
     barIndex,
-    meterConfidence:+(item?._meterBpmConfidence || item?._bpmConfidence || 0),
-    anchorConfidence:+(item?._beatAnchorConfidence || 0)
+    meterConfidence:+(meterInfo.confidence || 0),
+    anchorConfidence:+(manualInfo.anchorConfidence || item?._beatAnchorConfidence || 0)
   };
 }
 function queueMetronomeFlash(when, level=1){
@@ -1233,15 +1409,22 @@ function syncDjPitchPolicy(){
 function updateDjReadouts(){
   const item=state.list[state.cur];
   const analysisDone=hasCompletedTrackAnalysis(item);
-  const djBpm=getCurrentTrackBpm();
-  const meterBpm=getCurrentTrackMeterBpm() || djBpm;
-  const bpmConfidence=Math.round(Math.max((item?._bpmConfidence || 0), (item?._meterBpmConfidence || 0))*100);
+  const bpmInfo=getTrackBpmInfo(item);
+  const meterInfo=getTrackMeterBpmInfo(item);
+  const activeTap=getActiveManualTapSession(item);
+  const previewBpm=activeTap?.previewBpm || 0;
+  const djBpm=bpmInfo.bpm || previewBpm;
+  const meterBpm=meterInfo.bpm || djBpm;
+  const bpmConfidence=Math.round(Math.max((bpmInfo.confidence || 0), (meterInfo.confidence || 0))*100);
+  const tapBadge=activeTap
+    ? ` · TAP ${Math.min(activeTap.stamps.length, MANUAL_BPM_TAP_TARGET)}/${MANUAL_BPM_TAP_TARGET}`
+    : ((bpmInfo.source==='manual' || meterInfo.source==='manual') ? ' · MANUAL' : '');
   const bpmLabel=(meterBpm && djBpm && Math.abs(meterBpm-djBpm)>=8)
     ? `${formatBpmValue(meterBpm, 1)} BPM / DJ ${formatBpmValue(djBpm, 1)}`
     : `${formatBpmValue(djBpm || meterBpm, 1)} BPM`;
   const bpmText = (djBpm || meterBpm)
-    ? `${bpmLabel}${bpmConfidence ? ` · ${bpmConfidence}%` : ''}`
-    : '--';
+    ? `${bpmLabel}${bpmConfidence ? ` · ${bpmConfidence}%` : ''}${tapBadge}`
+    : (activeTap ? `TAP ${Math.min(activeTap.stamps.length, MANUAL_BPM_TAP_TARGET)}/${MANUAL_BPM_TAP_TARGET}` : '--');
   if($.bpmRead){
     $.bpmRead.textContent=bpmText;
   }
@@ -1637,7 +1820,8 @@ const state={
   bpm:{
     current:0, confidence:0, pulse:0, lastBeatAt:0, detectedAt:0,
     envelope:0, baseline:0, deviation:0, prev:0, onsets:[],
-    beatSync: store.get('pc.bpm.beatSync', true)
+    beatSync: store.get('pc.bpm.beatSync', true),
+    manualTap:{ item:null, stamps:[], mediaTimes:[], previewBpm:0, lastAt:0 }
   },
   metronome:{
     enabled: store.get('pc.metro.enabled', false),
@@ -3004,7 +3188,7 @@ function estimateBpmFromOnsets(onsets){
 function updateEstimatedBeatPulse(nowMs){
   const bpmValue=getCurrentTrackMeterBpm() || getCurrentTrackBpm();
   state.bpm.current=bpmValue || 0;
-  state.bpm.confidence=Math.max(+(state.list[state.cur]?._bpmConfidence || 0), +(state.list[state.cur]?._meterBpmConfidence || 0));
+  state.bpm.confidence=Math.max(getTrackBpmInfo(state.list[state.cur]).confidence || 0, getTrackMeterBpmInfo(state.list[state.cur]).confidence || 0);
   if(!bpmValue || mediaPaused()){
     state.bpm.pulse=0;
     return;
@@ -3928,8 +4112,8 @@ function chooseDjSyncProfile(currentItem, nextItem, currentBpm, nextBpm){
     ? clampValue(currentLoudness-nextLoudness, -5.5, 5.5)
     : 0;
   const analysisConfidence=Math.min(
-    Math.max(getItemDjMixConfidence(currentItem), +currentItem?._bpmConfidence || 0),
-    Math.max(getItemDjMixConfidence(nextItem), +nextItem?._bpmConfidence || 0)
+    Math.max(getItemDjMixConfidence(currentItem), getTrackBpmInfo(currentItem).confidence || 0),
+    Math.max(getItemDjMixConfidence(nextItem), getTrackBpmInfo(nextItem).confidence || 0)
   );
   let profileId='balanced';
   if(state.dj.modePref && state.dj.modePref!=='auto'){
@@ -5834,6 +6018,7 @@ function addToPlaylist(items,replace){
 }
 async function selectIndex(i, opts={}){
   markPlaylistAnalysisBusy(3200);
+  resetManualBpmTapSession();
   currentMetaToken++;
   if(currentMetaTimer){
     clearTimeout(currentMetaTimer);
@@ -5968,6 +6153,7 @@ function initSpecControlsFromState(){
   updateDjReadouts();
 }
 initSpecControlsFromState();
+bindManualBpmTapControls();
 [$.specMode,$.specOverlay,$.specSens,$.specBins,$.hueLow,$.hueHigh,$.sat,$.light,$.rainbowSpeed,$.rainbowPhase,$.beatSync,$.autoDj,$.metroEnable,$.metroVolume,$.metroSubdivision,$.metroVisual,$.djTransition,$.djMode,$.djCandidateWindow,$.djRepeatGuard].filter(Boolean).forEach(el=>{
   el.addEventListener('change',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });
   el.addEventListener('input',()=>{ applySpecControlsToState(); updateSpectrumVisibility() });

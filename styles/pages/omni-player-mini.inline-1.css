@@ -194,7 +194,26 @@ body.mini-portrait #sleepStat{display:none}
     flex-basis:100%
   }
   body.mini-portrait .seek{
-    width:100%
+    width:100%;
+    gap:.42rem;
+    padding:.16rem .4rem;
+    border-radius:18px
+  }
+  body.mini-portrait .seek input[type=range]{
+    height:16px
+  }
+  body.mini-portrait .seek input[type=range]::-webkit-slider-thumb{
+    width:12px;
+    height:12px;
+    margin-top:-4.5px
+  }
+  body.mini-portrait .seek input[type=range]::-moz-range-thumb{
+    width:12px;
+    height:12px
+  }
+  body.mini-portrait .time{
+    min-width:48px;
+    font-size:12px
   }
   body.mini-portrait .spacer{display:none}
   body.mini-portrait .sliders{
@@ -285,7 +304,7 @@ body.mini-portrait #sleepStat{display:none}
   .seek{
     --bg: rgba(255,255,255,.06);
     --bd: rgba(255,255,255,.14);
-    flex:1; display:flex; align-items:center; gap:.6rem;
+    flex:1; min-width:0; display:flex; align-items:center; gap:.6rem;
     background:
       linear-gradient(90deg, transparent var(--abA), rgba(45,126,247,.22) var(--abA), rgba(45,126,247,.22) var(--abB), transparent var(--abB)),
       var(--bg);
@@ -305,7 +324,7 @@ body.mini-portrait #sleepStat{display:none}
     background-repeat:no-repeat; background-size:100% 3px; background-position:center;
     border-radius:999px;
   }
-  .seek input[type=range]{width:100%; accent-color:var(--accent); appearance:none; height:18px; background:transparent}
+  .seek input[type=range]{flex:1 1 auto; min-width:0; width:100%; margin:0; accent-color:var(--accent); -webkit-appearance:none; appearance:none; height:18px; background:transparent}
   .seek input[type=range]::-webkit-slider-runnable-track{height:3px; background:rgba(255,255,255,.30); border-radius:999px}
   .seek input[type=range]::-webkit-slider-thumb{appearance:none; width:14px; height:14px; border-radius:50%;
     background:#fff; border:1px solid rgba(0,0,0,.25); margin-top:-5.5px; box-shadow:0 2px 10px rgba(0,0,0,.35)}
