@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v5.1.0</title>
+<title>OmniMedia – Landing v5.2.0</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 
 <link rel="stylesheet" href="./styles/pages/landing.inline-1.css">
@@ -18,7 +18,7 @@
 <!-- Splash -->
 <div id="splash" aria-hidden="true">
   <div class="s-logo"><div class="mark"></div><div>OmniMedia</div></div>
-  <div class="s-sub">Landing v5.1.0</div>
+  <div class="s-sub">Landing v5.2.0</div>
   <div class="s-orbit"></div><div class="s-ring"></div>
   <div id="sProgress" class="s-progress" aria-hidden="true"><span class="bar"></span></div>
 </div>
@@ -36,7 +36,7 @@
     <div class="brand">
       <div class="logo" aria-hidden="true"></div>
       <h1 id="title" class="shimmer" data-i18n="landingTitle">OmniMedia – Landing</h1>
-      <span class="version">v5.1.0</span>
+      <span class="version">v5.2.0</span>
       <span id="netBadge" class="badge">Online</span>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
@@ -312,14 +312,14 @@
 
 <div class="modal" id="releaseModal" aria-hidden="true">
   <div class="card-modal soon-modal release-modal" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
-    <span class="release-chip">v5.1.0</span>
-    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v5.1.0</h3>
-    <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The v5.1.0 release bundles normal-player stability fixes, manual BPM control, a tighter mini mobile seek layout, and safer PWA delivery.</p>
+    <span class="release-chip">v5.2.0</span>
+    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v5.2.0</h3>
+    <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The v5.2.0 release adds a normal-player video focus mode and a README page that opens directly from the landing page.</p>
     <div class="soon-points" id="releasePoints">
-      <div class="point" data-i18n="releasePoint1">The normal player no longer throws a recurring ReferenceError during Auto DJ update and draw.</div>
-      <div class="point" data-i18n="releasePoint2">Manual BPM tap is now available from the BPM readout while playback is running.</div>
-      <div class="point" data-i18n="releasePoint3">The service worker precache and fetch strategy were hardened to avoid stale JS and single-asset install failures.</div>
-      <div class="point" data-i18n="releasePoint4">Mini portrait layout now keeps the seek bar compact instead of letting it grow excessively on phones.</div>
+      <div class="point" data-i18n="releasePoint1">The normal player now has a video focus mode that hides only the left column and top bar so the stage can take priority.</div>
+      <div class="point" data-i18n="releasePoint2">Video focus keeps the bottom control dock, ambient light, and other video-reactive effects active instead of stripping the stage down.</div>
+      <div class="point" data-i18n="releasePoint3">The landing page now has a direct README route.</div>
+      <div class="point" data-i18n="releasePoint4">The README page renders README.md in-browser, builds a table of contents from headings, and falls back to an embedded copy when fetch is unavailable.</div>
     </div>
     <div class="release-actions">
       <button class="btn" id="releaseHideForever" data-i18n="releaseHideForever">Do not show again</button>

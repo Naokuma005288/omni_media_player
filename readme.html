@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="theme-color" content="#0b0e12" />
-<title>OmniMedia README v5.1.0</title>
+<title>OmniMedia README v5.2.0</title>
 <link rel="icon" href="./assets/pwa/icon-192.png" sizes="192x192" type="image/png">
 <link rel="icon" href="./assets/pwa/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./assets/pwa/apple-touch-icon.png">
@@ -30,7 +30,7 @@
 
     <main class="layout">
       <aside class="side-card">
-        <span class="side-chip">v5.1.0</span>
+        <span class="side-chip">v5.2.0</span>
         <span class="side-chip muted" id="readmeSource">README.md live</span>
         <p class="side-copy">README の見出しから自動で目次を生成します。内容検索はブラウザのページ内検索を使うのが最短です。</p>
         <nav class="toc" id="readmeToc" aria-label="README sections"></nav>
@@ -61,7 +61,7 @@
 
 ## バージョン
 
-* 全体バージョン: `v5.1.0`
+* 全体バージョン: `v5.2.0`
 * Landing: `index.html`
 * 通常版: `omni-player.html`
 * mini: `omni-player-mini.html`
@@ -70,6 +70,12 @@
 ## ページ構成
 
 ## 最新アップデート
+
+### v5.2.0
+- 通常版に `映像フォーカス` を追加し、左カラムと上バーだけを隠して映像へ集中できるようにしました。
+- 映像フォーカス中も下のコントロールバーは残し、映像連動アンビエントライトなどの映像演出は維持されます。
+- landing から開ける `README` ページを追加し、`README.md` をブラウザ上でそのまま読めるようにしました。
+- README ページは見出しベースの目次と `Raw README.md` への導線を持ち、読み込みできない環境では埋め込みコピーへフォールバックします。
 
 ### v5.1.0
 - 通常版の Auto DJ 更新で `ReferenceError` が出続ける問題を修正しました。

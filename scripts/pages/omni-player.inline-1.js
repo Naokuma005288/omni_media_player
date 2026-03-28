@@ -22,7 +22,7 @@ const $={
   djTransitionMetaHud:qs('#djTransitionMetaHud'),djTransitionNoteHud:qs('#djTransitionNoteHud'),djTransitionBar:qs('#djTransitionBar'),
   vol:qs('#vol'),rate:qs('#rate'),master:qs('#master'),mixKey:qs('#mixKey'),
   volRead:qs('#volRead'),rateRead:qs('#rateRead'),masterRead:qs('#masterRead'),mixKeyRead:qs('#mixKeyRead'),
-  play:qs('#play'),back10:qs('#back10'),fwd10:qs('#fwd10'),pip:qs('#pip'), fullscreen:qs('#fullscreen'),
+  play:qs('#play'),back10:qs('#back10'),fwd10:qs('#fwd10'),pip:qs('#pip'),videoFocus:qs('#videoFocus'), fullscreen:qs('#fullscreen'),
   setA:qs('#setA'),setB:qs('#setB'),clearAB:qs('#clearAB'),abDisp:qs('#abDisp'),toggleABLoop:qs('#toggleABLoop'),abLoopStat:qs('#abLoopStat'),
   playlist:qs('#playlist'),btnClear:qs('#btnClear'),btnShuffle:qs('#btnShuffle'),dropMode:qs('#dropMode'),contPlay:qs('#contPlay'),
   helpBtn:qs('#btnHelp'),help:qs('#kbdHelp'),
@@ -1639,6 +1639,20 @@ function applyAppAspect(value){
   if($.appAspect) $.appAspect.value = next;
   store.set('pc.appAspect', next);
 }
+function setVideoFocusMode(on, options={}){
+  const next=!!on;
+  const persist=options.persist!==false;
+  state.videoFocus=next;
+  document.body.classList.toggle('app-video-focus', next);
+  if($.videoFocus){
+    const title=next ? '映像フォーカスを解除' : '映像フォーカス';
+    $.videoFocus.setAttribute('aria-pressed', next ? 'true' : 'false');
+    $.videoFocus.classList.toggle('active', next);
+    $.videoFocus.title=title;
+    $.videoFocus.setAttribute('aria-label', title);
+  }
+  if(persist) store.set('pc.videoFocus', next);
+}
 function setSettingsTab(tab){
   const next = tab || store.get('pc.settings.tab','subs') || 'subs';
   qsa('[data-settings-tab]').forEach(btn=>{
@@ -1817,6 +1831,7 @@ const state={
   seekRAF:0,
   subCues:[],
   contPlay: store.get('pc.contPlay', true),
+  videoFocus: store.get('pc.videoFocus', false),
   bpm:{
     current:0, confidence:0, pulse:0, lastBeatAt:0, detectedAt:0,
     envelope:0, baseline:0, deviation:0, prev:0, onsets:[],
@@ -2823,6 +2838,7 @@ function initPrefs(){
   if ($.langSelect) { $.langSelect.value = state.lang; $.langSelect.addEventListener('change',e=>{ state.lang=e.target.value; store.set('pc.lang', state.lang) }) }
   applyAppAspect(store.get('pc.appAspect','16:9'));
   $.appAspect?.addEventListener('change',(e)=>applyAppAspect(e.target.value));
+  setVideoFocusMode(state.videoFocus, { persist:false });
 }
 initTheme(); initPrefs();
 
@@ -5824,6 +5840,7 @@ $.fullscreen.onclick=()=>{
     toast('Fullscreen unsupported','warn');
   }catch(e){ toast('Fullscreen failed','err') }
 };
+$.videoFocus?.addEventListener('click',()=>{ setVideoFocusMode(!state.videoFocus) });
 
 document.addEventListener('keydown',(e)=>{
   if(e.key===' '){ e.preventDefault(); $.play.click() }
@@ -5836,6 +5853,7 @@ document.addEventListener('keydown',(e)=>{
   if(e.key==='Escape'){
     if($.settings?.style.display==='flex') $.settings.style.display='none';
     else if($.help?.style.display==='flex') $.help.style.display='none';
+    else if(state.videoFocus) setVideoFocusMode(false);
   }
   if(/^[0-9]$/.test(e.key)){ const n=+e.key; const dur= mediaDuration(); const t=dur*(n/10); mediaSeekTo(t) }
   if(e.key==='a'){ $.setA.click() }

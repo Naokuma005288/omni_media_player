@@ -357,6 +357,26 @@ html,body{height:100%}
   body.app-bp-phone:not(.app-ratio-portrait) .settings-card{width:min(96vw,96vw);padding:.8rem .82rem .86rem}
   body.app-bp-phone:not(.app-ratio-portrait) .settings-tabs{overflow:auto;padding-bottom:.38rem}
   body.app-bp-phone:not(.app-ratio-portrait) .settings-tabs .tab{flex:0 0 auto}
+  body.app-video-focus .app{
+    grid-template-columns:1fr;
+    grid-template-rows:1fr;
+    grid-template-areas:"main";
+    height:100%;
+  }
+  body.app-video-focus header,
+  body.app-video-focus aside{display:none}
+  body.app-video-focus .app-stage{padding:clamp(6px,.7vw,12px)}
+  body.app-video-focus main{
+    padding:.42rem .48rem .68rem;
+    gap:.28rem;
+  }
+  body.app-video-focus .player-shell{
+    height:100%;
+    max-height:100%;
+  }
+  body.app-video-focus .panel{align-self:stretch}
+  body.app-video-focus .control-dock{border-radius:20px}
+  body.app-video-focus .ctrl.ctrl-dock{padding-top:.34rem}
   .ambient-light{
     position:absolute;inset:-22px;z-index:0;pointer-events:none;
     width:calc(100% + 44px);height:calc(100% + 44px);display:block;
@@ -774,10 +794,26 @@ html,body{height:100%}
       linear-gradient(180deg,#121a24,#0d141c);
     border-color:color-mix(in oklab,var(--accent),rgba(255,255,255,.08) 66%)
   }
+  #videoFocus[aria-pressed="true"]{
+    background:
+      linear-gradient(180deg,color-mix(in oklab,var(--accent),#fff 12%),color-mix(in oklab,var(--accent),transparent 28%)),
+      linear-gradient(180deg,#121a24,#0d141c);
+    border-color:color-mix(in oklab,var(--accent),#fff 12%);
+    color:color-mix(in oklab,var(--accent),#fff 22%);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab,var(--accent),transparent 62%),
+      0 16px 28px color-mix(in oklab,var(--accent),transparent 70%);
+  }
   :root.light .transport-cluster .btn,:root.light .transport-module .btn[id^="cast"],:root.light .transport-module .btn[id^="airplay"]{
     background:
       linear-gradient(180deg,color-mix(in oklab,var(--accent),transparent 92%),transparent),
       #fff
+  }
+  :root.light #videoFocus[aria-pressed="true"]{
+    background:
+      linear-gradient(180deg,color-mix(in oklab,var(--accent),transparent 86%),transparent),
+      #fff;
+    color:color-mix(in oklab,var(--accent),#000 10%);
   }
   .module-line{
     height:10px;border-radius:999px;
