@@ -367,16 +367,112 @@ html,body{height:100%}
   body.app-video-focus aside{display:none}
   body.app-video-focus .app-stage{padding:clamp(6px,.7vw,12px)}
   body.app-video-focus main{
-    padding:.42rem .48rem .68rem;
-    gap:.28rem;
+    width:100%;
+    padding:.34rem .46rem .62rem;
+    gap:.42rem;
+    justify-items:center;
+    align-content:stretch;
   }
   body.app-video-focus .player-shell{
     height:100%;
     max-height:100%;
+    justify-self:center;
   }
-  body.app-video-focus .panel{align-self:stretch}
-  body.app-video-focus .control-dock{border-radius:20px}
-  body.app-video-focus .ctrl.ctrl-dock{padding-top:.34rem}
+  body.app-video-focus .panel{
+    width:min(940px, 100%);
+    align-self:stretch;
+    justify-self:center;
+  }
+  body.app-video-focus .control-dock{
+    border-radius:22px;
+    overflow:visible;
+  }
+  body.app-video-focus .control-dock .status-canvas{display:none}
+  body.app-video-focus .ctrl.ctrl-dock{
+    padding:.32rem .42rem .42rem;
+    gap:.38rem;
+  }
+  body.app-video-focus .control-module{
+    min-height:auto;
+    padding:.46rem .52rem;
+    border-radius:15px;
+    gap:.28rem;
+  }
+  body.app-video-focus .module-head{gap:.42rem}
+  body.app-video-focus .module-kicker{
+    font-size:8px;
+    letter-spacing:.22em;
+  }
+  body.app-video-focus .module-chip{
+    min-width:28px;
+    height:20px;
+    font-size:10px;
+  }
+  body.app-video-focus .bpm-dock-readout{
+    min-width:72px;
+    font-size:10px;
+  }
+  body.app-video-focus .transport-layout{
+    grid-template-columns:48px 1fr;
+    gap:.34rem;
+  }
+  body.app-video-focus .transport-stack{gap:.26rem}
+  body.app-video-focus .play-main{
+    width:48px;
+    min-width:48px;
+    height:48px;
+    border-radius:16px;
+    font-size:20px;
+  }
+  body.app-video-focus .transport-cluster{
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:.28rem;
+  }
+  body.app-video-focus .transport-cluster .btn,
+  body.app-video-focus .transport-module .btn[id^="cast"],
+  body.app-video-focus .transport-module .btn[id^="airplay"]{
+    min-width:36px;
+    height:36px;
+    border-radius:12px;
+  }
+  body.app-video-focus .module-line{height:7px}
+  body.app-video-focus .slider-stack{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:.28rem;
+  }
+  body.app-video-focus .slider-cell{
+    padding:.34rem .4rem;
+    border-radius:12px;
+    gap:.24rem;
+  }
+  body.app-video-focus .slider-tag{
+    font-size:10px;
+    letter-spacing:.16em;
+  }
+  body.app-video-focus .ctrl .readout{
+    min-width:46px;
+    font-size:11px;
+  }
+  body.app-video-focus .loop-status{gap:.24rem}
+  body.app-video-focus .loop-badge{
+    min-height:28px;
+    font-size:11px;
+  }
+  body.app-video-focus .loop-actions{gap:.26rem}
+  body.app-video-focus .loop-actions .btn{
+    min-width:34px;
+    height:34px;
+    border-radius:11px;
+  }
+  body.app-video-focus:not(.app-ratio-portrait):not(.app-bp-compact) .ctrl.ctrl-dock{
+    grid-template-columns:minmax(220px,.98fr) minmax(320px,1.12fr) minmax(210px,.88fr);
+  }
+  body.app-video-focus.app-ratio-portrait .panel,
+  body.app-video-focus.app-bp-compact .panel{width:100%}
+  body.app-video-focus.app-ratio-portrait .ctrl.ctrl-dock,
+  body.app-video-focus.app-bp-compact .ctrl.ctrl-dock{grid-template-columns:1fr}
+  body.app-video-focus.app-ratio-portrait .slider-stack,
+  body.app-video-focus.app-bp-compact .slider-stack{grid-template-columns:1fr}
   .ambient-light{
     position:absolute;inset:-22px;z-index:0;pointer-events:none;
     width:calc(100% + 44px);height:calc(100% + 44px);display:block;

@@ -2,7 +2,7 @@
   "id": "../../omni-player.html",
   "name": "Omni Player",
   "short_name": "Omni Player",
-  "description": "Omni Player v5.2.0 - installable media player with playlist, subtitles, embeds, BPM/Key analysis, phrase-aware Auto DJ, adaptive transition timing, and stage-wide transition feedback.",
+  "description": "Omni Player v5.2.1 - installable media player with playlist, subtitles, embeds, BPM/Key analysis, phrase-aware Auto DJ, adaptive transition timing, and stage-wide transition feedback.",
   "start_url": "../../omni-player.html?source=pwa",
   "scope": "../../",
   "display": "standalone",
