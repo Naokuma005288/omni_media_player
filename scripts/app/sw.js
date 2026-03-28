@@ -1,8 +1,10 @@
-/* OmniMedia SW v2.9 */
-const VERSION = 'v5.0.0-sw2';
+/* OmniMedia SW v3.1 */
+const VERSION = 'v5.1.0-sw2';
 const CORE = [
   './',
   './index.html',
+  './readme.html',
+  './README.md',
   './omni-player.html',
   './omni-player-mini.html',
   './assets/pwa/manifest.webmanifest',
@@ -17,6 +19,8 @@ const CORE = [
   './assets/pwa/icon.svg',
   './assets/pwa/thumb-pc.svg',
   './assets/pwa/thumb-touch.svg',
+  './styles/pages/readme.inline-1.css',
+  './scripts/pages/readme.inline-1.js',
   './scripts/app/omni-playback-core.js',
   './styles/pages/omni-player.inline-1.css',
   './scripts/pages/omni-player.inline-1.js',

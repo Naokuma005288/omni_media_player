@@ -1,3 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#0b0e12" />
+<title>OmniMedia README v5.1.0</title>
+<link rel="icon" href="./assets/pwa/icon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="./assets/pwa/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./assets/pwa/apple-touch-icon.png">
+<link rel="stylesheet" href="./styles/pages/readme.inline-1.css">
+</head>
+<body>
+  <div class="page-shell">
+    <div class="bg-layer bg-grid" aria-hidden="true"></div>
+    <div class="bg-layer bg-glow" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand-block">
+        <span class="eyebrow">Project Docs</span>
+        <h1>README</h1>
+        <p class="lead">このページは <code>README.md</code> をそのまま読めるようにしたドキュメントビューです。通常は <code>README.md</code> を読み、読めない環境では埋め込みコピーを表示します。</p>
+      </div>
+      <div class="top-actions">
+        <a class="btn ghost" href="./index.html">Landing</a>
+        <a class="btn ghost" href="./README.md">Raw README.md</a>
+        <a class="btn" href="./omni-player.html">Omni Player</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="side-card">
+        <span class="side-chip">v5.1.0</span>
+        <span class="side-chip muted" id="readmeSource">README.md live</span>
+        <p class="side-copy">README の見出しから自動で目次を生成します。内容検索はブラウザのページ内検索を使うのが最短です。</p>
+        <nav class="toc" id="readmeToc" aria-label="README sections"></nav>
+      </aside>
+
+      <section class="doc-card">
+        <div class="doc-head">
+          <div>
+            <p class="doc-kicker">Project Overview</p>
+            <h2>OmniMedia README</h2>
+          </div>
+          <div class="doc-badges">
+            <span class="pill">README.md mirror</span>
+            <span class="pill subtle">rendered in-browser</span>
+          </div>
+        </div>
+        <article class="markdown-body" id="readmeBody" aria-live="polite">
+          <p>README を読み込み中です...</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <template id="readmeFallback">
 # OmniMedia
 
 ブラウザ中心で動くメディア再生プロジェクトです。現在の主構成は `Landing / Omni Player / Omni Player mini / Legacy` の 4 本です。
@@ -265,3 +322,8 @@
 
 * ブラウザ差異は特に `PWA / YouTube / PiP / Cast / AirPlay / モバイル再生` で出やすいです
 * 公開時は CDN 依存とライセンス条件の確認を推奨します
+  </template>
+
+  <script src="./scripts/pages/readme.inline-1.js"></script>
+</body>
+</html>

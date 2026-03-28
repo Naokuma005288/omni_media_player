@@ -194,6 +194,7 @@ body.mini-portrait #sleepStat{display:none}
     flex-basis:100%
   }
   body.mini-portrait .seek{
+    flex:0 0 auto;
     width:100%;
     gap:.42rem;
     padding:.16rem .4rem;
