@@ -1591,11 +1591,11 @@ applyResponsiveUiState();
 enforceDesktopOnlyGuard();
 Object.values(responsiveMql).forEach(mql=>{
   if(!mql) return;
-  const handler = ()=>{ applyResponsiveUiState(); enforceDesktopOnlyGuard(); };
+  const handler = ()=>{ applyResponsiveUiState(); enforceDesktopOnlyGuard(); if(window.__omniPlayerStateReady) scheduleVideoFocusLayout(); };
   if(typeof mql.addEventListener === 'function') mql.addEventListener('change', handler);
   else if(typeof mql.addListener === 'function') mql.addListener(handler);
 });
-window.addEventListener('resize', ()=>{ applyResponsiveUiState(); enforceDesktopOnlyGuard(); }, { passive:true });
+window.addEventListener('resize', ()=>{ applyResponsiveUiState(); enforceDesktopOnlyGuard(); if(window.__omniPlayerStateReady) scheduleVideoFocusLayout(); }, { passive:true });
 function enforceDesktopOnlyGuard(){
   const blocked=!!(OPPlatform.isMobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||''));
   document.body.classList.toggle('pc-only-guarded', blocked);
@@ -1638,6 +1638,54 @@ function applyAppAspect(value){
   }
   if($.appAspect) $.appAspect.value = next;
   store.set('pc.appAspect', next);
+  scheduleVideoFocusLayout();
+}
+let videoFocusLayoutRaf=0;
+function getVideoFocusMediaRatio(){
+  if(state.mediaKind === 'html5'){
+    if(currentHtml5IsAudio()) return 1;
+    const vw=+($.v?.videoWidth || 0);
+    const vh=+($.v?.videoHeight || 0);
+    if(vw > 0 && vh > 0) return clampValue(vw / vh, 0.56, 2.4);
+  }
+  if(state.usingYouTube || state.usingIframe) return 16/9;
+  const savedAspect=APP_ASPECTS[$.appAspect?.value] || APP_ASPECTS[store.get('pc.appAspect','16:9')] || APP_ASPECTS['16:9'];
+  if(savedAspect.layout === 'portrait') return 1;
+  return clampValue(savedAspect.n || (16/9), 1, 2.4);
+}
+function updateVideoFocusLayout(){
+  if(!state.videoFocus) return;
+  const root=document.documentElement;
+  const panel=qs('main .panel');
+  const compact=!!(document.body.classList.contains('app-bp-compact') || document.body.classList.contains('app-ratio-portrait'));
+  const ratioN=getVideoFocusMediaRatio();
+  const horizontalPad=compact ? 12 : 28;
+  const verticalPad=compact ? 18 : 28;
+  const gap=compact ? 10 : 14;
+  const panelRect=panel?.getBoundingClientRect?.();
+  const panelHeight=Math.max(compact ? 154 : 112, Math.ceil(panelRect?.height || 0));
+  const availableW=Math.max(280, window.innerWidth - horizontalPad);
+  const availableH=Math.max(180, window.innerHeight - panelHeight - gap - verticalPad);
+  let stageW=Math.min(availableW, Math.round(availableH * ratioN));
+  if(currentHtml5IsAudio()){
+    const audioTarget=Math.round(Math.min(availableW, availableH) * (compact ? 0.96 : 0.92));
+    stageW=Math.max(stageW, Math.max(320, audioTarget));
+  }
+  root.style.setProperty('--focus-media-ratio-n', String(ratioN));
+  root.style.setProperty('--focus-media-ratio-str', String(ratioN));
+  root.style.setProperty('--focus-dock-height', `${panelHeight}px`);
+  root.style.setProperty('--focus-stage-max-height', `${Math.max(180, availableH)}px`);
+  root.style.setProperty('--focus-stage-width', `${Math.max(280, Math.min(availableW, stageW))}px`);
+}
+function scheduleVideoFocusLayout(){
+  if(videoFocusLayoutRaf) cancelAnimationFrame(videoFocusLayoutRaf);
+  videoFocusLayoutRaf=requestAnimationFrame(()=>{
+    videoFocusLayoutRaf=0;
+    updateVideoFocusLayout();
+    if(state.videoFocus){
+      requestAnimationFrame(()=>{ if(state.videoFocus) updateVideoFocusLayout(); });
+    }
+  });
 }
 function setVideoFocusMode(on, options={}){
   const next=!!on;
@@ -1652,6 +1700,7 @@ function setVideoFocusMode(on, options={}){
     $.videoFocus.setAttribute('aria-label', title);
   }
   if(persist) store.set('pc.videoFocus', next);
+  scheduleVideoFocusLayout();
 }
 function setSettingsTab(tab){
   const next = tab || store.get('pc.settings.tab','subs') || 'subs';
@@ -1742,6 +1791,7 @@ function syncMediaPresentation(){
   updateSpectrumVisibility();
   syncMediaControlAvailability();
   enforceBackdropPolicy();
+  scheduleVideoFocusLayout();
 }
 function setMediaMode(kind, extra={}){
   state.mediaKind = kind;
@@ -1871,6 +1921,7 @@ function setPlayingUI(on){ document.body.classList.toggle('is-playing', !!on) }
 // Plugins are written against globals, so keep the page state in sync there too.
 window.$ = $;
 window.state = state;
+window.__omniPlayerStateReady = true;
 window.toast = toast;
 const spectrumOverlayRenderers = new Set();
 window.OPRuntime = {
