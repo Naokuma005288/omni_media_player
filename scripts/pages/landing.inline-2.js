@@ -100,7 +100,7 @@ const scrollToNew = document.getElementById('scrollToNew');
 
 /* ===== Store & keys ===== */
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{ return d }},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order', releaseDismissKey='om.release.dismiss.v5.2.1';
+const themeKey='om.theme', settingsKey='om.settings', favKey='om.favs', accentKey='om.accent', orderKey='om.order', releaseDismissKey='om.release.dismiss.v5.2.2';
 function applyLandingOrientation(){
   const portrait = orientationMql ? orientationMql.matches : window.innerHeight >= window.innerWidth;
   document.body.classList.toggle('landing-portrait', portrait);
@@ -218,8 +218,8 @@ const dict={
       liveTitle:"Omni Live", liveDesc:"低遅延・マルチストリームライブ。",
       convertTitle:"Omni Convert", convertDesc:"現在開発中です。",
       editorTitle:"Omni Editor",  editorDesc:"現在開発中です。",
-      releaseTitle:"v5.2.1 の更新内容",
-      releaseLead:"v5.2.1 では通常版の映像フォーカスを中央寄せに整理し、下のコントロールバーをコンパクトで使いやすい構成へ刷新しました。",
+      releaseTitle:"v5.2.2 の更新内容",
+      releaseLead:"v5.2.2 では通常版の映像フォーカスを中央寄せに整理し、下のコントロールバーをコンパクトで使いやすい構成へ刷新しました。",
       releasePoint1:"通常版の `映像フォーカス` は、映像ステージと操作パネルが中央にまとまるレイアウトになりました。",
       releasePoint2:"下のコントロールバーはフォーカス専用に再設計し、再生・補助操作・スライダー群をよりコンパクトに詰めています。",
       releasePoint3:"下バー自体は残るため、操作を捨てずに映像へ集中できます。",
@@ -245,8 +245,8 @@ const dict={
       liveTitle:"Omni Live", liveDesc:"Low-latency and multi-stream live playback.",
       convertTitle:"Omni Convert", convertDesc:"Currently under development.",
       editorTitle:"Omni Editor",  editorDesc:"Currently under development.", close:"Close",
-      releaseTitle:"What is new in v5.2.1",
-      releaseLead:"The v5.2.1 release centers the normal-player video focus layout and redesigns the bottom control dock into a more compact, usable strip.",
+      releaseTitle:"What is new in v5.2.2",
+      releaseLead:"The v5.2.2 release centers the normal-player video focus layout and redesigns the bottom control dock into a more compact, usable strip.",
       releasePoint1:"The normal player's `video focus` mode now centers the stage and control panel instead of leaving them biased to one side.",
       releasePoint2:"The bottom control dock has been rebuilt for focus mode with tighter transport controls, denser utility buttons, and a more compact slider layout.",
       releasePoint3:"The dock still stays visible, so the player remains operable without leaving video focus.",
@@ -261,8 +261,8 @@ const dict={
       betaBadge:"베타", openBtn:"열기", soonBtn:"준비 중", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"현재 개발 중입니다.",
       editorTitle:"Omni Editor",  editorDesc:"현재 개발 중입니다.", close:"닫기",
-      releaseTitle:"v5.2.1 업데이트",
-      releaseLead:"v5.2.1 은 일반 버전의 영상 포커스 레이아웃을 중앙 정렬로 다듬고, 하단 컨트롤 바를 더 작고 쓰기 쉽게 새로 구성한 릴리스입니다.",
+      releaseTitle:"v5.2.2 업데이트",
+      releaseLead:"v5.2.2 은 일반 버전의 영상 포커스 레이아웃을 중앙 정렬로 다듬고, 하단 컨트롤 바를 더 작고 쓰기 쉽게 새로 구성한 릴리스입니다.",
       releasePoint1:"일반 버전의 `영상 포커스` 는 이제 스테이지와 조작 패널이 화면 중앙에 모이도록 정리되었습니다.",
       releasePoint2:"하단 컨트롤 바는 포커스 전용으로 다시 설계되어 재생 조작, 보조 버튼, 슬라이더 구성이 더 컴팩트해졌습니다.",
       releasePoint3:"하단 바 자체는 그대로 남아 영상에 집중하면서도 바로 조작할 수 있습니다.",
@@ -277,8 +277,8 @@ const dict={
       betaBadge:"测试版", openBtn:"打开", soonBtn:"开发中", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"目前仍在开发中。",
       editorTitle:"Omni Editor",  editorDesc:"目前仍在开发中。", close:"关闭",
-      releaseTitle:"v5.2.1 更新内容",
-      releaseLead:"v5.2.1 进一步整理了普通版的视频聚焦布局，使其居中显示，并将底部控制栏改成更紧凑、更好用的样式。",
+      releaseTitle:"v5.2.2 更新内容",
+      releaseLead:"v5.2.2 进一步整理了普通版的视频聚焦布局，使其居中显示，并将底部控制栏改成更紧凑、更好用的样式。",
       releasePoint1:"普通版的 `视频聚焦` 模式现在会将舞台和控制面板集中到画面中央。",
       releasePoint2:"底部控制栏已针对聚焦模式重新设计，播放控制、辅助按钮和滑杆布局都更紧凑。",
       releasePoint3:"底栏本身仍然保留，因此无需退出视频聚焦也能继续操作。",
@@ -293,8 +293,8 @@ const dict={
       betaBadge:"Бета", openBtn:"Открыть", soonBtn:"Скоро", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"Сейчас в разработке.",
       editorTitle:"Omni Editor",  editorDesc:"Сейчас в разработке.", close:"Закрыть",
-      releaseTitle:"Что нового в v5.2.1",
-      releaseLead:"В v5.2.1 режим фокуса на видео в обычной версии выровнен по центру, а нижняя панель управления переработана в более компактный и удобный вид.",
+      releaseTitle:"Что нового в v5.2.2",
+      releaseLead:"В v5.2.2 режим фокуса на видео в обычной версии выровнен по центру, а нижняя панель управления переработана в более компактный и удобный вид.",
       releasePoint1:"Режим `video focus` в обычной версии теперь центрирует сцену и панель управления, а не оставляет их смещёнными.",
       releasePoint2:"Нижняя панель в этом режиме переработана: transport, вспомогательные кнопки и слайдеры стали компактнее.",
       releasePoint3:"Сама нижняя панель остаётся на месте, поэтому управлять плеером можно, не выходя из режима фокуса.",
@@ -309,8 +309,8 @@ const dict={
       betaBadge:"Bêta", openBtn:"Ouvrir", soonBtn:"Bientôt", comingSoon:"Coming Soon",
       convertTitle:"Omni Convert", convertDesc:"Actuellement en cours de développement.",
       editorTitle:"Omni Editor",  editorDesc:"Actuellement en cours de développement.", close:"Fermer",
-      releaseTitle:"Nouveautés de v5.2.1",
-      releaseLead:"v5.2.1 recentre le mode focus video de la version standard et revoit la barre de controle du bas pour la rendre plus compacte et plus pratique.",
+      releaseTitle:"Nouveautés de v5.2.2",
+      releaseLead:"v5.2.2 recentre le mode focus video de la version standard et revoit la barre de controle du bas pour la rendre plus compacte et plus pratique.",
       releasePoint1:"Le mode `video focus` de la version standard centre maintenant la scene et le panneau de controle.",
       releasePoint2:"La barre de controle du bas a ete repensee pour ce mode avec des transports, boutons utilitaires et sliders plus compacts.",
       releasePoint3:"La barre reste visible, donc le lecteur reste pilotable sans quitter le focus video.",

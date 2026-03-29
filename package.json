@@ -1,6 +1,6 @@
 {
   "name": "omni_media_web_player",
-  "version": "5.2.1",
+  "version": "5.2.2",
   "main": "scripts/electron/main.js",
   "scripts": {
     "start": "electron .",
