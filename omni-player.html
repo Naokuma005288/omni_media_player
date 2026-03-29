@@ -262,10 +262,11 @@
   </aside>
 
   <main>
-    <div class="player-shell" id="playerShell">
-    <canvas id="ambientLight" class="ambient-light" aria-hidden="true"></canvas>
-    <div class="player-wrap" id="playerWrap">
-      <div class="bg-art" id="bgArt" aria-hidden="true"></div>
+    <div class="focus-stage-stack">
+      <div class="player-shell" id="playerShell">
+      <canvas id="ambientLight" class="ambient-light" aria-hidden="true"></canvas>
+      <div class="player-wrap" id="playerWrap">
+        <div class="bg-art" id="bgArt" aria-hidden="true"></div>
 
       <!-- ★ 追加: 高級背景FXレイヤー（必要時のみ表示: JSが初期化します） -->
       <div class="fx fx-aurora" id="fxAurora" aria-hidden="true"></div>
@@ -332,84 +333,85 @@
         <img id="seekImg" alt="preview" />
         <div class="time" id="seekTime">0:00</div>
       </div>
-      <div class="toast" id="toasts"></div>
-    </div>
-    </div>
-    <div class="panel">
-      <div class="control-dock">
-        <div class="ctrl ctrl-dock">
-          <section class="control-module transport-module" aria-label="再生コントロール">
-            <div class="module-head">
-              <div class="module-kicker">PLAY</div>
-              <span class="badge readout bpm-dock-readout" id="bpmDock">--</span>
-              <span class="module-chip" aria-hidden="true">▶</span>
-            </div>
-            <div class="transport-layout">
-              <button class="btn playpulse icon-btn play-main" id="play" title="再生 / 一時停止">▶</button>
-              <div class="transport-stack">
-                <div class="transport-cluster">
-                  <button class="btn icon-btn" id="back10" title="10秒戻る">⟲</button>
-                  <button class="btn icon-btn" id="fwd10" title="10秒進む">⟳</button>
-                  <button class="btn icon-btn" id="pip" title="Picture in Picture">▣</button>
-                  <button class="btn icon-btn" id="videoFocus" type="button" title="映像フォーカス" aria-label="映像フォーカス" aria-pressed="false">▥</button>
-                  <button class="btn icon-btn" id="fullscreen" title="フルスクリーン">⛶</button>
-                </div>
-                <div class="module-line" aria-hidden="true"></div>
+        <div class="toast" id="toasts"></div>
+      </div>
+      </div>
+      <div class="panel">
+        <div class="control-dock">
+          <div class="ctrl ctrl-dock">
+            <section class="control-module transport-module" aria-label="再生コントロール">
+              <div class="module-head">
+                <div class="module-kicker">PLAY</div>
+                <span class="badge readout bpm-dock-readout" id="bpmDock">--</span>
+                <span class="module-chip" aria-hidden="true">▶</span>
               </div>
-            </div>
-          </section>
-          <section class="control-module mix-module" aria-label="音量と速度とキー">
-            <div class="module-head">
-              <div class="module-kicker">MIX</div>
-              <span class="module-chip" aria-hidden="true">≈</span>
-            </div>
-            <div class="slider-stack">
-              <label class="slider-cell">
-                <div class="slider-head">
-                  <span class="slider-tag">VOL</span>
-                  <span class="badge readout" id="volRead">90%</span>
+              <div class="transport-layout">
+                <button class="btn playpulse icon-btn play-main" id="play" title="再生 / 一時停止">▶</button>
+                <div class="transport-stack">
+                  <div class="transport-cluster">
+                    <button class="btn icon-btn" id="back10" title="10秒戻る">⟲</button>
+                    <button class="btn icon-btn" id="fwd10" title="10秒進む">⟳</button>
+                    <button class="btn icon-btn" id="pip" title="Picture in Picture">▣</button>
+                    <button class="btn icon-btn" id="videoFocus" type="button" title="映像フォーカス" aria-label="映像フォーカス" aria-pressed="false">▥</button>
+                    <button class="btn icon-btn" id="fullscreen" title="フルスクリーン">⛶</button>
+                  </div>
+                  <div class="module-line" aria-hidden="true"></div>
                 </div>
-                <input id="vol" type="range" min="0" max="1" step="0.01" />
-              </label>
-              <label class="slider-cell">
-                <div class="slider-head">
-                  <span class="slider-tag">SPD</span>
-                  <span class="badge readout" id="rateRead">100%</span>
-                </div>
-                <input id="rate" type="range" min="0.25" max="2" step="0.05" />
-              </label>
-              <label class="slider-cell">
-                <div class="slider-head">
-                  <span class="slider-tag">GAIN</span>
-                  <span class="badge readout" id="masterRead">100%</span>
-                </div>
-                <input id="master" type="range" min="0" max="2" step="0.01" value="1" title="Master gain (0–+6dB)" />
-              </label>
-              <label class="slider-cell">
-                <div class="slider-head">
-                  <span class="slider-tag">KEY</span>
-                  <span class="badge readout" id="mixKeyRead">0st</span>
-                </div>
-                <input id="mixKey" type="range" min="-6" max="6" step="1" value="0" title="Key shift (-6 to +6 semitones)" />
-              </label>
-            </div>
-          </section>
-          <section class="control-module loop-module" aria-label="A-Bループ">
-            <div class="module-head">
-              <div class="module-kicker">A-B</div>
-              <span class="module-chip" aria-hidden="true">A↔B</span>
-            </div>
-            <div class="loop-status">
-              <span id="abDisp" class="badge loop-badge">A:- B:-</span>
-              <span class="badge loop-badge" id="abLoopStat" title="A-Bリピート状態">AB Loop: OFF</span>
-            </div>
-            <div class="loop-actions">
-              <button class="btn ghost" id="setA" title="A点">A</button>
-              <button class="btn ghost" id="setB" title="B点">B</button>
-              <button class="btn ghost" id="clearAB" title="A-B解除">×</button>
-              <button class="btn ghost" id="toggleABLoop" title="A-Bループ">Loop</button>
-            </div>
-          </section>
+              </div>
+            </section>
+            <section class="control-module mix-module" aria-label="音量と速度とキー">
+              <div class="module-head">
+                <div class="module-kicker">MIX</div>
+                <span class="module-chip" aria-hidden="true">≈</span>
+              </div>
+              <div class="slider-stack">
+                <label class="slider-cell">
+                  <div class="slider-head">
+                    <span class="slider-tag">VOL</span>
+                    <span class="badge readout" id="volRead">90%</span>
+                  </div>
+                  <input id="vol" type="range" min="0" max="1" step="0.01" />
+                </label>
+                <label class="slider-cell">
+                  <div class="slider-head">
+                    <span class="slider-tag">SPD</span>
+                    <span class="badge readout" id="rateRead">100%</span>
+                  </div>
+                  <input id="rate" type="range" min="0.25" max="2" step="0.05" />
+                </label>
+                <label class="slider-cell">
+                  <div class="slider-head">
+                    <span class="slider-tag">GAIN</span>
+                    <span class="badge readout" id="masterRead">100%</span>
+                  </div>
+                  <input id="master" type="range" min="0" max="2" step="0.01" value="1" title="Master gain (0–+6dB)" />
+                </label>
+                <label class="slider-cell">
+                  <div class="slider-head">
+                    <span class="slider-tag">KEY</span>
+                    <span class="badge readout" id="mixKeyRead">0st</span>
+                  </div>
+                  <input id="mixKey" type="range" min="-6" max="6" step="1" value="0" title="Key shift (-6 to +6 semitones)" />
+                </label>
+              </div>
+            </section>
+            <section class="control-module loop-module" aria-label="A-Bループ">
+              <div class="module-head">
+                <div class="module-kicker">A-B</div>
+                <span class="module-chip" aria-hidden="true">A↔B</span>
+              </div>
+              <div class="loop-status">
+                <span id="abDisp" class="badge loop-badge">A:- B:-</span>
+                <span class="badge loop-badge" id="abLoopStat" title="A-Bリピート状態">AB Loop: OFF</span>
+              </div>
+              <div class="loop-actions">
+                <button class="btn ghost" id="setA" title="A点">A</button>
+                <button class="btn ghost" id="setB" title="B点">B</button>
+                <button class="btn ghost" id="clearAB" title="A-B解除">×</button>
+                <button class="btn ghost" id="toggleABLoop" title="A-Bループ">Loop</button>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
     </div>

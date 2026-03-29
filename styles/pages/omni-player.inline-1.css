@@ -142,6 +142,7 @@ html,body{height:100%}
   :root.light .badge{border-color:#d6dde8}
 
   main{grid-area:main;position:relative;z-index:1;display:grid;grid-template-rows:1fr auto;gap:.12rem;padding:.78rem .88rem .82rem;min-height:0;overflow:visible}
+  .focus-stage-stack{display:contents}
   .player-shell{
     position:relative;aspect-ratio:var(--app-stage-ratio-str);border-radius:var(--soft);overflow:visible;isolation:isolate;
     justify-self:center;align-self:stretch;width:auto;height:95%;max-width:100%;max-height:95%;min-height:0;
@@ -359,8 +360,8 @@ html,body{height:100%}
   body.app-bp-phone:not(.app-ratio-portrait) .settings-tabs .tab{flex:0 0 auto}
   body.app-video-focus{
     --focus-dock-estimate:clamp(118px, 18vh, 186px);
-    --focus-stage-width:min(100%, calc((100dvh - var(--focus-dock-estimate) - 20px) * var(--app-stage-ratio-n)), 1320px);
-    --focus-dock-width:min(100%, calc(100vw - 26px), 1120px);
+    --focus-stage-width:min(calc((100dvh - var(--focus-dock-estimate) - 24px) * var(--app-stage-ratio-n)), calc(100vw - 28px), 1320px);
+    --focus-stack-width:min(max(420px, var(--focus-stage-width)), calc(100vw - 28px), 1320px);
   }
   body.app-video-focus .app-stage{
     width:100vw;
@@ -383,12 +384,23 @@ html,body{height:100%}
     padding:.34rem .56rem .66rem;
     display:grid;
     grid-template-columns:minmax(0,1fr);
-    grid-template-rows:minmax(0,1fr) auto;
-    gap:.44rem;
+    grid-template-rows:1fr;
+    gap:0;
     justify-content:center;
     justify-items:center;
     align-items:center;
     align-content:center;
+  }
+  body.app-video-focus .focus-stage-stack{
+    display:grid;
+    width:min(var(--focus-stack-width), 100%);
+    max-width:100%;
+    grid-template-rows:minmax(0,1fr) auto;
+    gap:.44rem;
+    justify-items:center;
+    align-items:end;
+    align-content:center;
+    margin-inline:auto;
   }
   body.app-video-focus .player-shell{
     width:min(var(--focus-stage-width), 100%);
@@ -401,7 +413,7 @@ html,body{height:100%}
     margin-inline:auto;
   }
   body.app-video-focus .panel{
-    width:min(var(--focus-stage-width), var(--focus-dock-width));
+    width:100%;
     max-width:100%;
     align-self:end;
     justify-self:center;
@@ -597,6 +609,9 @@ html,body{height:100%}
   body.app-video-focus.app-bp-compact{
     --focus-dock-estimate:clamp(152px, 24vh, 232px);
   }
+  body.app-video-focus.app-ratio-portrait{
+    --focus-stack-width:min(max(420px, var(--focus-stage-width)), calc(100vw - 28px), 720px);
+  }
   body.app-video-focus.app-ratio-portrait .panel,
   body.app-video-focus.app-bp-compact .panel{width:100%}
   body.app-video-focus.app-ratio-portrait main,
@@ -604,9 +619,13 @@ html,body{height:100%}
     padding:.24rem .2rem .48rem;
     gap:.34rem;
   }
+  body.app-video-focus.app-ratio-portrait .focus-stage-stack,
+  body.app-video-focus.app-bp-compact .focus-stage-stack{
+    width:min(var(--focus-stack-width), 100%);
+  }
   body.app-video-focus.app-ratio-portrait .player-shell,
   body.app-video-focus.app-bp-compact .player-shell{
-    width:100%;
+    width:min(var(--focus-stage-width), 100%);
     max-height:calc(100dvh - var(--focus-dock-estimate) - 18px);
   }
   body.app-video-focus.app-ratio-portrait .control-dock,
