@@ -1,5 +1,5 @@
-/* OmniMedia SW v3.4 */
-const VERSION = 'v5.2.2-sw1';
+/* OmniMedia SW v5.3.0 */
+const VERSION = 'v5.3.0-sw1';
 const CORE = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const CORE = [
   './README.md',
   './omni-player.html',
   './omni-player-mini.html',
+  './omni-player-legacy.html',
   './assets/pwa/manifest.webmanifest',
   './assets/pwa/omni-player.webmanifest',
   './assets/pwa/omni-player-mini.webmanifest',
@@ -19,11 +20,18 @@ const CORE = [
   './assets/pwa/icon.svg',
   './assets/pwa/thumb-pc.svg',
   './assets/pwa/thumb-touch.svg',
+  './styles/pages/landing.inline-1.css',
+  './scripts/pages/landing.inline-2.js',
   './styles/pages/readme.inline-1.css',
   './scripts/pages/readme.inline-1.js',
   './scripts/app/omni-playback-core.js',
   './styles/pages/omni-player.inline-1.css',
   './scripts/pages/omni-player.inline-1.js',
+  './styles/pages/omni-player-mini.inline-1.css',
+  './scripts/pages/omni-player-mini.inline-4.js',
+  './scripts/plugins/microfade-anim-tweaks.plugin.js',
+  './styles/pages/omni-player-legacy.inline-1.css',
+  './scripts/pages/omni-player-legacy.inline-1.js',
   './styles/plugins/op-anim-pack.css',
   './scripts/plugins/op-anim-pack.js',
   './styles/plugins/op-fun-pack.css',

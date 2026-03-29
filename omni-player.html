@@ -121,7 +121,7 @@
 
 <!-- === ここまで：別ファイル群 === -->
 
-<link rel="stylesheet" href="./styles/pages/omni-player.inline-1.css?v=v5.2.2-fvf2">
+<link rel="stylesheet" href="./styles/pages/omni-player.inline-1.css?v=v5.3.0-fvf1">
 </head>
 <body>
 <!-- 起動時スプラッシュ -->
@@ -176,7 +176,7 @@
     <button class="btn ghost icon-btn" id="btnSettings" style="margin-left:.35rem" title="詳細設定（字幕・スペクトラム・EQ・アニメーション）">⚙</button>
     <button class="btn ghost icon-btn" id="btnHelp" style="margin-left:.35rem" title="ショートカット一覧（?）">?</button>
     <span class="badge" id="pwaBadge" hidden>PWA</span>
-<span class="badge" title="version">v5.2.2</span>
+<span class="badge" title="version">v5.3.0</span>
   </header>
 
   <aside>
@@ -337,6 +337,70 @@
       </div>
       </div>
       <div class="panel">
+        <div class="focus-mini-bar" id="focusMiniBar" hidden>
+          <div class="ctrl-top">
+            <div class="left-group">
+              <button class="btn" id="focusBtnPlay" type="button" title="再生 / 一時停止">▶</button>
+              <button class="btn ghost" id="focusBtnBack10" type="button" title="10秒戻る">-10s</button>
+              <button class="btn ghost" id="focusBtnFwd10" type="button" title="10秒進む">+10s</button>
+              <button class="btn ghost" id="focusBtnSetA" type="button" title="A点">A</button>
+              <button class="btn ghost" id="focusBtnSetB" type="button" title="B点">B</button>
+              <button class="btn ghost" id="focusBtnToggleAB" type="button" title="A-Bループ">Loop</button>
+              <span class="badge" id="focusStateBadge">IDLE</span>
+              <span class="badge" id="focusBadgeBpm">--</span>
+            </div>
+            <div class="right-group">
+              <span class="badge" id="focusBadgeAb">A:- B:-</span>
+              <button class="btn ghost" id="focusBtnClearAB" type="button" title="A-B解除">×</button>
+              <button class="btn ghost" id="focusBtnPip" type="button" title="Picture in Picture">PiP</button>
+              <button class="btn ghost" id="focusBtnVideoFocus" type="button" title="映像フォーカス">Focus</button>
+              <button class="btn ghost" id="focusBtnFullscreen" type="button" title="フルスクリーン">FS</button>
+            </div>
+          </div>
+          <div class="ctrl-bottom">
+            <div class="seek" id="focusSeekWrap">
+              <span class="time" id="focusCur">0:00</span>
+              <input id="focusSeekRange" type="range" min="0" max="1000" step="1" value="0" />
+              <span class="time" id="focusDur">0:00</span>
+            </div>
+            <div class="mini-meta" aria-live="polite">
+              <div class="mini-artwrap" id="focusMetaArtWrap">
+                <img id="focusMetaArt" alt="" />
+              </div>
+              <div class="mini-meta-text">
+                <div class="mini-title" id="focusMetaTitle">No media loaded</div>
+                <div class="mini-subline">
+                  <span id="focusMetaSource">IDLE</span>
+                  <span id="focusMetaKind">MEDIA</span>
+                  <span id="focusMetaQueue">Single</span>
+                </div>
+              </div>
+            </div>
+            <div class="spacer"></div>
+            <div class="sliders">
+              <label class="slider-stat slider-stat-range">
+                <span class="lab">VOL</span>
+                <input id="focusVol" type="range" min="0" max="1" step="0.01" value="0.9" />
+                <span class="readout" id="focusVolRead">90%</span>
+              </label>
+              <label class="slider-stat slider-stat-range">
+                <span class="lab">SPD</span>
+                <input id="focusRate" type="range" min="0.25" max="2" step="0.05" value="1" />
+                <span class="readout" id="focusRateRead">100%</span>
+              </label>
+              <label class="slider-stat slider-stat-range">
+                <span class="lab">GAIN</span>
+                <input id="focusMaster" type="range" min="0" max="2" step="0.01" value="1" />
+                <span class="readout" id="focusMasterRead">100%</span>
+              </label>
+              <label class="slider-stat slider-stat-range">
+                <span class="lab">KEY</span>
+                <input id="focusKey" type="range" min="-6" max="6" step="1" value="0" />
+                <span class="readout" id="focusKeyRead">0st</span>
+              </label>
+            </div>
+          </div>
+        </div>
         <div class="control-dock">
           <div class="ctrl ctrl-dock">
             <section class="control-module transport-module" aria-label="再生コントロール">
@@ -725,8 +789,8 @@
   </div>
 </div>
 
-<script src="./scripts/app/omni-playback-core.js?v=v5.2.2-sw1"></script>
-<script src="./scripts/pages/omni-player.inline-1.js?v=v5.2.2-sw1"></script>
+<script src="./scripts/app/omni-playback-core.js?v=v5.3.0-sw1"></script>
+<script src="./scripts/pages/omni-player.inline-1.js?v=v5.3.0-fvf1"></script>
 </body>
 </html>
 

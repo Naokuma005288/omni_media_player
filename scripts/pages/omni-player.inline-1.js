@@ -24,6 +24,15 @@ const $={
   volRead:qs('#volRead'),rateRead:qs('#rateRead'),masterRead:qs('#masterRead'),mixKeyRead:qs('#mixKeyRead'),
   play:qs('#play'),back10:qs('#back10'),fwd10:qs('#fwd10'),pip:qs('#pip'),videoFocus:qs('#videoFocus'), fullscreen:qs('#fullscreen'),
   setA:qs('#setA'),setB:qs('#setB'),clearAB:qs('#clearAB'),abDisp:qs('#abDisp'),toggleABLoop:qs('#toggleABLoop'),abLoopStat:qs('#abLoopStat'),
+  focusMiniBar:qs('#focusMiniBar'),focusBtnPlay:qs('#focusBtnPlay'),focusBtnBack10:qs('#focusBtnBack10'),focusBtnFwd10:qs('#focusBtnFwd10'),
+  focusBtnSetA:qs('#focusBtnSetA'),focusBtnSetB:qs('#focusBtnSetB'),focusBtnToggleAB:qs('#focusBtnToggleAB'),focusBtnClearAB:qs('#focusBtnClearAB'),
+  focusBtnPip:qs('#focusBtnPip'),focusBtnVideoFocus:qs('#focusBtnVideoFocus'),focusBtnFullscreen:qs('#focusBtnFullscreen'),
+  focusStateBadge:qs('#focusStateBadge'),focusBadgeBpm:qs('#focusBadgeBpm'),focusBadgeAb:qs('#focusBadgeAb'),
+  focusSeekWrap:qs('#focusSeekWrap'),focusSeekRange:qs('#focusSeekRange'),focusCur:qs('#focusCur'),focusDur:qs('#focusDur'),
+  focusMetaArtWrap:qs('#focusMetaArtWrap'),focusMetaArt:qs('#focusMetaArt'),focusMetaTitle:qs('#focusMetaTitle'),
+  focusMetaSource:qs('#focusMetaSource'),focusMetaKind:qs('#focusMetaKind'),focusMetaQueue:qs('#focusMetaQueue'),
+  focusVol:qs('#focusVol'),focusVolRead:qs('#focusVolRead'),focusRate:qs('#focusRate'),focusRateRead:qs('#focusRateRead'),
+  focusMaster:qs('#focusMaster'),focusMasterRead:qs('#focusMasterRead'),focusKey:qs('#focusKey'),focusKeyRead:qs('#focusKeyRead'),
   playlist:qs('#playlist'),btnClear:qs('#btnClear'),btnShuffle:qs('#btnShuffle'),dropMode:qs('#dropMode'),contPlay:qs('#contPlay'),
   helpBtn:qs('#btnHelp'),help:qs('#kbdHelp'),
   ratioAlert:qs('#ratioAlert'),ratioAlertClose:qs('#ratioAlertClose'),ratioAlertNever:qs('#ratioAlertNever'),
@@ -340,6 +349,159 @@ function updateSliderReadouts(){
   if($.rateRead) $.rateRead.textContent = pct($.rate?.value);
   if($.masterRead) $.masterRead.textContent = pct($.master?.value);
   updateMixKeyReadout();
+  syncFocusMiniSliderReadouts();
+}
+function currentFocusMetaTitle(){
+  const item=state.list?.[state.cur];
+  return (
+    (($.audioTitle?.textContent)||'').trim() ||
+    item?.title ||
+    item?.file?.name ||
+    item?.url ||
+    'No media loaded'
+  );
+}
+function currentFocusMetaSource(){
+  const item=state.list?.[state.cur];
+  if(state.usingYouTube) return 'YOUTUBE';
+  if(state.usingIframe) return 'EMBED';
+  if(item?.url) return /\.m3u8($|\?)/i.test(item.url) ? 'HLS' : 'URL';
+  if(item?.file) return 'LOCAL';
+  return state.mediaKind === 'html5' ? 'LOCAL' : 'IDLE';
+}
+function currentFocusMetaKind(){
+  if(state.usingYouTube) return 'YOUTUBE';
+  if(state.usingIframe) return 'IFRAME';
+  if(state.mediaKind !== 'html5') return 'MEDIA';
+  return currentHtml5IsAudio() ? 'AUDIO' : 'VIDEO';
+}
+function currentFocusMetaQueue(){
+  const total=state.list?.length||0;
+  if(total <= 1 || state.cur < 0) return 'Single';
+  return `${state.cur+1}/${total}`;
+}
+function syncFocusMiniSliderReadouts(){
+  if($.focusVol){
+    $.focusVol.value = String($.vol?.value ?? $.focusVol.value ?? 0.9);
+    $.focusVolRead.textContent = $.volRead?.textContent || pct($.vol?.value);
+  }
+  if($.focusRate){
+    $.focusRate.value = String($.rate?.value ?? $.focusRate.value ?? 1);
+    $.focusRateRead.textContent = $.rateRead?.textContent || pct($.rate?.value);
+  }
+  if($.focusMaster){
+    $.focusMaster.value = String($.master?.value ?? $.focusMaster.value ?? 1);
+    $.focusMasterRead.textContent = $.masterRead?.textContent || pct($.master?.value);
+  }
+  if($.focusKey){
+    $.focusKey.value = String($.mixKey?.value ?? $.focusKey.value ?? 0);
+    $.focusKeyRead.textContent = $.mixKeyRead?.textContent || '0st';
+  }
+}
+function syncFocusMiniSeek(){
+  if(!$.focusSeekRange) return;
+  const cur=mediaCurrent()||0;
+  const dur=mediaDuration()||0;
+  if($.focusCur) $.focusCur.textContent=fmt(cur);
+  if($.focusDur) $.focusDur.textContent=dur>0 ? fmt(dur) : '0:00';
+  if(!state.focusSeekDragging){
+    const p=dur>0 ? Math.round(clampValue(cur/dur, 0, 1)*1000) : 0;
+    $.focusSeekRange.value=String(p);
+  }
+  if($.focusSeekWrap){
+    const aPct=(state.a!=null && dur>0) ? `${clampValue(state.a/dur,0,1)*100}%` : '0%';
+    const bPct=(state.b!=null && dur>0) ? `${clampValue(state.b/dur,0,1)*100}%` : '0%';
+    $.focusSeekWrap.style.setProperty('--abA', aPct);
+    $.focusSeekWrap.style.setProperty('--abB', bPct);
+    if(state.mediaKind==='html5' && !state.usingYouTube && !state.usingIframe){
+      try{
+        const buf=$.v.buffered; let end=0;
+        for(let i=0;i<buf.length;i++) end=Math.max(end, buf.end(i)||0);
+        const b=(dur>0)? (end/dur*100).toFixed(1)+'%':'0%';
+        $.focusSeekWrap.style.setProperty('--buf', b);
+        $.focusSeekWrap.dataset.buffer=b;
+      }catch(e){}
+    }else{
+      delete $.focusSeekWrap.dataset.buffer;
+      $.focusSeekWrap.style.removeProperty('--buf');
+    }
+  }
+}
+function syncFocusMiniMeta(){
+  if(!$.focusMetaTitle) return;
+  $.focusMetaTitle.textContent=currentFocusMetaTitle();
+  if($.focusMetaSource) $.focusMetaSource.textContent=currentFocusMetaSource();
+  if($.focusMetaKind) $.focusMetaKind.textContent=currentFocusMetaKind();
+  if($.focusMetaQueue) $.focusMetaQueue.textContent=currentFocusMetaQueue();
+  const item=state.list?.[state.cur];
+  const artSrc=$.audioCover?.getAttribute('src') || getItemThumb?.(item) || state.lastCoverUrl || '';
+  if($.focusMetaArtWrap && $.focusMetaArt){
+    if(artSrc){
+      $.focusMetaArtWrap.classList.add('has-art');
+      if($.focusMetaArt.getAttribute('src') !== artSrc) $.focusMetaArt.src=artSrc;
+    }else{
+      $.focusMetaArtWrap.classList.remove('has-art');
+      $.focusMetaArt.removeAttribute('src');
+    }
+  }
+}
+function syncFocusMiniControls(){
+  if($.focusMiniBar) $.focusMiniBar.hidden = !state.videoFocus;
+  if($.focusBtnPlay){
+    const paused=mediaPaused();
+    $.focusBtnPlay.textContent = paused ? '▶' : '❚❚';
+    $.focusBtnPlay.title = paused ? '再生' : '一時停止';
+  }
+  if($.focusStateBadge) $.focusStateBadge.textContent = mediaPaused() ? 'PAUSE' : 'PLAY';
+  if($.focusBadgeBpm) $.focusBadgeBpm.textContent = $.bpmDock?.textContent || '--';
+  if($.focusBadgeAb) $.focusBadgeAb.textContent = $.abDisp?.textContent || 'A:- B:-';
+  if($.focusBtnToggleAB){
+    $.focusBtnToggleAB.classList.toggle('active', !!state.abLoop);
+    $.focusBtnToggleAB.textContent = state.abLoop ? 'Loop On' : 'Loop';
+    $.focusBtnToggleAB.disabled = !!$.toggleABLoop?.disabled;
+  }
+  if($.focusBtnSetA) $.focusBtnSetA.disabled = !!$.setA?.disabled;
+  if($.focusBtnSetB) $.focusBtnSetB.disabled = !!$.setB?.disabled;
+  if($.focusBtnClearAB) $.focusBtnClearAB.disabled = !!$.clearAB?.disabled;
+  if($.focusBtnPip) $.focusBtnPip.disabled = !!$.pip?.disabled;
+  if($.focusBtnFullscreen) $.focusBtnFullscreen.disabled = !!$.fullscreen?.disabled;
+  if($.focusBtnVideoFocus) $.focusBtnVideoFocus.classList.toggle('active', !!state.videoFocus);
+}
+function syncFocusMiniBar(){
+  syncFocusMiniControls();
+  syncFocusMiniMeta();
+  syncFocusMiniSliderReadouts();
+  syncFocusMiniSeek();
+}
+function clearFocusMiniUiTimer(){
+  if(state.focusUiHideTimer){
+    clearTimeout(state.focusUiHideTimer);
+    state.focusUiHideTimer=0;
+  }
+}
+function isFocusMiniUiPinned(){
+  return !!(
+    state.focusSeekDragging ||
+    $.settings?.style.display==='flex' ||
+    $.help?.style.display==='flex'
+  );
+}
+function showFocusMiniUi(){
+  if(!$.focusMiniBar) return;
+  $.focusMiniBar.classList.remove('is-hidden');
+}
+function hideFocusMiniUi(force=false){
+  if(!$.focusMiniBar || $.focusMiniBar.hidden) return;
+  if(!force && (!state.videoFocus || mediaPaused() || isFocusMiniUiPinned())) return;
+  $.focusMiniBar.classList.add('is-hidden');
+}
+function bumpFocusMiniUi(){
+  if(!state.videoFocus || !$.focusMiniBar) return;
+  showFocusMiniUi();
+  clearFocusMiniUiTimer();
+  if(!mediaPaused() && !isFocusMiniUiPinned()){
+    state.focusUiHideTimer=setTimeout(()=>hideFocusMiniUi(), state.focusUiAutoHideMs||2200);
+  }
 }
 const APP_ASPECTS = {
   '16:9': { n:16/9, ratio:'16 / 9', layout:'standard' },
@@ -1658,21 +1820,30 @@ function updateVideoFocusLayout(){
   const root=document.documentElement;
   const panel=qs('main .panel');
   const compact=!!(document.body.classList.contains('app-bp-compact') || document.body.classList.contains('app-ratio-portrait'));
-  const ratioN=getVideoFocusMediaRatio();
-  const horizontalPad=compact ? 12 : 28;
-  const verticalPad=compact ? 18 : 28;
-  const gap=compact ? 10 : 14;
+  const mediaRatio=getVideoFocusMediaRatio();
+  const isAudio=currentHtml5IsAudio();
+  const shellRatio=isAudio
+    ? Math.max(mediaRatio, compact ? 1.22 : 2.18)
+    : clampValue(Math.max(mediaRatio * (compact ? 1.04 : 1.08), compact ? 1.06 : 1.34), compact ? 1.32 : 1.82);
+  const horizontalPad=compact ? 2 : 0;
+  const verticalPad=compact ? 2 : 0;
   const panelRect=panel?.getBoundingClientRect?.();
-  const panelHeight=Math.max(compact ? 154 : 112, Math.ceil(panelRect?.height || 0));
+  const panelHeight=Math.max(compact ? 128 : 104, Math.ceil(panelRect?.height || 0));
   const availableW=Math.max(280, window.innerWidth - horizontalPad);
-  const availableH=Math.max(180, window.innerHeight - panelHeight - gap - verticalPad);
-  let stageW=Math.min(availableW, Math.round(availableH * ratioN));
-  if(currentHtml5IsAudio()){
-    const audioTarget=Math.round(Math.min(availableW, availableH) * (compact ? 0.96 : 0.92));
-    stageW=Math.max(stageW, Math.max(320, audioTarget));
+  const availableH=Math.max(180, window.innerHeight - verticalPad);
+  let stageW=Math.min(availableW, Math.round(availableH * shellRatio * (compact ? 1.16 : 1.42)));
+  if(isAudio){
+    const audioTarget=Math.round(Math.min(availableW, availableH * shellRatio) * (compact ? 1.22 : 1.48));
+    stageW=Math.max(stageW, Math.max(360, audioTarget));
+  }else if(!compact){
+    const videoTarget=Math.round(Math.min(availableW, availableH * shellRatio) * 1.18);
+    stageW=Math.max(stageW, Math.max(420, videoTarget));
   }
-  root.style.setProperty('--focus-media-ratio-n', String(ratioN));
-  root.style.setProperty('--focus-media-ratio-str', String(ratioN));
+  const fitRatio=Math.max(shellRatio / Math.max(mediaRatio, 0.01), Math.max(mediaRatio, 0.01) / Math.max(shellRatio, 0.01));
+  const embedScale=isAudio ? 1 : clampValue(fitRatio * (compact ? 1.02 : 1.04), 1.02, compact ? 1.16 : 1.22);
+  root.style.setProperty('--focus-media-ratio-n', String(shellRatio));
+  root.style.setProperty('--focus-media-ratio-str', String(shellRatio));
+  root.style.setProperty('--focus-embed-scale', String(embedScale));
   root.style.setProperty('--focus-dock-height', `${panelHeight}px`);
   root.style.setProperty('--focus-stage-max-height', `${Math.max(180, availableH)}px`);
   root.style.setProperty('--focus-stage-width', `${Math.max(280, Math.min(availableW, stageW))}px`);
@@ -1700,6 +1871,14 @@ function setVideoFocusMode(on, options={}){
     $.videoFocus.setAttribute('aria-label', title);
   }
   if(persist) store.set('pc.videoFocus', next);
+  syncFocusMiniBar();
+  if(next){
+    showFocusMiniUi();
+    bumpFocusMiniUi();
+  }else{
+    clearFocusMiniUiTimer();
+    showFocusMiniUi();
+  }
   scheduleVideoFocusLayout();
 }
 function setSettingsTab(tab){
@@ -1758,6 +1937,7 @@ function syncMediaControlAvailability(){
   [$.srt,$.unloadSub,$.subSearch,$.btnSubSearch].forEach(el=>{ if(el) el.disabled = !isHtml5; });
   if($.rate) $.rate.disabled = isIframeMode;
   if($.vol) $.vol.disabled = isIframeMode;
+  syncFocusMiniControls();
 }
 function applyCurrentMediaTunables(){
   const vol = Math.max(0, Math.min(1, +($.vol?.value || 0)));
@@ -1791,6 +1971,7 @@ function syncMediaPresentation(){
   updateSpectrumVisibility();
   syncMediaControlAvailability();
   enforceBackdropPolicy();
+  syncFocusMiniMeta();
   scheduleVideoFocusLayout();
 }
 function setMediaMode(kind, extra={}){
@@ -1882,6 +2063,9 @@ const state={
   subCues:[],
   contPlay: store.get('pc.contPlay', true),
   videoFocus: store.get('pc.videoFocus', false),
+  focusSeekDragging:false,
+  focusUiHideTimer:0,
+  focusUiAutoHideMs:2200,
   bpm:{
     current:0, confidence:0, pulse:0, lastBeatAt:0, detectedAt:0,
     envelope:0, baseline:0, deviation:0, prev:0, onsets:[],
@@ -1916,7 +2100,17 @@ const state={
   // interactivity handles
   _coverTiltOn:false,_cardParallaxOn:false
 };
-function setPlayingUI(on){ document.body.classList.toggle('is-playing', !!on) }
+function setPlayingUI(on){
+  document.body.classList.toggle('is-playing', !!on);
+  syncFocusMiniControls();
+  if(state.videoFocus){
+    if(on) bumpFocusMiniUi();
+    else{
+      clearFocusMiniUiTimer();
+      showFocusMiniUi();
+    }
+  }
+}
 
 // Plugins are written against globals, so keep the page state in sync there too.
 window.$ = $;
@@ -3171,6 +3365,7 @@ function clearAudioMeta(){
   state.lastCoverUrl=null;
   setMediaArtwork([]);
   $.bgArt.style.backgroundImage='none'; $.bgArt.classList.remove('show');
+  syncFocusMiniMeta();
 }
 function updateAudioMetaVisibility(){ $.audioInfo.style.display = (state.isAudioOnly && !state.usingYouTube && !state.usingIframe) ? 'flex' : 'none' }
 function sniffImageMime(u8){ if(!u8||!u8.length) return 'image/jpeg'; if(u8[0]===0xFF&&u8[1]===0xD8&&u8[2]===0xFF) return 'image/jpeg'; if(u8[0]===0x89&&u8[1]===0x50&&u8[2]===0x4E&&u8[3]===0x47) return 'image/png'; if(u8[0]===0x47&&u8[1]===0x49&&u8[2]===0x46&&u8[3]===0x38) return 'image/gif'; return 'image/jpeg' }
@@ -5208,6 +5403,7 @@ function setAudioMetaView(meta,fallback){
 
   $.audioTitle.textContent=title;
   $.audioSub.textContent=sub;
+  syncFocusMiniMeta();
 }
 async function handleAudioMetaForFile(file,item=null){
   clearAudioMeta();
@@ -5818,7 +6014,7 @@ async function buildThumbs(){
     }
   }
 }
-function updateSeekUI(){ const dur=mediaDuration(), cur=mediaCurrent(); if(dur<=0) return; const p=100*(cur/dur); $.seekProg.style.width=p+'%'; $.seekThumb.style.left=p+'%'; $.seek.setAttribute('aria-valuenow',String(Math.round(p))) }
+function updateSeekUI(){ const dur=mediaDuration(), cur=mediaCurrent(); if(dur<=0){ syncFocusMiniSeek(); return } const p=100*(cur/dur); $.seekProg.style.width=p+'%'; $.seekThumb.style.left=p+'%'; $.seek.setAttribute('aria-valuenow',String(Math.round(p))); syncFocusMiniSeek() }
 function startSeekRAF(){ cancelAnimationFrame(state.seekRAF); const draw=()=>{ state.seekRAF=requestAnimationFrame(draw); updateSeekUI(); const cur=mediaCurrent(); syncAmbientFromThumbTime(cur); syncVideoEdgeGlow(); updateAutoDjState(); updateMetronomeScheduler(); if(state.abLoop && state.a!=null && state.b!=null && state.b>state.a){ if(cur>=state.b-0.02){ mediaSeekTo(state.a) } } }; state.seekRAF=requestAnimationFrame(draw) }
 startSeekRAF();
 function seekFromClientX(x){ const rect=$.seek.getBoundingClientRect(); const ratio=Math.min(1,Math.max(0,(x-rect.left)/rect.width)); mediaSeekTo((mediaDuration()||0)*ratio); rampTo(+($.master?.value||1),0.06) }
@@ -5894,6 +6090,7 @@ $.fullscreen.onclick=()=>{
 $.videoFocus?.addEventListener('click',()=>{ setVideoFocusMode(!state.videoFocus) });
 
 document.addEventListener('keydown',(e)=>{
+  if(state.videoFocus) bumpFocusMiniUi();
   if(e.key===' '){ e.preventDefault(); $.play.click() }
   if(e.key==='ArrowLeft') $.back10.click();
   if(e.key==='ArrowRight') $.fwd10.click();
@@ -5940,6 +6137,69 @@ $.settings?.addEventListener('click',(e)=>{ if(e.target===$.settings) $.settings
   $.seek.addEventListener('touchend',()=>{ dragging=false; $.seekPrev.style.display='none' });
   $.seek.addEventListener('mousemove',(e)=>{ if(!dragging) onMove(e.clientX) });
   $.seek.addEventListener('mouseleave',()=>{ if(!dragging) $.seekPrev.style.display='none' });
+})();
+
+/* ========= focus mini bar ========= */
+;(() => {
+  const clickMap = [
+    ['focusBtnPlay','play'],
+    ['focusBtnBack10','back10'],
+    ['focusBtnFwd10','fwd10'],
+    ['focusBtnSetA','setA'],
+    ['focusBtnSetB','setB'],
+    ['focusBtnToggleAB','toggleABLoop'],
+    ['focusBtnClearAB','clearAB'],
+    ['focusBtnPip','pip'],
+    ['focusBtnVideoFocus','videoFocus'],
+    ['focusBtnFullscreen','fullscreen']
+  ];
+  clickMap.forEach(([focusKey, baseKey])=>{
+    const focusEl=$[focusKey], baseEl=$[baseKey];
+    if(!focusEl || !baseEl) return;
+    focusEl.addEventListener('click',()=>baseEl.click());
+  });
+  const mirrorRange=(focusEl, baseEl, eventName='input')=>{
+    if(!focusEl || !baseEl) return;
+    focusEl.addEventListener('input',()=>{
+      baseEl.value = focusEl.value;
+      baseEl.dispatchEvent(new Event(eventName, { bubbles:true }));
+      syncFocusMiniSliderReadouts();
+    });
+    focusEl.addEventListener('change',()=>{
+      baseEl.value = focusEl.value;
+      baseEl.dispatchEvent(new Event(eventName, { bubbles:true }));
+      syncFocusMiniSliderReadouts();
+    });
+  };
+  mirrorRange($.focusVol, $.vol);
+  mirrorRange($.focusRate, $.rate);
+  mirrorRange($.focusMaster, $.master);
+  mirrorRange($.focusKey, $.mixKey);
+  if($.focusSeekRange){
+    const startDrag=()=>{ state.focusSeekDragging=true; syncFocusMiniSeek(); };
+    const endDrag=()=>{ state.focusSeekDragging=false; syncFocusMiniSeek(); bumpFocusMiniUi(); };
+    $.focusSeekRange.addEventListener('input',()=>{
+      const dur=mediaDuration()||0;
+      const p=+($.focusSeekRange.value||0)/1000;
+      if($.focusCur) $.focusCur.textContent=fmt(dur*p);
+      bumpFocusMiniUi();
+    });
+    $.focusSeekRange.addEventListener('change',()=>{
+      const dur=mediaDuration()||0;
+      const p=+($.focusSeekRange.value||0)/1000;
+      mediaSeekTo(dur*p);
+      endDrag();
+    });
+    $.focusSeekRange.addEventListener('mousedown', startDrag);
+    $.focusSeekRange.addEventListener('mouseup', endDrag);
+    $.focusSeekRange.addEventListener('touchstart', startDrag, { passive:true });
+    $.focusSeekRange.addEventListener('touchend', endDrag);
+  }
+  const focusWake=()=>{ if(state.videoFocus) bumpFocusMiniUi(); };
+  ['mousemove','mousedown','touchstart','pointerdown'].forEach(ev=>{
+    $.shell?.addEventListener(ev, focusWake, { passive:true });
+    $.focusMiniBar?.addEventListener(ev, focusWake, { passive:true });
+  });
 })();
 
 /* ========= playlist ========= */
@@ -6011,6 +6271,7 @@ function renderPlaylist(){
     });
     $.playlist.appendChild(el);
   });
+  syncFocusMiniMeta();
 }
 function warmupPlaylistThumbs(items){
   items.filter(it=>it?.file).forEach(it=>{
@@ -6611,6 +6872,7 @@ function applyPresetStd(){ $.subPreset.value='std'; applySubStylePreset('std') }
 applyPresetStd();
 renderPlaylist();
 startSeekRAF();
+syncFocusMiniBar();
 initCanvasHud();
 
 /* ========= メニュー/検索/EQ ========= */

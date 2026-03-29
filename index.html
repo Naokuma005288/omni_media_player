@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>OmniMedia – Landing v5.2.2</title>
+<title>OmniMedia – Landing v5.3.0</title>
 <meta name="theme-color" content="#0b0e12" id="themeColorMeta">
 
 <link rel="stylesheet" href="./styles/pages/landing.inline-1.css">
@@ -18,7 +18,7 @@
 <!-- Splash -->
 <div id="splash" aria-hidden="true">
   <div class="s-logo"><div class="mark"></div><div>OmniMedia</div></div>
-      <div class="s-sub">Landing v5.2.2</div>
+      <div class="s-sub">Landing v5.3.0</div>
   <div class="s-orbit"></div><div class="s-ring"></div>
   <div id="sProgress" class="s-progress" aria-hidden="true"><span class="bar"></span></div>
 </div>
@@ -36,7 +36,7 @@
     <div class="brand">
       <div class="logo" aria-hidden="true"></div>
       <h1 id="title" class="shimmer" data-i18n="landingTitle">OmniMedia – Landing</h1>
-        <span class="version">v5.2.2</span>
+        <span class="version">v5.3.0</span>
       <span id="netBadge" class="badge">Online</span>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;z-index:20">
@@ -312,14 +312,14 @@
 
 <div class="modal" id="releaseModal" aria-hidden="true">
   <div class="card-modal soon-modal release-modal" role="dialog" aria-modal="true" aria-labelledby="releaseTitle">
-    <span class="release-chip">v5.2.2</span>
-    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v5.2.2</h3>
-    <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The v5.2.2 release centers the normal-player video focus layout and redesigns the bottom control dock into a more compact, usable strip.</p>
+    <span class="release-chip">v5.3.0</span>
+    <h3 id="releaseTitle" data-i18n="releaseTitle">What is new in v5.3.0</h3>
+    <p class="modal-lead" id="releaseLead" data-i18n="releaseLead">The v5.3.0 release rebuilds normal-player video focus into a mini-style overlay UI with no black bars and idle auto-hide.</p>
     <div class="soon-points" id="releasePoints">
-      <div class="point" data-i18n="releasePoint1">The normal player's video focus mode now centers the stage and control panel instead of leaving them biased to one side.</div>
-      <div class="point" data-i18n="releasePoint2">The bottom control dock has been rebuilt for focus mode with tighter transport controls, denser utility buttons, and a more compact slider layout.</div>
-      <div class="point" data-i18n="releasePoint3">The dock still stays visible, so the player remains operable without leaving video focus.</div>
-      <div class="point" data-i18n="releasePoint4">Ambient light and other video-reactive effects remain active, and portrait or compact widths automatically collapse to a single column.</div>
+      <div class="point" data-i18n="releasePoint1">Video focus now uses a mini-style two-row overlay bar that sits on top of the picture instead of reserving space below it.</div>
+      <div class="point" data-i18n="releasePoint2">The focus bar is now near-transparent glass and automatically hides after a short idle period while playback continues.</div>
+      <div class="point" data-i18n="releasePoint3">Focused video switches to a no-black-bar presentation, so the stage stays filled while controls appear only when needed.</div>
+      <div class="point" data-i18n="releasePoint4">The service worker cache version and precache list were updated so landing, mini, and legacy assets refresh more reliably.</div>
     </div>
     <div class="release-actions">
       <button class="btn" id="releaseHideForever" data-i18n="releaseHideForever">Do not show again</button>
